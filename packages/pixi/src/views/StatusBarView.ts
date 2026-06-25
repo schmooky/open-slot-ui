@@ -34,7 +34,9 @@ export class StatusBarView extends Container {
     private readonly side: StatusBarSide,
   ) {
     super();
-    this.zIndex = 60;
+    // Above every overlay (menu 120 / dialog 130 / drawer 200) so the compliance
+    // readouts stay visible at all times — even with a modal open (Charter P10).
+    this.zIndex = 300;
     this.addChild(this.bg);
     for (const c of controls) {
       const view = new ReadoutView(c, ui, ticker, { inline: true, mono: true });

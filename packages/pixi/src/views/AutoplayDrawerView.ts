@@ -5,8 +5,7 @@ import { type AutoplayControl, type OpenUI, type ScreenState } from '@open-ui/co
 const WHITE = 0xffffff;
 const BLACK = 0x0a0a0a;
 const DARK = 0x0c0d10;
-const CHIP = 0x1b1d22;
-const LINE = 0x4a4f57;
+const CHIP = 0x23262c;
 const DIM = 0x9aa0a6;
 
 interface Chip {
@@ -177,14 +176,15 @@ export class AutoplayDrawerView extends Container {
     const startW = Math.min(W - 48 * k, 320 * k);
     const startH = 58 * k;
     const startY = y + 4 * k + startH / 2;
-    this.startBg.clear().roundRect(-startW / 2, -startH / 2, startW, startH, startH / 2).fill({ color: WHITE });
+    this.startBg.clear().rect(-startW / 2, -startH / 2, startW, startH).fill({ color: WHITE });
     this.startLabel.style.fontSize = 24 * k;
     this.startBtn.position.set(W / 2, startY);
     this.startBtn.hitArea = new Rectangle(-startW / 2, -startH / 2, startW, startH);
 
     this.sheetH = startY + startH / 2 + 20 * k;
-    this.sheetBg.clear().roundRect(0, 0, W, this.sheetH + 40, 28 * k).fill({ color: DARK }).stroke({ width: 2, color: LINE });
-    this.handle.clear().roundRect(W / 2 - 32 * k, 12 * k, 64 * k, 6 * k, 3 * k).fill({ color: DIM });
+    // flat, square, borderless sheet (no rounded corners / stroke)
+    this.sheetBg.clear().rect(0, 0, W, this.sheetH + 40).fill({ color: DARK });
+    this.handle.clear().rect(W / 2 - 30 * k, 13 * k, 60 * k, 5 * k).fill({ color: DIM });
 
     this.render2();
   }
@@ -196,9 +196,8 @@ export class AutoplayDrawerView extends Container {
     g.chips.forEach((chip, idx) => {
       const on = idx === g.selected;
       chip.bg.clear()
-        .roundRect(-cw / 2, -ch / 2, cw, ch, 14 * k)
-        .fill({ color: on ? WHITE : CHIP })
-        .stroke({ width: 2, color: on ? WHITE : LINE });
+        .rect(-cw / 2, -ch / 2, cw, ch)
+        .fill({ color: on ? WHITE : CHIP });
       chip.label.style.fill = on ? BLACK : WHITE;
     });
   }

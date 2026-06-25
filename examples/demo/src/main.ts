@@ -1,5 +1,5 @@
 import { Application, Assets, Container, Graphics, Rectangle, Texture } from 'pixi.js';
-import { mountHud, svgSpinSkin } from '@open-ui/pixi';
+import { mountHud, svgSpinSkin, StatusBarView } from '@open-ui/pixi';
 import type { UISpec, CurrencySpec, ThemePreset, JurisdictionConfig } from '@open-ui/core';
 import { MESSAGES } from './locales';
 import { RULES_BLOCKS, FEATURES } from './content';
@@ -303,8 +303,20 @@ async function main(): Promise<void> {
 
   // center the reels on resize
   const layoutReels = (): void => reels.layout(app.screen.width, app.screen.height);
-  app.renderer.on('resize', layoutReels);
+  // Keep the status bar uncovered by the HTML menu: inset the menu by the bar height
+  // (the bar is in the Pixi canvas; the menu is DOM, so it gets a CSS top/bottom inset).
+  const setMenuInset = (): void => {
+    const h = cfg.statusBar ? StatusBarView.heightFor(ui.screen.get()) : 0;
+    const root = document.documentElement.style;
+    root.setProperty('--ohm-top', cfg.statusBar === 'top' ? `${h}px` : '0px');
+    root.setProperty('--ohm-bottom', cfg.statusBar === 'bottom' ? `${h}px` : '0px');
+  };
+  app.renderer.on('resize', () => {
+    layoutReels();
+    setMenuInset();
+  });
   layoutReels();
+  setMenuInset();
 
   // ---- tiny legend (host chrome, not part of open-ui) ----
   const fmt = (n: number): string => n.toLocaleString(undefined, { maximumFractionDigits: 8 });
