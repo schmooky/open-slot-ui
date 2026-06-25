@@ -1,0 +1,25 @@
+{
+  "//": "Self-contained (does NOT extend the workspace base): this is vendored third-party source, kept on its own upstream tsconfig — notably verbatimModuleSyntax:false — so it typechecks unmodified. @open-ui/* code uses the stricter root base.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noImplicitAny": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "useDefineForClassFields": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": false,
+    "declaration": false,
+    "noEmit": true
+  },
+  "include": ["src"]
+}

@@ -28,8 +28,7 @@ pnpm --filter @open-ui/site preview
 ## How it's wired
 
 - The site is **always built against local library source**. `astro.config.mjs`
-  aliases `@open-ui/core` and `@open-ui/pixi` to `packages/*/src`, and
-  `pixi-text-counter` to its built `dist`.
+  aliases `@open-ui/core` and `@open-ui/pixi` to `packages/*/src`.
 - `pixi.js` / `react` / `react-dom` / `gsap` are deduped so there is one
   instance shared between the host app and the library.
 - Live demos are React islands (`OpenUiPlayground.tsx`) hydrated with

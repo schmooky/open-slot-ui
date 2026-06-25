@@ -62,6 +62,7 @@
     "pixi.js": "^8"
   },
   "devDependencies": {
+    "pixi-text-counter": "workspace:*",
     "tsup": "^8.3.5"
   }
 }

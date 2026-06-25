@@ -1,0 +1,44 @@
+{
+  "name": "pixi-text-counter",
+  "version": "0.2.0",
+  "description": "Animated numeric counter as a PixiJS 8 Container — mechanical-reel digit roll for slot balance/win displays. Vendored as source into open-ui (the 0.2.0 fork isn't on npm); bundled into @open-ui/pixi. MIT © schmooky.",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "source": "./src/index.ts",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "author": "schmooky",
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "gsap": "^3.0.0",
+    "pixi.js": "^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "gsap": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "pixi.js": "^8.6.6",
+    "tsup": "^8.3.5"
+  }
+}
