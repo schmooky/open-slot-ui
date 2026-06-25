@@ -4,16 +4,22 @@ import { ControlView } from './ControlView';
 import { Tweener } from '../tween';
 import { isDesktop } from '../util';
 
+/** Built-in placeholder glyphs the button can draw without art. */
+export type ButtonGlyph = 'menu' | 'close' | 'speaker' | 'speaker-mute' | 'fullscreen' | 'fullscreen-exit' | 'none';
+
 export interface ButtonViewOptions {
   shape?: 'circle' | 'pill';
   radius?: number;
   height?: number;
   /** Placeholder icon drawn as simple lines (when no texture). */
-  glyph?: 'menu' | 'close' | 'none';
+  glyph?: ButtonGlyph;
   /** Skin with real art: a Sprite shown instead of placeholder geometry. */
   iconTexture?: Texture;
   /** Target sprite height in reference px. */
   iconTarget?: number;
+  /** Monochrome look — white circle, black ring, black glyph (matches the turbo
+   *  button's b&w art). Only affects the drawn (no-texture) circle path. */
+  mono?: boolean;
 }
 
 /**
@@ -30,8 +36,9 @@ export class ButtonView extends ControlView {
   private readonly shape: 'circle' | 'pill';
   private readonly radius: number;
   private readonly pillHeight: number;
-  private readonly glyph: 'menu' | 'close' | 'none';
+  private glyph: ButtonGlyph;
   private readonly iconTarget: number;
+  private readonly mono: boolean;
 
   constructor(private readonly btn: ButtonControl, ui: OpenUI, ticker: Ticker, opts: ButtonViewOptions = {}) {
     super(btn, ui);
@@ -41,6 +48,7 @@ export class ButtonView extends ControlView {
     this.pillHeight = opts.height ?? 56;
     this.glyph = opts.glyph ?? 'none';
     this.iconTarget = opts.iconTarget ?? 84;
+    this.mono = opts.mono ?? false;
     this.addChild(this.art);
 
     if (opts.iconTexture) {
@@ -92,6 +100,14 @@ export class ButtonView extends ControlView {
     if (!this.sprite) return;
     this.sprite.texture = tex;
     this.fitSprite();
+    this.updateHit();
+  }
+
+  /** Swap the placeholder glyph (e.g. speaker ↔ speaker-mute, fullscreen ↔ exit). */
+  setGlyph(glyph: ButtonGlyph): void {
+    if (this.glyph === glyph) return;
+    this.glyph = glyph;
+    this.redraw();
     this.updateHit();
   }
 
@@ -147,15 +163,41 @@ export class ButtonView extends ControlView {
     const t = this.ui.theme;
     const g = this.bg;
     g.clear();
-    const ink = this.btn.current === 'disabled' ? t.color.textDim : t.color.text;
+    const disabled = this.btn.current === 'disabled';
+    // Monochrome (turbo-style) buttons: white circle, black ring, black glyph.
+    const fillC = this.mono ? '#ffffff' : t.color.surface;
+    const lineC = this.mono ? '#0a0a0a' : t.color.accent;
+    const ink = this.mono ? (disabled ? '#9aa0a6' : '#0a0a0a') : disabled ? t.color.textDim : t.color.text;
     if (this.shape === 'circle') {
       const r = this.radius;
-      g.circle(0, 0, r).fill({ color: t.color.surface });
-      g.circle(0, 0, r).stroke({ width: 4, color: t.color.accent });
+      g.circle(0, 0, r).fill({ color: fillC, alpha: this.mono && disabled ? 0.6 : 1 });
+      g.circle(0, 0, r).stroke({ width: this.mono ? 5 : 4, color: lineC });
       if (this.glyph === 'menu') {
         for (const dy of [-8, 0, 8]) g.moveTo(-13, dy).lineTo(13, dy).stroke({ width: 4, color: ink });
       } else if (this.glyph === 'close') {
         g.moveTo(-10, -10).lineTo(10, 10).moveTo(10, -10).lineTo(-10, 10).stroke({ width: 4, color: ink });
+      } else if (this.glyph === 'speaker' || this.glyph === 'speaker-mute') {
+        g.poly([-12, -4, -6, -4, 1, -11, 1, 11, -6, 4, -12, 4]).fill({ color: ink });
+        if (this.glyph === 'speaker') {
+          g.moveTo(6, -6).lineTo(11, 0).lineTo(6, 6).stroke({ width: 2.5, color: ink });
+          g.moveTo(11, -9).lineTo(17, 0).lineTo(11, 9).stroke({ width: 2.5, color: ink });
+        } else {
+          g.moveTo(7, -6).lineTo(17, 6).moveTo(17, -6).lineTo(7, 6).stroke({ width: 2.5, color: ink });
+        }
+      } else if (this.glyph === 'fullscreen') {
+        const a = 13, b = 6;
+        g.moveTo(-a, -a + b).lineTo(-a, -a).lineTo(-a + b, -a)
+          .moveTo(a - b, -a).lineTo(a, -a).lineTo(a, -a + b)
+          .moveTo(-a, a - b).lineTo(-a, a).lineTo(-a + b, a)
+          .moveTo(a - b, a).lineTo(a, a).lineTo(a, a - b)
+          .stroke({ width: 3, color: ink });
+      } else if (this.glyph === 'fullscreen-exit') {
+        const c = 4, d = 12;
+        g.moveTo(-d, -c).lineTo(-c, -c).lineTo(-c, -d)
+          .moveTo(d, -c).lineTo(c, -c).lineTo(c, -d)
+          .moveTo(-d, c).lineTo(-c, c).lineTo(-c, d)
+          .moveTo(d, c).lineTo(c, c).lineTo(c, d)
+          .stroke({ width: 3, color: ink });
       }
     } else {
       const w = this.labelText ? this.labelText.width + 48 : 120;

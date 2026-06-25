@@ -14,8 +14,9 @@ import type { PanelVariant, PanelControl } from '../controls/PanelControl';
 import type { Control } from '../control/Control';
 import type { OpenUIEvents } from '../types';
 import type { MenuSpec } from './menu';
+import type { JurisdictionConfig } from './jurisdiction';
 
-/** The 16 reference-HUD control ids — typed so a typo is a compile error. */
+/** The reference-HUD control ids — typed so a typo is a compile error. */
 export type KnownControlId =
   | 'spin'
   | 'balance'
@@ -32,7 +33,13 @@ export type KnownControlId =
   | 'bonus'
   | 'bet-stepper'
   | 'bet-plus'
-  | 'bet-minus';
+  | 'bet-minus'
+  | 'fullscreen'
+  | 'mute'
+  | 'rtp'
+  | 'net-position'
+  | 'session-timer'
+  | 'notice-panel';
 
 /** One issue from the never-throw validator. */
 export interface SpecIssue {
@@ -153,8 +160,13 @@ export interface UISpec {
   /** Sets both balance + bet currency at once. */
   currency?: CurrencySpec;
   betLadder?: { levels: number[]; index?: number };
-  /** Autoplay count choices + tap behavior (`'options'` drawer or `'infinite'`). */
-  autoplay?: { options?: number[]; mode?: AutoplayMode };
+  /**
+   * Autoplay count choices + tap behavior (`'options'` drawer or `'infinite'`), plus
+   * optional responsible-gambling limit choices (multiples of bet; Infinity = none).
+   * When `lossLimits`/`winLimits` are set, the picker offers them and the host must
+   * feed each round to `hud.reportRound(win, bet)` so they're enforced.
+   */
+  autoplay?: { options?: number[]; mode?: AutoplayMode; lossLimits?: number[]; winLimits?: number[] };
   /** Turbo switcher: 2-mode (off/on) or 3-mode (off/turbo/super). */
   turbo?: TurboSpec;
   /** Spin button behavior: single `'tap'` or `'hold-to-spin'` turbo. */
@@ -179,6 +191,18 @@ export interface UISpec {
   localeSelectId?: string;
   /** Auto-lock the whole HUD while the spin control is spinning. Default true. */
   lockDuringSpin?: boolean;
+  /**
+   * Stake Engine per-player jurisdiction config — the compliance switchboard. Usually
+   * known only after the game authenticates, so prefer the runtime
+   * `hud.applyJurisdiction(jur)`; set it here when known up front (createUI applies it
+   * before the responsive layer so `disabled*` hides survive resizes).
+   */
+  jurisdiction?: JurisdictionConfig;
+  /** Initial RTP percentage for the RTP readout (e.g. 96 → "96.0%"). */
+  rtp?: number;
+  /** Put the compliance readouts (net · RTP · session) in a thin status bar pinned
+   *  to the `'top'` or `'bottom'` edge instead of at screen corners. */
+  statusBar?: 'top' | 'bottom';
 }
 
 /** The result of building a PanelSpec: the panel + every leaf control, in render order. */

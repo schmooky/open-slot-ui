@@ -12,6 +12,8 @@ import {
   type Signal,
   type OpenUIEvents,
   type Dispose,
+  type JurisdictionConfig,
+  type BlockSpec,
 } from '@open-ui/core';
 import { OpenUIPixi, type OpenUIPixiOptions } from './OpenUIPixi';
 import { PanelBodyView } from './views/PanelBodyView';
@@ -32,6 +34,20 @@ export interface BootedHud {
   setBalance(major: number): void;
   setBet(major: number): void;
   setCurrency(spec: CurrencySpec): void;
+  /** Apply a Stake Engine jurisdiction config (the compliance switchboard) at runtime. */
+  applyJurisdiction(jur: JurisdictionConfig): void;
+  /** Report a settled round (major units): updates net position + enforces autoplay limits. */
+  reportRound(win: number, bet: number): void;
+  /** Set the RTP percentage shown by the RTP readout (when `displayRTP`). */
+  setRtp(percent: number): void;
+  /** Master mute / unmute (music + sfx). */
+  setMuted(muted: boolean): void;
+  /** Show a menu-style notice modal built from declarative blocks. */
+  showNotice(blocks: BlockSpec[]): void;
+  /** Show a menu-style error modal (a heading + a warning callout). */
+  showError(message: string, opts?: { title?: string }): void;
+  /** Dismiss the notice / error modal. */
+  hideNotice(): void;
   snapshot(): ControlSnapshot[];
   readonly events: EventLog | undefined;
   readonly inputLocked: Signal<boolean>;
@@ -55,7 +71,7 @@ export function mountHud(app: Application, spec: UISpec = {}, opts: HudOptions =
   const locales = spec.locale ? Array.from(new Set([spec.locale.locale, ...Object.keys(spec.locale.messages)])) : [];
   // `menu: false` (e.g. when the host supplies its own HTML menu) skips the Pixi menu.
   const menu = pixiOpts.menu === false ? false : composeMenu(spec.menu, { locales, localeSelectId: spec.localeSelectId, rulesFallback: spec.rules });
-  const pixi = new OpenUIPixi(ui, { ...pixiOpts, menu });
+  const pixi = new OpenUIPixi(ui, { ...pixiOpts, menu, statusBar: pixiOpts.statusBar ?? spec.statusBar });
   pixi.mount(app);
 
   // Extra declarative panels (beyond the settings menu) render as their own layers.
@@ -99,7 +115,19 @@ export function mountHud(app: Application, spec: UISpec = {}, opts: HudOptions =
     setCurrency: (c) => {
       ui.balance.setCurrency(c);
       ui.bet.setCurrency(c);
+      ui.netPosition.setCurrency(c);
     },
+    applyJurisdiction: (j) => ui.applyJurisdiction(j),
+    reportRound: (win, bet) => ui.reportRound(win, bet),
+    setRtp: (p) => ui.rtp.set(p),
+    setMuted: (m) => ui.setMuted(m),
+    showNotice: (b) => ui.showNotice(b),
+    showError: (message, o) =>
+      ui.showNotice([
+        { kind: 'heading', id: 'notice-title', text: o?.title ?? 'Error' },
+        { kind: 'callout', id: 'notice-body', tone: 'warning', text: message },
+      ]),
+    hideNotice: () => ui.hideNotice(),
     snapshot: () => ui.snapshot(),
     events: pixi.eventLog,
     inputLocked: ui.locked,

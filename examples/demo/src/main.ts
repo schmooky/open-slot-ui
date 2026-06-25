@@ -1,6 +1,6 @@
 import { Application, Assets, Container, Graphics, Rectangle, Texture } from 'pixi.js';
-import { mountHud, svgSpinSkin } from '@open-ui/pixi';
-import type { UISpec, CurrencySpec, ThemePreset } from '@open-ui/core';
+import { mountHud, svgSpinSkin, StatusBarView } from '@open-ui/pixi';
+import type { UISpec, CurrencySpec, ThemePreset, JurisdictionConfig } from '@open-ui/core';
 import { MESSAGES } from './locales';
 import { RULES_BLOCKS, FEATURES } from './content';
 import { mountHtmlMenu } from './htmlMenu';
@@ -37,7 +37,30 @@ const cfg = {
   // buy-feature: ?activation=single|multi (default multi) · ?blockbuy=1
   activation: (q.get('activation') === 'single' ? 'single' : 'multi') as 'single' | 'multi',
   blockBuy: q.get('blockbuy') === '1',
+  // status bar edge for the compliance readouts: ?statusbar=top|bottom|off (default top)
+  statusBar: (q.get('statusbar') === 'bottom' ? 'bottom' : q.get('statusbar') === 'off' ? undefined : 'top') as 'top' | 'bottom' | undefined,
 };
+
+/** Parse `?juris=rtp,net,timer,noturbo,noslam,…` into a Stake Engine JurisdictionConfig
+ *  (a demo knob — a real game gets this from the RGS authenticate response). Defaults
+ *  to showing the three compliance readouts so they're visible out of the box. */
+function parseJurisdiction(raw: string | null): JurisdictionConfig {
+  const f = new Set((raw ?? 'rtp,net,timer').split(',').map((s) => s.trim()).filter(Boolean));
+  return {
+    displayRTP: f.has('rtp'),
+    displayNetPosition: f.has('net'),
+    displaySessionTimer: f.has('timer'),
+    disabledTurbo: f.has('noturbo'),
+    disabledSuperTurbo: f.has('nosuper'),
+    disabledAutoplay: f.has('noauto'),
+    disabledSlamstop: f.has('noslam'),
+    disabledSpacebar: f.has('nohold'),
+    disabledBuyFeature: f.has('nobuy'),
+    disabledFullscreen: f.has('nofs'),
+    socialCasino: f.has('social'),
+  };
+}
+const JURISDICTION = parseJurisdiction(q.get('juris'));
 
 /** The whole HUD as one config object — the public surface a real slot would ship. */
 function buildSpec(): UISpec {
@@ -48,8 +71,13 @@ function buildSpec(): UISpec {
     currency: cur.spec,
     betLadder: { levels: [0.5, 1, 2, 5, 10, 20], index: 1 },
     turbo: { modes: cfg.turbo },
-    autoplay: { mode: cfg.autoplay, options: [5, 10, 25, 50, 100, Infinity] },
+    autoplay: { mode: cfg.autoplay, options: [5, 10, 25, 50, 100, Infinity], lossLimits: [5, 10, 25, 50, Infinity], winLimits: [10, 25, 50, 100, Infinity] },
     spin: { press: cfg.spin },
+    // Stake Engine compliance: an RTP figure + the jurisdiction switchboard (the demo
+    // reads ?juris=…; a real game gets this from the RGS authenticate response).
+    rtp: 96,
+    jurisdiction: JURISDICTION,
+    statusBar: cfg.statusBar,
     // Desktop button layout CLONED from the reference UI design (Dev.svg): a bottom
     // bar — balance · play · SPIN · turbo · bet (+ steppers to its right) — with the
     // bonus on the right rail and the ☰ menu on the lower left. The design has no
@@ -142,8 +170,6 @@ async function main(): Promise<void> {
   };
   const spinDefault = await load('/spin/default.svg');
   const spinAuto = await load('/spin/auto.svg');
-  const menuTex = await load('/icons/menu.svg');
-  const [menuIdle, menuClose] = sliceRows(menuTex, 2);
   const rulesTex = await load('/icons/rules.svg');
   const musicTrack = await load('/icons/slider-music-track.svg');
   const soundTrack = await load('/icons/slider-sound-track.svg');
@@ -161,9 +187,8 @@ async function main(): Promise<void> {
     menu: false, // the one biased menu design is the HTML one, mounted below
     spinSkin: () => svgSpinSkin({ default: spinDefault, auto: spinAuto }),
     icons: {
-      settingsIdle: menuIdle,
-      settingsActive: menuClose,
-      close: menuClose,
+      // menu (☰), fullscreen + mute render as b&w "mono" glyph buttons like turbo —
+      // no settings art passed, so the library draws the mono ☰ (toggles to ✕).
       rules: rulesTex,
       sliderMusic: musicTrack,
       sliderSound: soundTrack,
@@ -209,14 +234,22 @@ async function main(): Promise<void> {
   /** One round, driven by the host. `turbo` shortens the reel spin. */
   async function playSpin(turbo = turboEngaged()): Promise<void> {
     const dec = ui.balance.currency.get().decimals;
+    const bet = ui.bet.get();
     ui.spin.busy();
-    ui.balance.set(round(ui.balance.get() - ui.bet.get(), dec));
+    ui.balance.set(round(ui.balance.get() - bet, dec));
     await reels.spin(app, turbo);
-    const win = Math.random() < 0.45 ? round(ui.bet.get() * (1 + Math.random() * 24), dec) : 0;
+    const win = Math.random() < 0.45 ? round(bet * (1 + Math.random() * 24), dec) : 0;
     if (win > 0) ui.balance.set(round(ui.balance.get() + win, dec));
+    // feed the settled round to the HUD → net-position readout + autoplay RG limits
+    ui.reportRound(win, bet);
   }
 
   ui.on('spinRequested', async () => {
+    // Stake Engine error UX: block + surface insufficient funds in a menu-style modal.
+    if (ui.balance.get() < ui.bet.get()) {
+      hud.showError("You don't have enough balance to place this bet.", { title: 'Insufficient funds' });
+      return;
+    }
     await playSpin();
     ui.spin.stopState();
     await wait(turboEngaged() ? 120 : 420);
@@ -224,17 +257,19 @@ async function main(): Promise<void> {
   });
   ui.on('skipRequested', () => reels.skip());
 
-  // autoplay: the host runs the loop; open-ui owns the picker + live count
-  ui.on('autoplayStarted', async ({ count }) => {
-    let left = count;
-    while (ui.autoplay.isActive && left > 0) {
-      ui.autoplay.setCount(left);
+  // autoplay: the host runs the loop; open-ui owns the picker, the live count, AND the
+  // RG limits — each round is fed back via playSpin → ui.reportRound, which decrements
+  // the count and stops autoplay on the loss / single-win limits picked in the drawer.
+  ui.on('autoplayStarted', async () => {
+    while (ui.autoplay.isActive) {
+      if (ui.balance.get() < ui.bet.get()) {
+        ui.autoplay.stop();
+        break;
+      }
       await playSpin();
       ui.spin.idle();
-      if (left !== Infinity) left -= 1;
       await wait(turboEngaged() ? 120 : 240);
     }
-    if (ui.autoplay.isActive) ui.autoplay.stop();
   });
 
   // hold-to-spin: turbo-spin on a loop while the button is held
@@ -260,14 +295,28 @@ async function main(): Promise<void> {
     else if (k === 't') ui.turbo.cycle();
     else if (k === '2') ui.turbo.setModes(['off', 'on']);
     else if (k === '3') ui.turbo.setModes(['off', 'turbo', 'super']);
+    else if (k === 'm') ui.toggleMute();
+    else if (k === 'e') hud.showError('A consistent internet connection is required. Reload to finish any uncompleted bets.', { title: 'Connection lost' });
   });
 
   (window as unknown as Record<string, unknown>).ui = ui;
 
   // center the reels on resize
   const layoutReels = (): void => reels.layout(app.screen.width, app.screen.height);
-  app.renderer.on('resize', layoutReels);
+  // Keep the status bar uncovered by the HTML menu: inset the menu by the bar height
+  // (the bar is in the Pixi canvas; the menu is DOM, so it gets a CSS top/bottom inset).
+  const setMenuInset = (): void => {
+    const h = cfg.statusBar ? StatusBarView.heightFor(ui.screen.get()) : 0;
+    const root = document.documentElement.style;
+    root.setProperty('--ohm-top', cfg.statusBar === 'top' ? `${h}px` : '0px');
+    root.setProperty('--ohm-bottom', cfg.statusBar === 'bottom' ? `${h}px` : '0px');
+  };
+  app.renderer.on('resize', () => {
+    layoutReels();
+    setMenuInset();
+  });
   layoutReels();
+  setMenuInset();
 
   // ---- tiny legend (host chrome, not part of open-ui) ----
   const fmt = (n: number): string => n.toLocaleString(undefined, { maximumFractionDigits: 8 });

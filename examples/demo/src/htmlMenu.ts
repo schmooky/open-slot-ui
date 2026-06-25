@@ -245,7 +245,7 @@ export function mountHtmlMenu(app: Application, hud: BootedHud): void {
 }
 
 const OHM_CSS = `
-.ohm-root { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; font-family: var(--font); opacity: 0; pointer-events: none; transition: opacity .18s ease; }
+.ohm-root { position: fixed; top: var(--ohm-top, 0); right: 0; bottom: var(--ohm-bottom, 0); left: 0; z-index: 10000; display: grid; place-items: center; font-family: var(--font); opacity: 0; pointer-events: none; transition: opacity .18s ease; }
 .ohm-root.open { opacity: 1; pointer-events: auto; }
 .ohm-incanvas { position: absolute; }
 .ohm-backdrop { position: absolute; inset: 0; background: rgba(8,6,4,.34); backdrop-filter: blur(6px) saturate(1.1); }

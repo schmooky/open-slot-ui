@@ -71,6 +71,37 @@ can't break it.
 
 Full reference: **[the Configuration guide](https://open-ui.schmooky.dev/guides/configuration/)**.
 
+## Stake Engine compliance
+
+open-ui renders the HUD; your game owns the [Stake Engine](https://stake-engine.com)
+RGS contract (session, wallet, book/event playback). To publish, the UI just has to
+honor the platform's per-player **`jurisdiction`** switchboard (returned by
+`/wallet/authenticate`) and surface the responsible-gambling controls — one call:
+
+```ts
+hud.applyJurisdiction(jurisdiction); // the 12-flag config, verbatim from the RGS
+
+hud.reportRound(win, bet); // feeds the net-position readout + autoplay loss/win limits
+hud.setRtp(96);            // the RTP readout
+hud.showError('Session expired. Reload to continue.'); // a themed, menu-style modal
+```
+
+| Concern | open-ui |
+| --- | --- |
+| `disabled{Turbo,SuperTurbo,Autoplay,Slamstop,Spacebar,BuyFeature,Fullscreen}` | hides / locks the control (resize-proof) |
+| `display{RTP,NetPosition,SessionTimer}` | reveals the matching readout |
+| `socialCasino` · social coins (XGC→GC, XSC→SC) · zero-decimal currencies (JPY…) | currency table + `resolveCurrency` |
+| Autoplay **loss-limit** + **single-win stop** + stop-anytime | in the picker; enforced via `reportRound` |
+| Slam-stop disabled | the spin button dims + locks during the spin |
+| Insufficient funds / session expired / maintenance / disconnect | `hud.showNotice` / `showError` |
+| Master mute + fullscreen | black-and-white icon controls at the screen edge |
+
+Put the readouts in a thin strip with **`statusBar: 'top' | 'bottom'`** (otherwise
+they sit at screen corners). `minimumRoundDuration` is surfaced as
+`ui.minimumRoundDuration` for the **game** to enforce — open-ui never throttles the
+round. Try the flags live:
+`localhost:5199/?juris=rtp,net,timer,noturbo,noslam&statusbar=top`.
+
 ## Repo layout
 
 ```

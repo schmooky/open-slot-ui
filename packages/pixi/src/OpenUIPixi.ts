@@ -16,6 +16,9 @@ import { TurboView } from './views/TurboView';
 import { AutoplayView } from './views/AutoplayView';
 import { AutoplayDrawerView } from './views/AutoplayDrawerView';
 import { MenuView } from './views/MenuView';
+import { ReadoutView } from './views/ReadoutView';
+import { DialogView } from './views/DialogView';
+import { StatusBarView, type StatusBarSide } from './views/StatusBarView';
 import { type ControlViewFactory } from './views/blockColumn';
 import { type SpinSkinFactory } from './skin/SpinSkin';
 
@@ -60,6 +63,12 @@ export interface OpenUIPixiOptions {
    * `'radial'` fans the count chips around the spin button.
    */
   autoplayPicker?: 'drawer' | 'radial';
+  /**
+   * Put the compliance readouts (net · RTP · session) in a thin status strip at the
+   * `'top'` or `'bottom'` edge instead of at screen corners. Each readout still only
+   * shows when its jurisdiction `display*` flag is set.
+   */
+  statusBar?: StatusBarSide;
 }
 
 /**
@@ -106,6 +115,7 @@ export class OpenUIPixi {
       glyph: 'menu',
       iconTexture: ic.settingsIdle,
       iconTarget: 88,
+      mono: true, // b&w like the turbo button (used on the drawn glyph path)
     });
     settingsView.zIndex = 5;
 
@@ -135,6 +145,18 @@ export class OpenUIPixi {
     const betPlusView = new ButtonView(this.ui.betPlus, this.ui, ticker, { shape: 'circle', radius: 30, iconTexture: ic.betPlus, iconTarget: 64 });
     const betMinusView = new ButtonView(this.ui.betMinus, this.ui, ticker, { shape: 'circle', radius: 30, iconTexture: ic.betMinus, iconTarget: 64 });
 
+    // edge controls (master mute + fullscreen) — b&w "mono" buttons like turbo.
+    const muteView = new ButtonView(this.ui.muteButton, this.ui, ticker, { shape: 'circle', radius: 22, glyph: 'speaker', iconTarget: 44, mono: true });
+    const fullscreenView = new ButtonView(this.ui.fullscreenButton, this.ui, ticker, { shape: 'circle', radius: 22, glyph: 'fullscreen', iconTarget: 44, mono: true });
+    muteView.zIndex = 65; // above the status bar (60) so they read as part of it
+    fullscreenView.zIndex = 65;
+    // Compliance readouts (RTP / net / session): in a thin status bar if configured,
+    // else at screen corners. Bar items are created inline by the StatusBarView.
+    const statusBarSide = this.opts.statusBar;
+    const rtpView = statusBarSide ? undefined : new ReadoutView(this.ui.rtp, this.ui, ticker);
+    const netView = statusBarSide ? undefined : new ReadoutView(this.ui.netPosition, this.ui, ticker);
+    const timerView = statusBarSide ? undefined : new ReadoutView(this.ui.sessionTimer, this.ui, ticker);
+
     // Every view is mounted; `ui.hidden` only toggles VISIBILITY (so a responsive
     // breakpoint can show/hide a control at runtime — Charter P10). Hidden views
     // stay laid out + introspectable in snapshot, they're just not drawn.
@@ -148,13 +170,20 @@ export class OpenUIPixi {
       [this.ui.bonusButton.id, bonusView],
       [this.ui.betPlus.id, betPlusView],
       [this.ui.betMinus.id, betMinusView],
+      [this.ui.muteButton.id, muteView],
+      [this.ui.fullscreenButton.id, fullscreenView],
     ];
+    if (rtpView) entries.push([this.ui.rtp.id, rtpView]);
+    if (netView) entries.push([this.ui.netPosition.id, netView]);
+    if (timerView) entries.push([this.ui.sessionTimer.id, timerView]);
     const viewById = new Map<string, ControlView>();
+    const idByView = new Map<ControlView, string>();
     for (const [id, view] of entries) {
       view.visible = !this.ui.hidden.has(id);
       this.root.addChild(view);
       this.views.push(view);
       viewById.set(id, view);
+      idByView.set(view, id);
     }
     this.disposers.push(
       this.ui.on('visibilityChanged', ({ id, hidden }) => {
@@ -162,6 +191,25 @@ export class OpenUIPixi {
         if (v) v.visible = !hidden;
       }),
     );
+
+    // master mute icon reflects the mute state (speaker ↔ speaker-mute)
+    this.disposers.push(this.ui.muted.subscribe((m) => muteView.setGlyph(m ? 'speaker-mute' : 'speaker')));
+
+    // fullscreen: the view stays DOM-agnostic, so the controller owns the toggle and
+    // keeps the glyph in sync with the actual document fullscreen state.
+    if (typeof document !== 'undefined') {
+      this.disposers.push(
+        this.ui.bus.on('buttonActivated', ({ id }) => {
+          if (id !== 'fullscreen') return;
+          const el = (app.canvas.parentElement ?? document.documentElement) as HTMLElement;
+          if (document.fullscreenElement) void document.exitFullscreen?.();
+          else void el.requestFullscreen?.();
+        }),
+      );
+      const onFsChange = (): void => fullscreenView.setGlyph(document.fullscreenElement ? 'fullscreen-exit' : 'fullscreen');
+      document.addEventListener('fullscreenchange', onFsChange);
+      this.disposers.push(() => document.removeEventListener('fullscreenchange', onFsChange));
+    }
 
     // The menu is a full-screen overlay that manages its OWN open/closed visibility
     // (driven by the panel state) — so it's an overlay, not a force-visible view.
@@ -177,6 +225,18 @@ export class OpenUIPixi {
       this.overlays.push(drawer);
     }
 
+    // The menu-style notice / error modal (owns its open/closed visibility → overlay).
+    const dialog = new DialogView(this.ui.noticePanel, this.ui.noticeBlocks, this.ui, ticker, { controlSkins: this.opts.controlSkins });
+    this.root.addChild(dialog);
+    this.overlays.push(dialog);
+
+    // Optional status bar (net · RTP · session) pinned to the top/bottom edge.
+    if (statusBarSide) {
+      const bar = new StatusBarView([this.ui.netPosition, this.ui.rtp, this.ui.sessionTimer], this.ui, ticker, statusBarSide);
+      this.root.addChild(bar);
+      this.overlays.push(bar);
+    }
+
     // the settings button toggles ☰ ↔ ✕ with the popover's open state
     if (ic.settingsIdle && ic.settingsActive) {
       const idle = ic.settingsIdle;
@@ -186,11 +246,28 @@ export class OpenUIPixi {
           settingsView.setIconTexture(this.ui.settingsPanel.isOpen ? active : idle);
         }),
       );
+    } else {
+      // no art → the mono ☰ glyph toggles to ✕ when the menu opens
+      this.disposers.push(
+        this.ui.settingsPanel.state.subscribe(() => {
+          settingsView.setGlyph(this.ui.settingsPanel.isOpen ? 'close' : 'menu');
+        }),
+      );
     }
 
     const applyLayout = (): void => {
       const screen = this.ui.screen.get();
-      for (const v of this.views) v.applyLayout(screen);
+      // A status bar insets the HUD by its height on that edge — controls anchored to
+      // the same edge shift away, as if the bar added a margin to them.
+      const barH = statusBarSide ? StatusBarView.heightFor(screen) : 0;
+      for (const v of this.views) {
+        v.applyLayout(screen);
+        if (barH) {
+          const anchor = this.ui.control(idByView.get(v) ?? '')?.layout.anchor ?? '';
+          if (statusBarSide === 'top' && anchor.startsWith('top')) v.y += barH;
+          else if (statusBarSide === 'bottom' && anchor.startsWith('bottom')) v.y -= barH;
+        }
+      }
       for (const o of this.overlays) o.applyLayout(screen);
     };
     const onResize = (): void => {

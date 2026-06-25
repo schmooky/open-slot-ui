@@ -45,6 +45,12 @@ exports[`OpenUI.snapshot() > matches the documented initial control surface 1`] 
     "state": "idle",
   },
   {
+    "id": "fullscreen",
+    "interactable": true,
+    "role": "button",
+    "state": "idle",
+  },
+  {
     "id": "info-close",
     "interactable": true,
     "role": "button",
@@ -63,9 +69,39 @@ exports[`OpenUI.snapshot() > matches the documented initial control surface 1`] 
     "state": "idle",
   },
   {
+    "id": "mute",
+    "interactable": true,
+    "role": "button",
+    "state": "idle",
+  },
+  {
+    "id": "net-position",
+    "interactable": false,
+    "role": "status",
+    "state": "idle",
+  },
+  {
+    "id": "notice-panel",
+    "interactable": false,
+    "role": "dialog",
+    "state": "closed",
+  },
+  {
+    "id": "rtp",
+    "interactable": false,
+    "role": "status",
+    "state": "idle",
+  },
+  {
     "id": "rules",
     "interactable": true,
     "role": "button",
+    "state": "idle",
+  },
+  {
+    "id": "session-timer",
+    "interactable": false,
+    "role": "status",
     "state": "idle",
   },
   {
