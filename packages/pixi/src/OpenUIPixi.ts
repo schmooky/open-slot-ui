@@ -177,11 +177,13 @@ export class OpenUIPixi {
     if (netView) entries.push([this.ui.netPosition.id, netView]);
     if (timerView) entries.push([this.ui.sessionTimer.id, timerView]);
     const viewById = new Map<string, ControlView>();
+    const idByView = new Map<ControlView, string>();
     for (const [id, view] of entries) {
       view.visible = !this.ui.hidden.has(id);
       this.root.addChild(view);
       this.views.push(view);
       viewById.set(id, view);
+      idByView.set(view, id);
     }
     this.disposers.push(
       this.ui.on('visibilityChanged', ({ id, hidden }) => {
@@ -255,7 +257,17 @@ export class OpenUIPixi {
 
     const applyLayout = (): void => {
       const screen = this.ui.screen.get();
-      for (const v of this.views) v.applyLayout(screen);
+      // A status bar insets the HUD by its height on that edge — controls anchored to
+      // the same edge shift away, as if the bar added a margin to them.
+      const barH = statusBarSide ? StatusBarView.heightFor(screen) : 0;
+      for (const v of this.views) {
+        v.applyLayout(screen);
+        if (barH) {
+          const anchor = this.ui.control(idByView.get(v) ?? '')?.layout.anchor ?? '';
+          if (statusBarSide === 'top' && anchor.startsWith('top')) v.y += barH;
+          else if (statusBarSide === 'bottom' && anchor.startsWith('bottom')) v.y -= barH;
+        }
+      }
       for (const o of this.overlays) o.applyLayout(screen);
     };
     const onResize = (): void => {

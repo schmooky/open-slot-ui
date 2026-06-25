@@ -7,6 +7,8 @@ const CAP_DY = -20;
 export interface ReadoutViewOptions {
   /** Compact one-line layout (`CAPTION  value`) for the status bar. Default false (stacked). */
   inline?: boolean;
+  /** Force black-and-white text (white on a dark bar), ignoring the theme accent/text hue. */
+  mono?: boolean;
 }
 
 /** Seconds → "M:SS" or "H:MM:SS". */
@@ -22,9 +24,9 @@ function fmtDuration(totalSec: number): string {
  * A compact, non-interactive readout for the Stake Engine jurisdiction `display*`
  * elements — RTP, net position, session timer. Two layouts: `stacked` (a dim
  * uppercase caption over a bold value — for a screen corner) and `inline`
- * (`CAPTION  value` on one line, centered on the seam — for the status bar). Themed
- * from tokens. The `'duration'` kind advances itself off the shared ticker while
- * running. Net position shows an explicit +/- sign (theme-neutral, no red/green).
+ * (`CAPTION  value` on one line, centered on the seam — for the status bar). `mono`
+ * forces white text for the dark b&w status bar. The `'duration'` kind advances
+ * itself off the shared ticker while running. Net position shows an explicit +/-.
  */
 export class ReadoutView extends ControlView {
   private readonly caption?: Text;
@@ -35,16 +37,17 @@ export class ReadoutView extends ControlView {
     super(ro, ui);
     const t = ui.theme;
     const inline = opts.inline ?? false;
+    const fill = opts.mono ? '#ffffff' : t.color.text;
 
     if (ro.label) {
       this.caption = new Text({
         text: ui.t(ro.label).toUpperCase(),
-        style: { fontFamily: t.type.family, fontSize: inline ? 11 : 12, fill: t.color.text, fontWeight: '700', letterSpacing: inline ? 1 : 2 },
+        style: { fontFamily: t.type.family, fontSize: 12, fill, fontWeight: '700', letterSpacing: inline ? 0.8 : 2 },
       });
-      this.caption.alpha = inline ? 0.6 : 0.55;
+      this.caption.alpha = inline ? 0.65 : 0.55;
       if (inline) {
         this.caption.anchor.set(1, 0.5); // ends just left of the seam
-        this.caption.position.set(-6, 0);
+        this.caption.position.set(-7, 0);
       } else {
         this.caption.anchor.set(0.5, 1);
         this.caption.y = CAP_DY;
@@ -52,10 +55,10 @@ export class ReadoutView extends ControlView {
       this.addChild(this.caption);
     }
 
-    this.valueText = new Text({ text: '', style: { fontFamily: t.type.family, fontSize: inline ? 18 : 26, fill: t.color.text, fontWeight: '800' } });
+    this.valueText = new Text({ text: '', style: { fontFamily: t.type.family, fontSize: inline ? 20 : 26, fill, fontWeight: '800' } });
     if (inline) {
       this.valueText.anchor.set(0, 0.5); // starts just right of the seam
-      this.valueText.position.set(this.caption ? 6 : 0, 0);
+      this.valueText.position.set(this.caption ? 7 : 0, 0);
     } else {
       this.valueText.anchor.set(0.5, 0.5);
     }
