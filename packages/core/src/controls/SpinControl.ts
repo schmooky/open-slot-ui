@@ -1,4 +1,5 @@
 import { Control, type StateMap } from '../control/Control';
+import { Signal } from '../signal';
 import { Squish, Pulse, Fade } from '../transition/Transition';
 import type { LayoutSpec } from '../layout/anchor';
 import type { EventBus } from '../events';
@@ -29,12 +30,30 @@ export class SpinControl extends Control {
    */
   holdToSpin = false;
 
+  /**
+   * Whether tapping mid-spin slam-stops/skips the reels. Stake Engine's
+   * `disabledSlamstop` jurisdiction flag sets this false → the button then LOCKS
+   * (dims, no tap) during a spin instead of skipping. Observable so the view can
+   * re-dim if it flips at runtime (e.g. on `applyJurisdiction`).
+   */
+  readonly allowSlamStop = new Signal<boolean>(true);
+
   constructor(
     opts: { id?: string; layout: LayoutSpec; holdToSpin?: boolean },
     private readonly bus: EventBus<OpenUIEvents>,
   ) {
     super({ id: opts.id ?? 'spin', role: 'button', layout: opts.layout }, 'idle');
     this.holdToSpin = opts.holdToSpin ?? false;
+  }
+
+  /**
+   * Derived (Charter P6), with the slam-stop guard folded in: when slam-stop is
+   * disabled, the in-spin `stop`/`auto` affordance is locked — the button can't be
+   * tapped to skip; it just dims.
+   */
+  override get interactable(): boolean {
+    if (!this.allowSlamStop.get() && (this.current === 'auto' || this.current === 'stop')) return false;
+    return super.interactable;
   }
 
   // ---- façade (the game talks to these) ----
@@ -61,8 +80,9 @@ export class SpinControl extends Control {
   // ---- input (the view calls this on a valid press-release) ----
   activate(): void {
     if (this.current === 'auto') {
-      // autoplay-engaged: tapping slam-stops / skips the reels — it does NOT stop autoplay
-      this.bus.emit('skipRequested', undefined);
+      // autoplay-engaged: tapping slam-stops / skips the reels — it does NOT stop
+      // autoplay. Suppressed when slam-stop is disabled by jurisdiction.
+      if (this.allowSlamStop.get()) this.bus.emit('skipRequested', undefined);
       return;
     }
     if (this.interactable) this.bus.emit('spinRequested', undefined);

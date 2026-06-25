@@ -10,6 +10,7 @@ import { resolveTheme } from '../theme/presets';
 import { DictionaryTranslator } from '../i18n/translator';
 import { validateSpec } from './validateSpec';
 import { installResponsive } from './responsive';
+import { applyJurisdiction } from './jurisdiction';
 import type { UISpec, HostHooks, TurboSpec } from './types';
 import type { OpenUIEvents } from '../types';
 
@@ -51,7 +52,10 @@ export function createUI(spec: UISpec = {}, hooks: HostHooks = {}): OpenUI {
   if (spec.currency) {
     ui.balance.setCurrency(spec.currency);
     ui.bet.setCurrency(spec.currency);
+    ui.netPosition.setCurrency(spec.currency);
   }
+
+  if (typeof spec.rtp === 'number') ui.rtp.set(spec.rtp);
 
   if (spec.betLadder?.levels?.length) {
     ui.betStepper.setLevels(spec.betLadder.levels, spec.betLadder.index ?? 0);
@@ -64,6 +68,8 @@ export function createUI(spec: UISpec = {}, hooks: HostHooks = {}): OpenUI {
   if (spec.autoplay?.mode) {
     ui.autoplay.mode = spec.autoplay.mode;
   }
+  if (spec.autoplay?.lossLimits) ui.autoplay.setLossLimitOptions(spec.autoplay.lossLimits);
+  if (spec.autoplay?.winLimits) ui.autoplay.setWinLimitOptions(spec.autoplay.winLimits);
 
   // Turbo: 2-mode (off/on) or 3-mode (off/turbo/super), or an explicit ladder.
   if (spec.turbo) {
@@ -90,6 +96,11 @@ export function createUI(spec: UISpec = {}, hooks: HostHooks = {}): OpenUI {
       }
     }
   }
+
+  // Jurisdiction (the Stake Engine compliance switchboard) is applied BEFORE the
+  // responsive layer snapshots its base, so a `disabled*` hide is part of that base
+  // and survives every resize (it's force-hidden too, belt-and-braces).
+  if (spec.jurisdiction) applyJurisdiction(ui, spec.jurisdiction);
 
   // Responsive overrides layer on top of the static `controls` (snapshotted as the
   // base), re-applied on every resize. Installed here — before the renderer mounts

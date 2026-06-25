@@ -18,7 +18,7 @@ describe('AutoplayControl modes', () => {
     a.pick(25);
     expect(a.isActive).toBe(true);
     expect(a.count.get()).toBe(25);
-    expect(started).toHaveBeenCalledWith({ count: 25 });
+    expect(started).toHaveBeenCalledWith({ count: 25, lossLimit: Infinity, singleWinLimit: Infinity });
   });
 
   it("'infinite' mode: a tap starts infinite straight away; tap again stops", () => {
@@ -31,7 +31,7 @@ describe('AutoplayControl modes', () => {
     a.press();
     expect(a.isActive).toBe(true);
     expect(a.count.get()).toBe(Infinity);
-    expect(started).toHaveBeenCalledWith({ count: Infinity });
+    expect(started).toHaveBeenCalledWith({ count: Infinity, lossLimit: Infinity, singleWinLimit: Infinity });
     a.press();
     expect(a.isActive).toBe(false);
     expect(stopped).toHaveBeenCalled();

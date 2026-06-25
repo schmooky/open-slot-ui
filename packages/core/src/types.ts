@@ -30,8 +30,8 @@ export type OpenUIEvents = {
   turboChanged: { id: string; mode: string; index: number };
   /** A select control chose an option (its own typed event — never overloads valueChanged). */
   optionSelected: { id: string; value: string; index: number };
-  /** Autoplay started with a chosen count (Infinity = ∞). */
-  autoplayStarted: { count: number };
+  /** Autoplay started with a chosen count (Infinity = ∞) + optional RG limits. */
+  autoplayStarted: { count: number; lossLimit?: number; singleWinLimit?: number };
   /** Autoplay stopped. */
   autoplayStopped: void;
   /** The player began a press-and-hold turbo spin on the spin button. */

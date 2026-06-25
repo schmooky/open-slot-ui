@@ -9,6 +9,7 @@ import { PanelControl } from './controls/PanelControl';
 import { TurboControl } from './controls/TurboControl';
 import { StepperControl } from './controls/StepperControl';
 import { AutoplayControl } from './controls/AutoplayControl';
+import { ReadoutControl } from './controls/ReadoutControl';
 import { defaultTheme, type Theme } from './theme/tokens';
 import {
   computeScreen,
@@ -17,7 +18,8 @@ import {
   type ScreenState,
 } from './layout/screen';
 import type { ControlSnapshot, OpenUIEvents } from './types';
-import type { UISpec } from './spec/types';
+import type { UISpec, BlockSpec } from './spec/types';
+import { applyJurisdiction as applyJurisdictionTo, type JurisdictionConfig } from './spec/jurisdiction';
 import { DictionaryTranslator, type Translator } from './i18n/translator';
 
 export interface OpenUIOptions {
@@ -58,6 +60,20 @@ export class OpenUI {
   /** Control ids the spec marked hidden — still registered (so they stay
    *  introspectable in `snapshot()`) but skipped by the renderer (Charter P10). */
   readonly hidden = new Set<string>();
+  /** Ids hidden UNCONDITIONALLY (e.g. a jurisdiction `disabled*` flag): `setHidden`
+   *  refuses to re-show these, so a responsive resize can't undo a compliance hide. */
+  readonly forceHidden = new Set<string>();
+
+  /** Master mute (music+sfx), observable so an icon can reflect it. */
+  readonly muted = new Signal<boolean>(false);
+  /** Social-casino mode (coins shown as GC/SC), set from jurisdiction. */
+  readonly social = new Signal<boolean>(false);
+  /** Declarative blocks backing the menu-style notice/error modal. */
+  readonly noticeBlocks = new Signal<BlockSpec[]>([]);
+  /** Minimum round duration (ms) from jurisdiction — stored for the GAME to enforce. */
+  minimumRoundDuration = 0;
+  private sessionNet = 0;
+  private prevVolumes: { music: number; sfx: number } | null = null;
 
   /** The frozen UISpec `createUI` built this from, if any — authored = run = tested. */
   spec?: Readonly<UISpec>;
@@ -79,6 +95,14 @@ export class OpenUI {
   readonly betStepper: StepperControl;
   readonly betPlus: ButtonControl;
   readonly betMinus: ButtonControl;
+  readonly fullscreenButton: ButtonControl;
+  readonly muteButton: ButtonControl;
+  /** Compliance display readouts — hidden until a jurisdiction reveals them. */
+  readonly rtp: ReadoutControl;
+  readonly netPosition: ReadoutControl;
+  readonly sessionTimer: ReadoutControl;
+  /** Menu-style notice/error modal (content set via `showNotice`). */
+  readonly noticePanel: PanelControl;
 
   private readonly controls = new Map<string, Control>();
 
@@ -144,6 +168,18 @@ export class OpenUI {
     this.betPlus = new ButtonControl({ id: 'bet-plus', layout: { anchor: 'bottom-center', offset: [150, -270] } }, this.bus);
     this.betStepper = new StepperControl({ id: 'bet-stepper', layout: { anchor: 'center' }, levels: [0.5, 1, 2, 5, 10, 20], index: 1 }, this.bus);
 
+    // edge controls: master mute + fullscreen (icon buttons at the screen corner)
+    this.muteButton = new ButtonControl({ id: 'mute', layout: { anchor: 'top-right', offset: [-176, 56] } }, this.bus);
+    this.fullscreenButton = new ButtonControl({ id: 'fullscreen', layout: { anchor: 'top-right', offset: [-92, 56] } }, this.bus);
+
+    // compliance readouts — created hidden; a jurisdiction's display* flag reveals them
+    this.rtp = new ReadoutControl({ id: 'rtp', kind: 'percent', label: 'RTP', layout: { anchor: 'top-left', offset: [120, 96] } });
+    this.netPosition = new ReadoutControl({ id: 'net-position', kind: 'currency', label: 'Net', currency: { code: 'USD', decimals: 2 }, layout: { anchor: 'top-center', offset: [0, 56] } });
+    this.sessionTimer = new ReadoutControl({ id: 'session-timer', kind: 'duration', label: 'Session', layout: { anchor: 'top-left', offset: [120, 56] } });
+
+    // notice / error modal (rendered in the unified menu style)
+    this.noticePanel = new PanelControl({ id: 'notice-panel', variant: 'modal', layout: { anchor: 'center' } }, this.bus);
+
     for (const c of [
       this.spin,
       this.balance,
@@ -161,9 +197,20 @@ export class OpenUI {
       this.betMinus,
       this.betPlus,
       this.betStepper,
+      this.muteButton,
+      this.fullscreenButton,
+      this.rtp,
+      this.netPosition,
+      this.sessionTimer,
+      this.noticePanel,
     ]) {
       this.register(c);
     }
+
+    // compliance readouts start hidden — applyJurisdiction reveals the mandated ones
+    this.hidden.add('rtp');
+    this.hidden.add('net-position');
+    this.hidden.add('session-timer');
 
     // the library owns this navigation (a biased, stateful UI)
     this.bus.on('buttonActivated', ({ id }) => {
@@ -177,6 +224,8 @@ export class OpenUI {
         this.betStepper.inc();
       } else if (id === 'bet-minus') {
         this.betStepper.dec();
+      } else if (id === 'mute') {
+        this.toggleMute();
       }
     });
 
@@ -222,6 +271,7 @@ export class OpenUI {
    * Used by the responsive layer to drop controls on small screens.
    */
   setHidden(id: string, hidden: boolean): void {
+    if (!hidden && this.forceHidden.has(id)) return; // jurisdiction-locked: can't re-show
     const was = this.hidden.has(id);
     if (hidden === was) return;
     if (hidden) this.hidden.add(id);
@@ -240,6 +290,60 @@ export class OpenUI {
     if (this.lockCount === 0) return;
     this.lockCount -= 1;
     if (this.lockCount === 0) this.locked.set(false);
+  }
+
+  /** Toggle master mute (music + sfx). */
+  toggleMute(): void {
+    this.setMuted(!this.muted.get());
+  }
+
+  /** Mute/unmute music+sfx, remembering the levels to restore on unmute. */
+  setMuted(m: boolean): void {
+    if (m === this.muted.get()) return;
+    if (m) {
+      this.prevVolumes = { music: this.musicSlider.value.get(), sfx: this.sfxSlider.value.get() };
+      this.musicSlider.setNormalized(0);
+      this.sfxSlider.setNormalized(0);
+    } else if (this.prevVolumes) {
+      this.musicSlider.setNormalized(this.prevVolumes.music);
+      this.sfxSlider.setNormalized(this.prevVolumes.sfx);
+      this.prevVolumes = null;
+    }
+    this.muted.set(m);
+  }
+
+  /**
+   * Report one completed round (major units): updates the net-position readout and,
+   * while autoplay is running, advances its count + enforces its RG loss/single-win
+   * limits. One feed point powers both `displayNetPosition` and the autoplay stops.
+   */
+  reportRound(win: number, bet: number): void {
+    if (!Number.isFinite(win) || !Number.isFinite(bet)) return;
+    this.sessionNet += win - bet;
+    this.netPosition.set(this.sessionNet);
+    if (this.autoplay.isActive) this.autoplay.reportResult(win, bet);
+  }
+
+  /** Reset the running session net + timer (e.g. on a fresh session). */
+  resetSession(): void {
+    this.sessionNet = 0;
+    this.netPosition.set(0);
+    this.sessionTimer.reset();
+  }
+
+  /** Show the menu-style notice/error modal built from declarative blocks. */
+  showNotice(blocks: BlockSpec[]): void {
+    this.noticeBlocks.set(Array.isArray(blocks) ? blocks : []);
+    this.noticePanel.openPanel();
+  }
+  /** Close the notice/error modal. */
+  hideNotice(): void {
+    this.noticePanel.closePanel();
+  }
+
+  /** Apply a Stake Engine `jurisdiction` config to the live HUD (whole switchboard). */
+  applyJurisdiction(jur: JurisdictionConfig): void {
+    applyJurisdictionTo(this, jur);
   }
 
   /** Tear down every subscription and control this ui created (Charter P12). */

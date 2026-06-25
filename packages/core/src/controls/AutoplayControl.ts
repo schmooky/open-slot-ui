@@ -12,6 +12,14 @@ import type { OpenUIEvents } from '../types';
  */
 export type AutoplayMode = 'options' | 'infinite';
 
+/** Responsible-gambling stop limits for an autoplay session (multiples of bet). */
+export interface AutoplayLimits {
+  /** Stop when cumulative net loss reaches `lossLimit × bet`. Infinity = no limit. */
+  lossLimit?: number;
+  /** Stop on a single win ≥ `singleWinLimit × bet`. Infinity = no limit. */
+  singleWinLimit?: number;
+}
+
 export interface AutoplayOptions {
   id: string;
   layout: LayoutSpec;
@@ -19,6 +27,14 @@ export interface AutoplayOptions {
   options?: number[];
   /** Tap behavior. Default `'options'`. */
   mode?: AutoplayMode;
+  /**
+   * Optional responsible-gambling limit choices offered in the picker (multiples
+   * of the bet; Infinity = "no limit"). When present, the picker shows a
+   * "stop if total loss reaches N×" / "stop on a single win ≥ N×" row, and the
+   * host must feed each round's outcome via {@link AutoplayControl.reportResult}.
+   */
+  lossLimitOptions?: number[];
+  winLimitOptions?: number[];
 }
 
 /**
@@ -38,12 +54,22 @@ export class AutoplayControl extends Control {
   /** Remaining spins while active (Infinity = ∞). 0 when not active. */
   readonly count: Signal<number>;
   private _options: number[];
+  private _lossLimitOptions: number[];
+  private _winLimitOptions: number[];
+  /** Active stop-on-total-loss (multiples of bet; Infinity = no limit). */
+  lossLimit = Infinity;
+  /** Active stop-on-single-win (multiples of bet; Infinity = no limit). */
+  singleWinLimit = Infinity;
+  /** Running net loss this autoplay session (bet − win, summed). */
+  private netLoss = 0;
   /** Tap behavior (`'options'` opens the picker, `'infinite'` starts immediately). */
   mode: AutoplayMode;
 
   constructor(opts: AutoplayOptions, private readonly bus?: EventBus<OpenUIEvents>) {
     super({ id: opts.id, role: 'button', layout: opts.layout }, 'idle');
     this._options = opts.options ?? [10, 25, 50, 100, Infinity];
+    this._lossLimitOptions = opts.lossLimitOptions ?? [];
+    this._winLimitOptions = opts.winLimitOptions ?? [];
     this.mode = opts.mode ?? 'options';
     this.count = new Signal<number>(0);
   }
@@ -52,10 +78,25 @@ export class AutoplayControl extends Control {
   get options(): number[] {
     return this._options;
   }
+  /** Loss-limit choices for the picker (multiples of bet; Infinity = no limit). */
+  get lossLimitOptions(): number[] {
+    return this._lossLimitOptions;
+  }
+  /** Single-win-stop choices for the picker (multiples of bet; Infinity = no limit). */
+  get winLimitOptions(): number[] {
+    return this._winLimitOptions;
+  }
 
   /** Replace the picker's count choices (e.g. when limits change). */
   setOptions(options: number[]): void {
     if (options.length) this._options = options.slice();
+  }
+  /** Replace the picker's loss-limit / single-win-stop choices. */
+  setLossLimitOptions(options: number[]): void {
+    this._lossLimitOptions = Array.isArray(options) ? options.slice() : [];
+  }
+  setWinLimitOptions(options: number[]): void {
+    this._winLimitOptions = Array.isArray(options) ? options.slice() : [];
   }
 
   get isActive(): boolean {
@@ -69,18 +110,41 @@ export class AutoplayControl extends Control {
     if (this.current === 'picking') this.setState('idle');
   }
 
-  /** Choose a count from the picker → start autoplay. */
-  pick(count: number): void {
+  /** Choose a count (+ optional RG limits) from the picker → start autoplay. */
+  pick(count: number, limits: AutoplayLimits = {}): void {
     if (this.current !== 'picking') return;
-    this.begin(count);
+    this.begin(count, limits);
   }
 
-  /** Start autoplay with a count (Infinity = ∞) from idle or the picker. */
-  begin(count: number): void {
+  /** Start autoplay with a count (Infinity = ∞) + optional RG limits, from idle or
+   *  the picker. The limits are enforced as the host reports each round's outcome
+   *  via {@link reportResult}. */
+  begin(count: number, limits: AutoplayLimits = {}): void {
     if (this.current !== 'idle' && this.current !== 'picking') return;
+    this.lossLimit = limits.lossLimit ?? Infinity;
+    this.singleWinLimit = limits.singleWinLimit ?? Infinity;
+    this.netLoss = 0;
     this.count.set(count);
     this.setState('active');
-    this.bus?.emit('autoplayStarted', { count });
+    this.bus?.emit('autoplayStarted', { count, lossLimit: this.lossLimit, singleWinLimit: this.singleWinLimit });
+  }
+
+  /**
+   * The host reports one completed autoplay round's outcome (major units) — this is
+   * the responsible-gambling guardrail. It advances the remaining count and stops
+   * autoplay if: the count is exhausted, the cumulative net loss reaches the
+   * loss-limit, or this single win reaches the single-win-stop. No-op when autoplay
+   * isn't active or the inputs are malformed (Charter P11).
+   */
+  reportResult(win: number, bet: number): void {
+    if (this.current !== 'active') return;
+    if (!Number.isFinite(win) || !Number.isFinite(bet)) return;
+    this.netLoss += bet - win;
+    const c = this.count.get();
+    if (Number.isFinite(c)) this.count.set(Math.max(0, c - 1));
+    const winHit = Number.isFinite(this.singleWinLimit) && win >= this.singleWinLimit * bet;
+    const lossHit = Number.isFinite(this.lossLimit) && this.netLoss >= this.lossLimit * bet;
+    if (this.count.get() <= 0 || winHit || lossHit) this.stop();
   }
 
   stop(): void {

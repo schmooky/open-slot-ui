@@ -59,6 +59,8 @@ export class SpinView extends ControlView {
         this.skin.update(this.spin.current);
         this.updateInteractive();
       }),
+      // re-dim if slam-stop is toggled at runtime (e.g. applyJurisdiction)
+      this.spin.allowSlamStop.subscribe(() => this.updateInteractive()),
       this.spin.onTransition((t) => this.play(t)),
     );
 
@@ -125,6 +127,10 @@ export class SpinView extends ControlView {
     const ok = this.spin.interactable;
     this.eventMode = ok ? 'static' : 'none';
     this.cursor = ok ? 'pointer' : 'default';
+    // When slam-stop is disabled (jurisdiction), dim the button while a spin is in
+    // progress so the player sees it's locked. Default behavior is unchanged.
+    const inSpin = this.spin.current === 'spinning' || this.spin.current === 'auto' || this.spin.current === 'stop';
+    this.art.alpha = !this.spin.allowSlamStop.get() && inSpin ? 0.45 : 1;
   }
 
   private play(t: Transition | undefined): void {

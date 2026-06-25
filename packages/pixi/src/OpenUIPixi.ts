@@ -16,6 +16,8 @@ import { TurboView } from './views/TurboView';
 import { AutoplayView } from './views/AutoplayView';
 import { AutoplayDrawerView } from './views/AutoplayDrawerView';
 import { MenuView } from './views/MenuView';
+import { ReadoutView } from './views/ReadoutView';
+import { DialogView } from './views/DialogView';
 import { type ControlViewFactory } from './views/blockColumn';
 import { type SpinSkinFactory } from './skin/SpinSkin';
 
@@ -135,6 +137,14 @@ export class OpenUIPixi {
     const betPlusView = new ButtonView(this.ui.betPlus, this.ui, ticker, { shape: 'circle', radius: 30, iconTexture: ic.betPlus, iconTarget: 64 });
     const betMinusView = new ButtonView(this.ui.betMinus, this.ui, ticker, { shape: 'circle', radius: 30, iconTexture: ic.betMinus, iconTarget: 64 });
 
+    // edge controls (master mute + fullscreen) + the compliance readouts (RTP /
+    // net position / session timer — Stake Engine jurisdiction display elements).
+    const muteView = new ButtonView(this.ui.muteButton, this.ui, ticker, { shape: 'circle', radius: 26, glyph: 'speaker', iconTarget: 52 });
+    const fullscreenView = new ButtonView(this.ui.fullscreenButton, this.ui, ticker, { shape: 'circle', radius: 26, glyph: 'fullscreen', iconTarget: 52 });
+    const rtpView = new ReadoutView(this.ui.rtp, this.ui, ticker);
+    const netView = new ReadoutView(this.ui.netPosition, this.ui, ticker);
+    const timerView = new ReadoutView(this.ui.sessionTimer, this.ui, ticker);
+
     // Every view is mounted; `ui.hidden` only toggles VISIBILITY (so a responsive
     // breakpoint can show/hide a control at runtime — Charter P10). Hidden views
     // stay laid out + introspectable in snapshot, they're just not drawn.
@@ -148,6 +158,11 @@ export class OpenUIPixi {
       [this.ui.bonusButton.id, bonusView],
       [this.ui.betPlus.id, betPlusView],
       [this.ui.betMinus.id, betMinusView],
+      [this.ui.muteButton.id, muteView],
+      [this.ui.fullscreenButton.id, fullscreenView],
+      [this.ui.rtp.id, rtpView],
+      [this.ui.netPosition.id, netView],
+      [this.ui.sessionTimer.id, timerView],
     ];
     const viewById = new Map<string, ControlView>();
     for (const [id, view] of entries) {
@@ -163,6 +178,25 @@ export class OpenUIPixi {
       }),
     );
 
+    // master mute icon reflects the mute state (speaker ↔ speaker-mute)
+    this.disposers.push(this.ui.muted.subscribe((m) => muteView.setGlyph(m ? 'speaker-mute' : 'speaker')));
+
+    // fullscreen: the view stays DOM-agnostic, so the controller owns the toggle and
+    // keeps the glyph in sync with the actual document fullscreen state.
+    if (typeof document !== 'undefined') {
+      this.disposers.push(
+        this.ui.bus.on('buttonActivated', ({ id }) => {
+          if (id !== 'fullscreen') return;
+          const el = (app.canvas.parentElement ?? document.documentElement) as HTMLElement;
+          if (document.fullscreenElement) void document.exitFullscreen?.();
+          else void el.requestFullscreen?.();
+        }),
+      );
+      const onFsChange = (): void => fullscreenView.setGlyph(document.fullscreenElement ? 'fullscreen-exit' : 'fullscreen');
+      document.addEventListener('fullscreenchange', onFsChange);
+      this.disposers.push(() => document.removeEventListener('fullscreenchange', onFsChange));
+    }
+
     // The menu is a full-screen overlay that manages its OWN open/closed visibility
     // (driven by the panel state) — so it's an overlay, not a force-visible view.
     if (menuView) {
@@ -176,6 +210,11 @@ export class OpenUIPixi {
       this.root.addChild(drawer);
       this.overlays.push(drawer);
     }
+
+    // The menu-style notice / error modal (owns its open/closed visibility → overlay).
+    const dialog = new DialogView(this.ui.noticePanel, this.ui.noticeBlocks, this.ui, ticker, { controlSkins: this.opts.controlSkins });
+    this.root.addChild(dialog);
+    this.overlays.push(dialog);
 
     // the settings button toggles ☰ ↔ ✕ with the popover's open state
     if (ic.settingsIdle && ic.settingsActive) {

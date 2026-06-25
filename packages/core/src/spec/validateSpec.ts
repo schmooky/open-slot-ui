@@ -51,6 +51,14 @@ export function validateSpec(spec: UISpec): { ok: boolean; issues: SpecIssue[] }
     if (spec.autoplay?.mode && !AUTOPLAY_MODES.has(spec.autoplay.mode)) {
       add('error', 'autoplay.mode', 'bad-mode', `autoplay.mode must be 'options' or 'infinite', got "${String(spec.autoplay.mode)}"`);
     }
+    for (const key of ['lossLimits', 'winLimits'] as const) {
+      const arr = spec.autoplay?.[key];
+      if (arr) {
+        arr.forEach((o, i) => {
+          if (!(typeof o === 'number' && o > 0)) add('error', `autoplay.${key}[${i}]`, 'bad-limit', `autoplay ${key} must be > 0 (Infinity allowed), got ${String(o)}`);
+        });
+      }
+    }
 
     if (spec.turbo) {
       const m = spec.turbo.modes;
@@ -87,6 +95,21 @@ export function validateSpec(spec: UISpec): { ok: boolean; issues: SpecIssue[] }
     if (spec.currency && typeof spec.currency.decimals === 'number') {
       const d = spec.currency.decimals;
       if (d < 0 || d > 8) add('warn', 'currency.decimals', 'decimals-range', `decimals ${d} clamped to 0..8`);
+    }
+
+    if (spec.jurisdiction) {
+      for (const [k, v] of Object.entries(spec.jurisdiction)) {
+        if (k === 'minimumRoundDuration') {
+          if (v != null && !(typeof v === 'number' && Number.isFinite(v) && v >= 0)) {
+            add('error', `jurisdiction.${k}`, 'bad-duration', `minimumRoundDuration must be a non-negative number, got ${String(v)}`);
+          }
+        } else if (v != null && typeof v !== 'boolean') {
+          add('error', `jurisdiction.${k}`, 'bad-flag', `jurisdiction.${k} must be a boolean, got ${String(v)}`);
+        }
+      }
+    }
+    if (spec.rtp != null && !(typeof spec.rtp === 'number' && Number.isFinite(spec.rtp))) {
+      add('error', 'rtp', 'bad-rtp', `rtp must be a number, got ${String(spec.rtp)}`);
     }
 
     if (spec.controls) {

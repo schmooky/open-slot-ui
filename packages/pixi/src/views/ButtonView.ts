@@ -4,12 +4,15 @@ import { ControlView } from './ControlView';
 import { Tweener } from '../tween';
 import { isDesktop } from '../util';
 
+/** Built-in placeholder glyphs the button can draw without art. */
+export type ButtonGlyph = 'menu' | 'close' | 'speaker' | 'speaker-mute' | 'fullscreen' | 'fullscreen-exit' | 'none';
+
 export interface ButtonViewOptions {
   shape?: 'circle' | 'pill';
   radius?: number;
   height?: number;
   /** Placeholder icon drawn as simple lines (when no texture). */
-  glyph?: 'menu' | 'close' | 'none';
+  glyph?: ButtonGlyph;
   /** Skin with real art: a Sprite shown instead of placeholder geometry. */
   iconTexture?: Texture;
   /** Target sprite height in reference px. */
@@ -30,7 +33,7 @@ export class ButtonView extends ControlView {
   private readonly shape: 'circle' | 'pill';
   private readonly radius: number;
   private readonly pillHeight: number;
-  private readonly glyph: 'menu' | 'close' | 'none';
+  private glyph: ButtonGlyph;
   private readonly iconTarget: number;
 
   constructor(private readonly btn: ButtonControl, ui: OpenUI, ticker: Ticker, opts: ButtonViewOptions = {}) {
@@ -95,6 +98,14 @@ export class ButtonView extends ControlView {
     this.updateHit();
   }
 
+  /** Swap the placeholder glyph (e.g. speaker ↔ speaker-mute, fullscreen ↔ exit). */
+  setGlyph(glyph: ButtonGlyph): void {
+    if (this.glyph === glyph) return;
+    this.glyph = glyph;
+    this.redraw();
+    this.updateHit();
+  }
+
   private fitSprite(): void {
     if (!this.sprite) return;
     this.sprite.scale.set(1);
@@ -156,6 +167,28 @@ export class ButtonView extends ControlView {
         for (const dy of [-8, 0, 8]) g.moveTo(-13, dy).lineTo(13, dy).stroke({ width: 4, color: ink });
       } else if (this.glyph === 'close') {
         g.moveTo(-10, -10).lineTo(10, 10).moveTo(10, -10).lineTo(-10, 10).stroke({ width: 4, color: ink });
+      } else if (this.glyph === 'speaker' || this.glyph === 'speaker-mute') {
+        g.poly([-12, -4, -6, -4, 1, -11, 1, 11, -6, 4, -12, 4]).fill({ color: ink });
+        if (this.glyph === 'speaker') {
+          g.moveTo(6, -6).lineTo(11, 0).lineTo(6, 6).stroke({ width: 2.5, color: ink });
+          g.moveTo(11, -9).lineTo(17, 0).lineTo(11, 9).stroke({ width: 2.5, color: ink });
+        } else {
+          g.moveTo(7, -6).lineTo(17, 6).moveTo(17, -6).lineTo(7, 6).stroke({ width: 2.5, color: ink });
+        }
+      } else if (this.glyph === 'fullscreen') {
+        const a = 13, b = 6;
+        g.moveTo(-a, -a + b).lineTo(-a, -a).lineTo(-a + b, -a)
+          .moveTo(a - b, -a).lineTo(a, -a).lineTo(a, -a + b)
+          .moveTo(-a, a - b).lineTo(-a, a).lineTo(-a + b, a)
+          .moveTo(a - b, a).lineTo(a, a).lineTo(a, a - b)
+          .stroke({ width: 3, color: ink });
+      } else if (this.glyph === 'fullscreen-exit') {
+        const c = 4, d = 12;
+        g.moveTo(-d, -c).lineTo(-c, -c).lineTo(-c, -d)
+          .moveTo(d, -c).lineTo(c, -c).lineTo(c, -d)
+          .moveTo(-d, c).lineTo(-c, c).lineTo(-c, d)
+          .moveTo(d, c).lineTo(c, c).lineTo(c, d)
+          .stroke({ width: 3, color: ink });
       }
     } else {
       const w = this.labelText ? this.labelText.width + 48 : 120;
