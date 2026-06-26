@@ -211,9 +211,17 @@ export interface UISpec {
   statusBar?: 'top' | 'bottom';
   /** Game name + version — shown in the menu footer (support / certification). */
   game?: { name?: string; version?: string };
-  /** Reality-check reminder (RTS 13): every N minutes pause + show an acknowledge
-   *  modal. `title`/`message` are literal-or-key. */
-  realityCheck?: { everyMinutes: number; title?: string; message?: string };
+  /** Reality-check reminder (RTS 13): open-ui runs a wall-clock timer, emits a
+   *  `realityCheck` event, stops autoplay, and (unless `showModal:false`) shows an
+   *  acknowledge modal. You supply only the cadence + text. `title`/`message` are
+   *  literal-or-key with `{{minutes}}`/`{{spent}}`/`{{won}}` interpolation. */
+  realityCheck?: { everyMinutes: number; title?: string; message?: string; showModal?: boolean };
+  /** Social / sweepstakes mode: `true` swaps gambling wording (Bet/Buy → social
+   *  terms); `{ coin }` also shows balance/bet/net in that coin (e.g. `'GC'`/`'SC'`). */
+  social?: boolean | { coin?: string };
+  /** Audio start state. `startMuted` boots muted (the mute icon reflects it; unmuting
+   *  restores the configured volumes). */
+  audio?: { startMuted?: boolean };
 }
 
 /** The result of building a PanelSpec: the panel + every leaf control, in render order. */

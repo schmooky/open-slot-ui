@@ -24,17 +24,21 @@ import {
   type NoticeAction,
   type NoticeOptions,
   type RgsErrorOptions,
+  type RealityCheckOptions,
   RGS_ERROR_KEYS,
   DEFAULT_NOTICE_ACTION,
   errorBlocks,
 } from './notice';
 import { DictionaryTranslator, type Translator } from './i18n/translator';
+import { resolveCurrency } from './format/currency';
 
 export interface OpenUIOptions {
   theme?: Theme;
   layout?: LayoutConfig;
   /** i18n port. Default: an empty dictionary on locale 'en' (keys fall through). */
   translator?: Translator;
+  /** Start with audio muted (the icon reflects it). Unmute restores the volumes. */
+  startMuted?: boolean;
 }
 
 /**
@@ -74,12 +78,23 @@ export class OpenUI {
 
   /** Master mute (music+sfx), observable so an icon can reflect it. */
   readonly muted = new Signal<boolean>(false);
-  /** Social-casino mode (coins shown as GC/SC), set from jurisdiction. */
+  /** Social / sweepstakes mode: swaps gambling wording (Bet/Buy → social terms) and,
+   *  paired with a social coin, shows GC/SC. Toggle with {@link setSocial}. */
   readonly social = new Signal<boolean>(false);
   /** Declarative blocks backing the menu-style notice/error modal. */
   readonly noticeBlocks = new Signal<BlockSpec[]>([]);
   /** Action buttons for the notice/error modal (a single dismiss when empty). */
   readonly noticeActions = new Signal<NoticeAction[]>([]);
+  /** Whether the open notice is a BLOCKING/fatal modal — no backdrop/✕ dismiss and
+   *  the HUD is locked; it can be removed only in code (`hideNotice`). */
+  readonly noticeBlocking = new Signal<boolean>(false);
+  private noticeLockHeld = false;
+  /** Cumulative amount staked this session (major units) — RTS 12 "money spent". */
+  readonly totalStaked = new Signal<number>(0);
+  /** Cumulative amount won this session (major units). */
+  readonly totalWon = new Signal<number>(0);
+  /** The Stake jurisdiction config currently applied (read-back for guards/queries). */
+  jurisdiction: Readonly<JurisdictionConfig> = {};
   /** Replay mode (Stake `replay=true`): the HUD locks + a REPLAY badge shows. */
   readonly replay = new Signal<boolean>(false);
   /** Game name + version (shown in the menu footer; for support / certification). */
@@ -139,14 +154,14 @@ export class OpenUI {
 
     this.balance = new ValueDisplay({
       id: 'balance',
-      label: 'Balance',
+      label: 'openui.balance', // i18n key → localizes + swaps in social mode
       layout: { anchor: 'bottom-left', offset: [220, -96] },
       currency: { code: 'USD', decimals: 2 },
       initial: 1000,
     });
     this.bet = new ValueDisplay({
       id: 'bet',
-      label: 'Bet',
+      label: 'openui.bet',
       layout: { anchor: 'bottom-right', offset: [-220, -96] },
       currency: { code: 'USD', decimals: 2 },
       initial: 1,
@@ -252,6 +267,21 @@ export class OpenUI {
     this.disposers.push(this.betStepper.index.subscribe(syncStepperButtons));
     this.bet.set(this.betStepper.value);
     syncStepperButtons();
+
+    // When the notice/error modal closes, release a blocking lock + announce it.
+    this.disposers.push(
+      this.noticePanel.state.subscribe(() => {
+        if (this.noticePanel.isOpen) return;
+        if (this.noticeLockHeld) {
+          this.unlock();
+          this.noticeLockHeld = false;
+        }
+        if (this.noticeBlocking.get()) this.noticeBlocking.set(false);
+        this.bus.emit('noticeDismissed', undefined);
+      }),
+    );
+
+    if (opts.startMuted) this.setMuted(true);
   }
 
   register(control: Control): void {
@@ -333,6 +363,8 @@ export class OpenUI {
     if (!Number.isFinite(win) || !Number.isFinite(bet)) return;
     this.sessionNet += win - bet;
     this.netPosition.set(this.sessionNet);
+    this.totalStaked.set(this.totalStaked.get() + bet);
+    this.totalWon.set(this.totalWon.get() + win);
     if (this.autoplay.isActive) {
       this.autoplay.reportResult(win, bet);
       // auto-stop autoplay when the next round is no longer affordable (RG)
@@ -340,36 +372,67 @@ export class OpenUI {
     }
   }
 
-  /** Reset the running session net + timer (e.g. on a fresh session). */
+  /** Reset the running session net + aggregates + timer (e.g. on a fresh session). */
   resetSession(): void {
     this.sessionNet = 0;
     this.netPosition.set(0);
+    this.totalStaked.set(0);
+    this.totalWon.set(0);
     this.sessionTimer.reset();
   }
 
   /** Show the menu-style notice modal: declarative blocks + optional action buttons.
    *  Every string (block text + button labels) runs through `ui.t`, so pass exact
    *  literals OR your own i18n keys. Omit `actions` → a single dismiss button. */
-  showNotice(blocks: BlockSpec[], actions?: NoticeAction[]): void {
+  showNotice(blocks: BlockSpec[], actions?: NoticeAction[], opts: { blocking?: boolean } = {}): void {
+    const blocking = !!opts.blocking;
     this.noticeBlocks.set(Array.isArray(blocks) ? blocks : []);
-    this.noticeActions.set(actions && actions.length ? actions : [DEFAULT_NOTICE_ACTION]);
+    // A blocking modal with no actions is dismissable ONLY in code (no default OK).
+    this.noticeActions.set(actions && actions.length ? actions : blocking ? [] : [DEFAULT_NOTICE_ACTION]);
+    this.noticeBlocking.set(blocking);
+    // Keep the blocking lock in step even if one notice REPLACES another while open
+    // (openPanel is idempotent, so the close-subscription wouldn't fire to release it).
+    if (blocking && !this.noticeLockHeld) {
+      this.lock();
+      this.noticeLockHeld = true;
+    } else if (!blocking && this.noticeLockHeld) {
+      this.unlock();
+      this.noticeLockHeld = false;
+    }
     this.noticePanel.openPanel();
+    this.bus.emit('noticeShown', { blocking });
   }
 
   /** Show a simple error/notice: a title + a tone-coloured message. `message` and
    *  `opts.title` are literal-or-key (localized via `ui.t`); `opts.actions` adds
-   *  custom buttons (e.g. a "Reload"). */
+   *  custom buttons (e.g. a "Reload"). `opts.blocking` → a fatal modal (locks the
+   *  HUD, no backdrop/✕ dismiss; removable only via `hideNotice`). */
   showError(message: string, opts: NoticeOptions = {}): void {
-    this.showNotice(errorBlocks(message, opts.title ?? 'openui.error', opts.tone ?? 'warning'), opts.actions);
+    this.showNotice(errorBlocks(message, opts.title ?? 'openui.error', opts.tone ?? 'warning'), opts.actions, {
+      blocking: opts.blocking,
+    });
+  }
+
+  /** Show a FATAL error: a blocking modal that locks the HUD and can be removed only
+   *  in code (`hideNotice`) — for unrecoverable RGS states. Pass `actions` (e.g. a
+   *  "Reload" that reloads the page) for the only way out. */
+  showFatal(message: string, opts: NoticeOptions = {}): void {
+    this.showError(message, { ...opts, blocking: true });
   }
 
   /** Show the default (localizable, overridable) message for an RGS status code.
    *  Override the exact text per call via `opts.title` / `opts.message`. Stops an
-   *  active autoplay by default (`opts.stopAutoplay = false` to keep it). */
+   *  active autoplay by default (`opts.stopAutoplay = false` to keep it). Pass
+   *  `opts.blocking` for unrecoverable codes (session expiry, maintenance). */
   showRgsError(code: string, opts: RgsErrorOptions = {}): void {
     const def = RGS_ERROR_KEYS[code] ?? RGS_ERROR_KEYS.ERR_GEN!;
     if (opts.stopAutoplay !== false && this.autoplay.isActive) this.autoplay.stop();
-    this.showError(opts.message ?? def.message, { title: opts.title ?? def.title, tone: opts.tone ?? 'warning', actions: opts.actions });
+    this.showError(opts.message ?? def.message, {
+      title: opts.title ?? def.title,
+      tone: opts.tone ?? 'warning',
+      actions: opts.actions,
+      blocking: opts.blocking,
+    });
   }
 
   /** Close the notice / error modal. */
@@ -386,8 +449,10 @@ export class OpenUI {
     else this.unlock();
   }
 
-  /** Apply a Stake Engine `jurisdiction` config to the live HUD (whole switchboard). */
+  /** Apply a Stake Engine `jurisdiction` config to the live HUD (whole switchboard).
+   *  The merged config is stored for `isDisabled()` read-back. */
   applyJurisdiction(jur: JurisdictionConfig): void {
+    this.jurisdiction = Object.freeze({ ...this.jurisdiction, ...jur });
     applyJurisdictionTo(this, jur);
   }
 
@@ -409,9 +474,100 @@ export class OpenUI {
     this.translator.setLocale(next);
   }
 
-  /** Translate a key (or pass plain text through) via the active translator. */
+  /** Translate a key (or pass plain text through) via the active translator. In
+   *  social mode, a `<key>.social` variant wins when one resolves — so gambling
+   *  wording (Bet/Buy feature) swaps to sweepstakes terms automatically. */
   t(key: string, vars?: Record<string, string | number>): string {
+    if (this.social.get()) {
+      const sk = `${key}.social`;
+      const s = this.translator.t(sk, vars);
+      if (s !== sk) return s; // a social variant exists (the dict didn't fall through)
+    }
     return this.translator.t(key, vars);
+  }
+
+  /**
+   * Turn social / sweepstakes mode on or off (one switch). Swaps gambling wording
+   * (Bet/Buy feature → social terms via `<key>.social` i18n) AND, when a `coin` is
+   * given (e.g. `'GC'`/`'SC'`/`'XGC'`), shows balance/bet/net in that coin. Wording
+   * re-renders live; the host can still override any `.social` key.
+   */
+  setSocial(on: boolean, coin?: string): void {
+    if (on !== this.social.get()) {
+      this.social.set(on);
+      this.locale.update(() => {}); // nudge text views (they subscribe to `locale`) to re-translate
+    }
+    if (coin) {
+      const cur = resolveCurrency(coin);
+      this.balance.setCurrency(cur);
+      this.bet.setCurrency(cur);
+      this.netPosition.setCurrency(cur);
+    }
+  }
+
+  /** Read-back: did the applied jurisdiction disable this feature? (real guard, not
+   *  just a hide — `confirmBuy`/autoplay entry points consult this). */
+  isDisabled(feature: 'autoplay' | 'buyFeature' | 'turbo' | 'superTurbo' | 'fullscreen' | 'slamstop' | 'spacebar'): boolean {
+    const j = this.jurisdiction;
+    return (
+      (feature === 'autoplay' && !!j.disabledAutoplay) ||
+      (feature === 'buyFeature' && !!j.disabledBuyFeature) ||
+      (feature === 'turbo' && !!j.disabledTurbo) ||
+      (feature === 'superTurbo' && !!j.disabledSuperTurbo) ||
+      (feature === 'fullscreen' && !!j.disabledFullscreen) ||
+      (feature === 'slamstop' && !!j.disabledSlamstop) ||
+      (feature === 'spacebar' && !!j.disabledSpacebar)
+    );
+  }
+
+  /**
+   * Start a reality-check reminder (RTS 13). Every `everyMinutes` (WALL-CLOCK, so a
+   * backgrounded tab can't cheat it) it emits a `realityCheck` event, stops autoplay,
+   * and — unless `showModal: false` — shows an acknowledge modal. You provide only
+   * the interval + (optional) title/message text; `{{minutes}}`/`{{spent}}`/`{{won}}`
+   * are interpolated. Returns a disposer (also torn down by `dispose()`).
+   */
+  startRealityCheck(opts: RealityCheckOptions): Dispose {
+    const everyMs = Math.max(1, opts.everyMinutes) * 60_000;
+    let last = Date.now();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const tick = (): void => {
+      // don't stack on an already-open modal — re-check shortly
+      if (this.noticePanel.isOpen) {
+        timer = setTimeout(tick, 1000);
+        return;
+      }
+      const elapsedMs = Date.now() - last;
+      last = Date.now();
+      this.fireRealityCheck(opts, elapsedMs);
+      timer = setTimeout(tick, everyMs);
+    };
+    timer = setTimeout(tick, everyMs);
+    const dispose = (): void => {
+      if (timer) clearTimeout(timer);
+      timer = undefined;
+    };
+    this.disposers.push(dispose);
+    return dispose;
+  }
+
+  /** Fire one reality check now: emit the event (+ session totals), stop autoplay,
+   *  and show the modal unless `showModal:false`. Exposed for manual triggers / tests. */
+  fireRealityCheck(opts: RealityCheckOptions, elapsedMs = 0): void {
+    const minutes = Math.max(1, Math.round(opts.everyMinutes));
+    const totalStaked = this.totalStaked.get();
+    const totalWon = this.totalWon.get();
+    this.bus.emit('realityCheck', { minutes, elapsedMs, totalStaked, totalWon });
+    if (this.autoplay.isActive) this.autoplay.stop();
+    if (opts.showModal === false) return;
+    const vars = { minutes, spent: totalStaked, won: totalWon };
+    this.showNotice(
+      [
+        { kind: 'heading', id: 'rc-title', text: this.t(opts.title ?? 'openui.realityCheck.title', vars) },
+        { kind: 'callout', id: 'rc-body', tone: 'info', text: this.t(opts.message ?? 'openui.realityCheck.message', vars) },
+      ],
+      opts.actions ?? [{ label: 'openui.continue', variant: 'primary' }],
+    );
   }
 
   on<K extends keyof OpenUIEvents>(type: K, fn: (payload: OpenUIEvents[K]) => void): Dispose {

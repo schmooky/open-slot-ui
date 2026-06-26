@@ -52,6 +52,9 @@ const cfg = {
   // reality-check interval in minutes (?reality=0.2 ≈ 12s, for demoing); replay mode
   reality: Number(q.get('reality')) || 0,
   replay: q.get('replay') === '1',
+  // ?fs=12 → switch the spin button to its free-spins face; ?fatal=1 → blocking modal
+  fs: Number(q.get('fs')) || 0,
+  fatal: q.get('fatal') === '1',
   // initial HUD visibility: ?intro=shown|hidden|slide-in (default shown)
   intro: (['hidden', 'slide-in'].includes(q.get('intro') ?? '') ? q.get('intro') : 'shown') as 'shown' | 'hidden' | 'slide-in',
 };
@@ -247,6 +250,8 @@ async function main(): Promise<void> {
   const start = CURRENCIES[cfg.currency]!;
   ui.balance.set(start.balance);
   if (cfg.replay) hud.setReplay(true); // ?replay=1 → REPLAY badge + locked HUD
+  if (cfg.fs > 0) hud.setFreeSpins(cfg.fs); // ?fs=12 → spin button shows "12 FS"
+  if (cfg.fatal) hud.showFatal('Your session has expired. Reload the game to continue.', { title: 'openui.err.session.title' });
 
   // ---- talk to it from the outside: events out, façade in ----
   const round = (x: number, d: number): number => {

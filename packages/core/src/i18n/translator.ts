@@ -43,9 +43,17 @@ export const openuiDefaults: Record<string, string> = {
   'openui.replay': 'Replay',
   'openui.buyFeature.title': 'Buy feature',
   'openui.buyFeature.message': 'Buy this feature now?',
-  // reality check (RTS 13) — {{minutes}} interpolated by the caller if desired
+  'openui.freeSpins': 'FS',
+  // ── social / sweepstakes wording (used when `ui.social` is on; see OpenUI.t) ──
+  // open-ui resolves `<key>.social` first in social mode, falling back to the base
+  // key. These are the gambling-loaded terms a sweepstakes jurisdiction must avoid;
+  // override any of them (or add `openui.bet.social` etc.) in your messages dict.
+  'openui.buyFeature.title.social': 'Play bonus',
+  'openui.buyFeature.message.social': 'Play this bonus now?',
+  'openui.win.social': 'Prize',
+  // reality check (RTS 13) — {{minutes}} is interpolated by open-ui's scheduler
   'openui.realityCheck.title': 'Reality check',
-  'openui.realityCheck.message': "You've been playing for a while. Take a moment before continuing.",
+  'openui.realityCheck.message': "You've been playing for {{minutes}} minutes. Take a moment before continuing.",
   // RGS error defaults (override via your messages dict or per-call)
   'openui.err.generic.title': 'Something went wrong',
   'openui.err.generic.message': 'Sorry, something went wrong. Please try again.',

@@ -44,6 +44,13 @@ export type OpenUIEvents = {
   cardActivated: { id: string };
   /** Locale was changed via the façade. */
   localeChanged: string;
+  /** A reality-check interval elapsed (RTS 13). `minutes` = the configured interval;
+   *  `elapsedMs` = wall-clock since the last check; totals are session aggregates. */
+  realityCheck: { minutes: number; elapsedMs: number; totalStaked: number; totalWon: number };
+  /** The notice / error modal was shown. */
+  noticeShown: { blocking: boolean };
+  /** The notice / error modal was dismissed. */
+  noticeDismissed: void;
 };
 
 /** A serializable snapshot of one control, for the e2e/introspection API. */
