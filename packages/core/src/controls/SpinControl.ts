@@ -45,6 +45,14 @@ export class SpinControl extends Control {
    */
   readonly allowKeyboard = new Signal<boolean>(true);
 
+  /**
+   * Remaining free spins (0 = normal play). Set it > 0 and the spin button switches
+   * to its free-spins face — a big remaining count over an "FS" label — via the view;
+   * back to 0 returns the normal play button. The host drives the loop; this is just
+   * the display. Set with {@link setFreeSpins}.
+   */
+  readonly freeSpins = new Signal<number>(0);
+
   constructor(
     opts: { id?: string; layout: LayoutSpec; holdToSpin?: boolean },
     private readonly bus: EventBus<OpenUIEvents>,
@@ -105,5 +113,11 @@ export class SpinControl extends Control {
   /** View calls this on release after a hold — the host stops the turbo loop. */
   holdEnd(): void {
     this.bus.emit('holdSpinStopped', undefined);
+  }
+
+  /** Switch the button to / from its free-spins face. `n > 0` shows "n FS"; `0`
+   *  restores the normal play button. Non-number/negative is clamped to 0 (P11). */
+  setFreeSpins(n: number): void {
+    this.freeSpins.set(typeof n === 'number' && Number.isFinite(n) && n > 0 ? Math.floor(n) : 0);
   }
 }

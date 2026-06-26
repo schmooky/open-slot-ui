@@ -28,7 +28,25 @@ export interface NoticeOptions {
   title?: string;
   /** Callout tone. Default `'warning'` for errors. */
   tone?: 'info' | 'warning' | 'bonus';
-  /** Action buttons. Omitted → a single dismiss button (`openui.ok`). */
+  /** Action buttons. Omitted → a single dismiss button (`openui.ok`), or NONE when
+   *  `blocking` (so a fatal modal is dismissable only in code). */
+  actions?: NoticeAction[];
+  /** FATAL/blocking modal: locks the HUD, no backdrop/✕ dismiss; remove via `hideNotice`. */
+  blocking?: boolean;
+}
+
+/** Reality-check reminder config (RTS 13). You supply the cadence + text; open-ui
+ *  owns the (wall-clock) timer, the event, and the modal. */
+export interface RealityCheckOptions {
+  /** Reminder interval in minutes (wall-clock). */
+  everyMinutes: number;
+  /** Modal title — literal or i18n key. `{{minutes}}`/`{{spent}}`/`{{won}}` interpolate. */
+  title?: string;
+  /** Modal message — literal or i18n key. Same interpolation tokens. */
+  message?: string;
+  /** Show the built-in acknowledge modal (default true). `false` → only the event fires. */
+  showModal?: boolean;
+  /** Custom action buttons (default a single "Continue"). */
   actions?: NoticeAction[];
 }
 

@@ -275,3 +275,124 @@ describe('replay + keyboard + autoplay auto-stop', () => {
     expect(ui.autoplay.isActive).toBe(false);
   });
 });
+
+describe('social / sweepstakes mode', () => {
+  it('one switch swaps gambling wording (Buy feature → Play bonus) and back', () => {
+    const ui = createUI();
+    expect(ui.t('openui.buyFeature.title')).toBe('Buy feature');
+    ui.setSocial(true);
+    expect(ui.social.get()).toBe(true);
+    expect(ui.t('openui.buyFeature.title')).toBe('Play bonus'); // social variant wins
+    expect(ui.t('openui.spin')).toBe('Spin'); // no social variant → base unchanged
+    ui.setSocial(false);
+    expect(ui.t('openui.buyFeature.title')).toBe('Buy feature');
+  });
+
+  it('spec.social: { coin } flips wording AND shows the social coin', () => {
+    const ui = createUI({ social: { coin: 'GC' } });
+    expect(ui.social.get()).toBe(true);
+    expect(ui.balance.currency.get().code).toBe('GC');
+    expect(ui.bet.currency.get().code).toBe('GC');
+  });
+
+  it('jurisdiction socialCasino turns it on', () => {
+    const ui = createUI({ jurisdiction: { socialCasino: true } });
+    expect(ui.social.get()).toBe(true);
+    expect(ui.t('openui.buyFeature.message')).toBe('Play this bonus now?');
+  });
+});
+
+describe('session aggregates (RTS 12 — money spent)', () => {
+  it('accumulates total staked + total won, reset on resetSession', () => {
+    const ui = createUI();
+    ui.reportRound(10, 2);
+    ui.reportRound(0, 2);
+    expect(ui.totalStaked.get()).toBe(4);
+    expect(ui.totalWon.get()).toBe(10);
+    ui.resetSession();
+    expect(ui.totalStaked.get()).toBe(0);
+    expect(ui.totalWon.get()).toBe(0);
+  });
+});
+
+describe('fatal / blocking notice', () => {
+  it('locks the HUD, marks blocking, and is removable only in code', () => {
+    const ui = createUI();
+    let shown: { blocking: boolean } | undefined;
+    ui.on('noticeShown', (p) => (shown = p));
+    ui.showFatal('Session expired');
+    expect(ui.noticeBlocking.get()).toBe(true);
+    expect(ui.locked.get()).toBe(true); // HUD locked
+    expect(shown).toEqual({ blocking: true });
+    expect(ui.noticeActions.get().length).toBe(0); // no default dismiss button
+    ui.hideNotice(); // code-only dismiss
+    expect(ui.noticeBlocking.get()).toBe(false);
+    expect(ui.locked.get()).toBe(false); // unlocked again
+  });
+
+  it('a normal notice does NOT lock and gets a default dismiss', () => {
+    const ui = createUI();
+    ui.showError('oops');
+    expect(ui.noticeBlocking.get()).toBe(false);
+    expect(ui.locked.get()).toBe(false);
+    expect(ui.noticeActions.get().length).toBe(1);
+  });
+});
+
+describe('jurisdiction disables are REAL guards (not just hidden)', () => {
+  it('disabledAutoplay disables the control so begin() is a no-op + isDisabled reads back', () => {
+    const ui = createUI({ jurisdiction: { disabledAutoplay: true, disabledBuyFeature: true } });
+    expect(ui.isDisabled('autoplay')).toBe(true);
+    expect(ui.isDisabled('buyFeature')).toBe(true);
+    expect(ui.autoplay.current).toBe('disabled');
+    ui.autoplay.begin(10);
+    expect(ui.autoplay.isActive).toBe(false); // the API truly no-ops, not just hidden
+    expect(ui.bonusButton.current).toBe('disabled');
+  });
+});
+
+describe('reality check (RTS 13) — core layer', () => {
+  it('fireRealityCheck emits the event (with session totals), stops autoplay, opens the modal', () => {
+    const ui = createUI();
+    ui.reportRound(0, 5); // stake 5
+    ui.autoplay.begin(10);
+    let evt: OpenUIEvents['realityCheck'] | undefined;
+    ui.on('realityCheck', (p) => (evt = p));
+    ui.fireRealityCheck({ everyMinutes: 30 });
+    expect(evt).toMatchObject({ minutes: 30, totalStaked: 5, totalWon: 0 });
+    expect(ui.autoplay.isActive).toBe(false); // autoplay paused
+    expect(ui.noticePanel.isOpen).toBe(true); // acknowledge modal shown
+  });
+
+  it('showModal:false fires the event only (host shows its own UI)', () => {
+    const ui = createUI();
+    let fired = false;
+    ui.on('realityCheck', () => (fired = true));
+    ui.fireRealityCheck({ everyMinutes: 15, showModal: false });
+    expect(fired).toBe(true);
+    expect(ui.noticePanel.isOpen).toBe(false);
+  });
+
+  it('interpolates {{minutes}} into the default message', () => {
+    const ui = createUI();
+    expect(ui.t('openui.realityCheck.message', { minutes: 30 })).toContain('30');
+  });
+});
+
+describe('free-spins spin face + audio start flag', () => {
+  it('setFreeSpins clamps and stores the remaining count', () => {
+    const ui = createUI();
+    ui.spin.setFreeSpins(12);
+    expect(ui.spin.freeSpins.get()).toBe(12);
+    ui.spin.setFreeSpins(-3);
+    expect(ui.spin.freeSpins.get()).toBe(0);
+    ui.spin.setFreeSpins(0);
+    expect(ui.spin.freeSpins.get()).toBe(0);
+  });
+
+  it('spec.audio.startMuted boots muted', () => {
+    const ui = createUI({ audio: { startMuted: true } });
+    expect(ui.muted.get()).toBe(true);
+    expect(ui.musicSlider.value.get()).toBe(0);
+  });
+});

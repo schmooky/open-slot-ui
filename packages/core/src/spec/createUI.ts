@@ -10,7 +10,6 @@ import { resolveTheme } from '../theme/presets';
 import { DictionaryTranslator } from '../i18n/translator';
 import { validateSpec } from './validateSpec';
 import { installResponsive } from './responsive';
-import { applyJurisdiction } from './jurisdiction';
 import { resolveCurrency } from '../format/currency';
 import type { UISpec, HostHooks, TurboSpec } from './types';
 import type { OpenUIEvents } from '../types';
@@ -48,13 +47,19 @@ export function createUI(spec: UISpec = {}, hooks: HostHooks = {}): OpenUI {
     : undefined;
   // Theme overrides are sanitized; any rejected value is reported, never fatal.
   const theme = resolveTheme(spec.theme, (i) => hooks.onDataIssue?.(i));
-  const ui = new OpenUI({ theme, layout: spec.layout, translator });
+  const ui = new OpenUI({ theme, layout: spec.layout, translator, startMuted: spec.audio?.startMuted });
 
   if (spec.currency) {
     const cur = typeof spec.currency === 'string' ? resolveCurrency(spec.currency) : spec.currency;
     ui.balance.setCurrency(cur);
     ui.bet.setCurrency(cur);
     ui.netPosition.setCurrency(cur);
+  }
+
+  // Social / sweepstakes mode: one switch swaps wording (+ a coin → GC/SC display).
+  if (spec.social) {
+    if (typeof spec.social === 'object') ui.setSocial(true, spec.social.coin);
+    else ui.setSocial(true);
   }
 
   if (typeof spec.rtp === 'number') ui.rtp.set(spec.rtp);
@@ -104,7 +109,7 @@ export function createUI(spec: UISpec = {}, hooks: HostHooks = {}): OpenUI {
   // Jurisdiction (the Stake Engine compliance switchboard) is applied BEFORE the
   // responsive layer snapshots its base, so a `disabled*` hide is part of that base
   // and survives every resize (it's force-hidden too, belt-and-braces).
-  if (spec.jurisdiction) applyJurisdiction(ui, spec.jurisdiction);
+  if (spec.jurisdiction) ui.applyJurisdiction(spec.jurisdiction); // ui.* stores the snapshot for isDisabled()
 
   // Responsive overrides layer on top of the static `controls` (snapshotted as the
   // base), re-applied on every resize. Installed here — before the renderer mounts
@@ -123,6 +128,12 @@ export function createUI(spec: UISpec = {}, hooks: HostHooks = {}): OpenUI {
       else if (!now && wasSpinning) ui.unlock();
       wasSpinning = now;
     });
+  }
+
+  // Reality-check reminder (RTS 13) — open-ui owns the wall-clock timer + event +
+  // modal; the spec supplies only the cadence and (optional) text. Torn down by dispose().
+  if (spec.realityCheck && spec.realityCheck.everyMinutes > 0) {
+    ui.startRealityCheck(spec.realityCheck);
   }
 
   // A select control with this id switches the whole UI locale; the host still

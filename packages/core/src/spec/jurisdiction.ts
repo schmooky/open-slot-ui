@@ -44,11 +44,17 @@ export function applyJurisdiction(ui: OpenUI, jur: JurisdictionConfig | undefine
     ui.setHidden(id, true);
   };
 
-  // ── "disable X" → hide / limit the feature ───────────────────────────────────
+  // ── "disable X" → hide AND really disable the feature (not just visual) ───────
   if (jur.disabledFullscreen) lockHidden('fullscreen');
   if (jur.disabledTurbo) lockHidden('turbo');
-  if (jur.disabledAutoplay) lockHidden('autoplay');
-  if (jur.disabledBuyFeature) lockHidden('bonus');
+  if (jur.disabledAutoplay) {
+    lockHidden('autoplay');
+    ui.autoplay.disable(); // a real guard: begin()/press() now no-op (state 'disabled')
+  }
+  if (jur.disabledBuyFeature) {
+    lockHidden('bonus');
+    ui.bonusButton.disable(); // the buy button can't be tapped; confirmBuy() also no-ops
+  }
   // Super-turbo off → collapse a 3-mode switcher to a 2-mode (off/on) toggle,
   // keeping plain turbo available.
   if (jur.disabledSuperTurbo && ui.turbo.modeCount > 2) ui.turbo.setModes(['off', 'on']);
@@ -69,8 +75,9 @@ export function applyJurisdiction(ui: OpenUI, jur: JurisdictionConfig | undefine
     else ui.sessionTimer.stop();
   }
 
-  // Social-coin display + the round-duration hint the GAME enforces.
-  if (jur.socialCasino != null) ui.social.set(jur.socialCasino);
+  // Social / sweepstakes mode — swaps gambling wording (and shows GC/SC when the
+  // game has set a social coin). The round-duration hint stays GAME-enforced.
+  if (jur.socialCasino != null) ui.setSocial(jur.socialCasino);
   if (typeof jur.minimumRoundDuration === 'number' && Number.isFinite(jur.minimumRoundDuration)) {
     ui.minimumRoundDuration = Math.max(0, jur.minimumRoundDuration);
   }
