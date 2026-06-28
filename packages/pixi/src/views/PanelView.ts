@@ -1,5 +1,5 @@
 import { Container, Graphics, Text, Rectangle, type Texture, type FederatedPointerEvent, type Ticker } from 'pixi.js';
-import { type PanelControl, type ButtonControl, type OpenUI, type ScreenState, type Theme } from '@open-ui/core';
+import { type PanelControl, type ButtonControl, type OpenUI, type ScreenState, type Theme } from '@open-slot-ui/core';
 import { ControlView } from './ControlView';
 import { ButtonView } from './ButtonView';
 

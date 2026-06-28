@@ -2,7 +2,7 @@ import type { Dispose } from '../signal';
 
 /**
  * i18n port (Charter B5/B8): the core depends on this tiny interface, NOT on i18next.
- * Ship adapters (`@open-ui/i18n-i18next`, the built-in `dictionary()`), never a hard dep.
+ * Ship adapters (`@open-slot-ui/i18n-i18next`, the built-in `dictionary()`), never a hard dep.
  */
 export interface Translator {
   t(key: string, vars?: Record<string, string | number>): string;

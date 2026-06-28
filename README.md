@@ -1,8 +1,8 @@
 # open-ui
 
 [![CI](https://github.com/schmooky/open-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/schmooky/open-ui/actions/workflows/ci.yml)
-[![@open-ui/core](https://img.shields.io/npm/v/@open-ui/core?label=%40open-ui%2Fcore)](https://www.npmjs.com/package/@open-ui/core)
-[![@open-ui/pixi](https://img.shields.io/npm/v/@open-ui/pixi?label=%40open-ui%2Fpixi)](https://www.npmjs.com/package/@open-ui/pixi)
+[![@open-slot-ui/core](https://img.shields.io/npm/v/@open-slot-ui/core?label=%40open-ui%2Fcore)](https://www.npmjs.com/package/@open-slot-ui/core)
+[![@open-slot-ui/pixi](https://img.shields.io/npm/v/@open-slot-ui/pixi?label=%40open-ui%2Fpixi)](https://www.npmjs.com/package/@open-slot-ui/pixi)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
 A **biased, themeable PixiJS UI library for slot games**. Mount the whole HUD onto
@@ -10,11 +10,11 @@ your existing Pixi scene in one call, then set how it looks and behaves with pla
 typed, string-literal options.
 
 ```bash
-pnpm add @open-ui/core @open-ui/pixi pixi.js
+pnpm add @open-slot-ui/core @open-slot-ui/pixi pixi.js
 ```
 
 ```ts
-import { mountHud } from '@open-ui/pixi';
+import { mountHud } from '@open-slot-ui/pixi';
 
 const hud = mountHud(app, {
   theme:    'neon',              // 'default' | 'midnight' | 'neon'
@@ -37,7 +37,7 @@ responsive reflow and teardown — you own the game.
   autoplay style, spin behavior, money formatting and per-device layout. A typo is
   a compile error; a bad value is reported, never fatal.
 - **Headless core, thin renderer.** All state, logic, layout and theming live in
-  zero-dependency `@open-ui/core`. `@open-ui/pixi` is a thin view binding.
+  zero-dependency `@open-slot-ui/core`. `@open-slot-ui/pixi` is a thin view binding.
 - **Every control is a state machine.** State is the single source of truth for
   look, interactivity and tests — interactability is derived, never stored.
 - **Introspection is first-class.** `window.__OPENUI__` reports every control's
@@ -49,8 +49,8 @@ See the doctrine in [CHARTER.md](./CHARTER.md).
 
 | Package | Role |
 | --- | --- |
-| [`@open-ui/core`](./packages/core) | Headless M + C — signals, control state-machines, theme tokens, layout, façade, event bus, introspection. **Zero dependencies.** |
-| [`@open-ui/pixi`](./packages/pixi) | The PixiJS v8 view + controller binding. Mounts one `Container`. Peer-dep `pixi.js ^8`. |
+| [`@open-slot-ui/core`](./packages/core) | Headless M + C — signals, control state-machines, theme tokens, layout, façade, event bus, introspection. **Zero dependencies.** |
+| [`@open-slot-ui/pixi`](./packages/pixi) | The PixiJS v8 view + controller binding. Mounts one `Container`. Peer-dep `pixi.js ^8`. |
 
 ## Configuration at a glance
 
@@ -120,8 +120,8 @@ translation, non-interactive while moving). Choose how it first appears at mount
 ## Repo layout
 
 ```
-packages/core     @open-ui/core  — headless library (Vitest)
-packages/pixi     @open-ui/pixi  — PixiJS renderer
+packages/core     @open-slot-ui/core  — headless library (Vitest)
+packages/pixi     @open-slot-ui/pixi  — PixiJS renderer
 examples/demo     standalone example client + Playwright device tests
 apps/site         the docs site (Astro)
 ```
@@ -131,7 +131,7 @@ apps/site         the docs site (Astro)
 ```bash
 pnpm install
 pnpm dev                      # the example client → http://localhost:5199
-pnpm test                     # @open-ui/core unit tests
+pnpm test                     # @open-slot-ui/core unit tests
 pnpm typecheck                # all packages
 pnpm build                    # build both libraries
 

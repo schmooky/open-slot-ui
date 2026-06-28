@@ -1,5 +1,5 @@
 import { Graphics, Sprite, Rectangle, type Texture, type FederatedPointerEvent } from 'pixi.js';
-import { type SliderControl, type OpenUI } from '@open-ui/core';
+import { type SliderControl, type OpenUI } from '@open-slot-ui/core';
 import { ControlView } from './ControlView';
 
 // Geometry from the provided ScrollBar art (290x60 artboard).

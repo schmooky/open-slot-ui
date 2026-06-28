@@ -1,5 +1,5 @@
 import { Container, Graphics, Text, Rectangle, type FederatedPointerEvent, type Ticker } from 'pixi.js';
-import { type PanelControl, type Control, type BlockSpec, type OpenUI, type ScreenState } from '@open-ui/core';
+import { type PanelControl, type Control, type BlockSpec, type OpenUI, type ScreenState } from '@open-slot-ui/core';
 import { ControlView } from './ControlView';
 import { buildBlockColumn, type ControlViewFactory } from './blockColumn';
 

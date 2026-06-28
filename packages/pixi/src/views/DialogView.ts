@@ -1,5 +1,5 @@
 import { Container, Graphics, Text, Rectangle, type Ticker } from 'pixi.js';
-import { type PanelControl, type OpenUI, type BlockSpec, type Signal, type ScreenState, type NoticeAction } from '@open-ui/core';
+import { type PanelControl, type OpenUI, type BlockSpec, type Signal, type ScreenState, type NoticeAction } from '@open-slot-ui/core';
 import { ControlView } from './ControlView';
 import { buildBlockColumn, type ControlViewFactory } from './blockColumn';
 

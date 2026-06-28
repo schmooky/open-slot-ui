@@ -1,4 +1,4 @@
-// @open-ui/pixi — PixiJS v8 view + controller binding. Peer-deps pixi.js.
+// @open-slot-ui/pixi — PixiJS v8 view + controller binding. Peer-deps pixi.js.
 export * from './OpenUIPixi';
 export * from './views/ControlView';
 export * from './views/SpinView';

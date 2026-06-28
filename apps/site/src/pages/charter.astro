@@ -4,7 +4,7 @@ import Base from '../layouts/Base.astro';
 const postulates = [
   ['P1', 'Biased, not neutral', 'A stateful, opinionated UI with M-V-C inside it. The game talks to it, never through it.'],
   ['P2', 'One mount, zero hand-wiring', 'A single mount() injects one root layer. unmount() removes every listener, tween and timer — and leaks nothing.'],
-  ['P3', 'Headless core, swappable renderer', 'All state, logic, layout math, theming and the test contract live in renderer-agnostic @open-ui/core.'],
+  ['P3', 'Headless core, swappable renderer', 'All state, logic, layout math, theming and the test contract live in renderer-agnostic @open-slot-ui/core.'],
   ['P4', 'Narrow typed façade; never reached into', 'The game drives via typed commands and listens via a typed bus. This boundary is the whole product.'],
   ['P5', 'Every control is a state machine', 'State is the single source of truth for look, interactivity, and tests. No second place decides "is it disabled?".'],
   ['P6', 'Interactability is derived, never stored', 'A computed function of state and host gates — not a pile of per-button booleans to keep in sync.'],

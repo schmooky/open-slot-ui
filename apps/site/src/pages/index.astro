@@ -4,14 +4,14 @@ import { OPEN_UI_VERSION } from '../lib/version.ts';
 
 const principles = [
   { n: 'P1', title: 'Biased, not neutral', body: 'A stateful, opinionated HUD with M-V-C inside. The game talks to it, never through it.' },
-  { n: 'P3', title: 'Headless core, thin renderer', body: 'All state, logic, layout & theming live in zero-dependency @open-ui/core. @open-ui/pixi is a thin view.' },
+  { n: 'P3', title: 'Headless core, thin renderer', body: 'All state, logic, layout & theming live in zero-dependency @open-slot-ui/core. @open-slot-ui/pixi is a thin view.' },
   { n: 'P5', title: 'Every control is a state machine', body: 'State is the single source of truth for look, interactivity, and tests. No second “is it disabled?”.' },
   { n: 'P8', title: 'Themeable by tokens', body: 'Look is data: a small token override re-skins the whole HUD. Nothing renders un-themed.' },
   { n: 'P10', title: 'Introspection is first-class', body: 'window.__OPENUI__ reports every control’s state, interactability and bounds — no pixel reading.' },
   { n: 'P12', title: 'Leak-free lifecycle', body: 'Every subscription, tween and timer returns a disposer. One dispose() tears it all down.' },
 ];
 
-const config = `import { mountHud } from '@open-ui/pixi';
+const config = `import { mountHud } from '@open-slot-ui/pixi';
 
 mountHud(app, {
   theme: { overrides: { color: { accent: '#ffc935' } } }, // one b&w theme; recolour via overrides
@@ -119,21 +119,21 @@ mountHud(app, {
       <div class="grid gap-4 md:grid-cols-2">
         <div class="rounded-xl border border-border bg-card p-6">
           <div class="flex items-center justify-between">
-            <code class="font-mono text-sm font-semibold">@open-ui/core</code>
+            <code class="font-mono text-sm font-semibold">@open-slot-ui/core</code>
             <span class="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">zero deps</span>
           </div>
           <p class="mt-3 text-sm leading-6 text-muted-foreground">Headless M + C — signals, control state-machines, theme tokens, layout, the façade, the event bus, introspection.</p>
         </div>
         <div class="rounded-xl border border-border bg-card p-6">
           <div class="flex items-center justify-between">
-            <code class="font-mono text-sm font-semibold">@open-ui/pixi</code>
+            <code class="font-mono text-sm font-semibold">@open-slot-ui/pixi</code>
             <span class="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">peer: pixi.js ^8</span>
           </div>
           <p class="mt-3 text-sm leading-6 text-muted-foreground">The PixiJS v8 view + controller binding. Mounts one Container, shares your ticker &amp; renderer.</p>
         </div>
       </div>
       <div class="mt-8 rounded-xl border border-border surface-code p-5">
-        <pre class="overflow-x-auto text-sm leading-6"><code>{`import { mountHud } from '@open-ui/pixi';
+        <pre class="overflow-x-auto text-sm leading-6"><code>{`import { mountHud } from '@open-slot-ui/pixi';
 
 const hud = mountHud(app);              // whole HUD, one Container onto YOUR stage
 hud.on('spinRequested', () => game.spin());   // events out

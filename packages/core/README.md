@@ -1,12 +1,12 @@
-# @open-ui/core
+# @open-slot-ui/core
 
 The **headless core** of [open-ui](https://github.com/schmooky/open-ui) — a biased,
 themeable UI library for slot games. This package is the **M + C**: all state, logic,
 layout and theming, with **zero runtime dependencies**. It renders nothing on its own;
-pair it with a view binding such as [`@open-ui/pixi`](https://www.npmjs.com/package/@open-ui/pixi).
+pair it with a view binding such as [`@open-slot-ui/pixi`](https://www.npmjs.com/package/@open-slot-ui/pixi).
 
 ```bash
-pnpm add @open-ui/core
+pnpm add @open-slot-ui/core
 ```
 
 ## What's inside
@@ -27,12 +27,12 @@ pnpm add @open-ui/core
 
 ## Usage
 
-You normally don't construct core directly — a renderer like `@open-ui/pixi` builds it
-from your `UISpec` via `mountHud`. Reach for `@open-ui/core` directly when you're writing
+You normally don't construct core directly — a renderer like `@open-slot-ui/pixi` builds it
+from your `UISpec` via `mountHud`. Reach for `@open-slot-ui/core` directly when you're writing
 your **own** renderer (DOM, Canvas, another engine) against the same headless model.
 
 ```ts
-import { OpenUI, defaultTheme } from '@open-ui/core';
+import { OpenUI, defaultTheme } from '@open-slot-ui/core';
 ```
 
 See the [main README](https://github.com/schmooky/open-ui#readme) and the

@@ -1,8 +1,8 @@
-# @open-ui/site
+# @open-slot-ui/site
 
 The documentation site for **open-ui** — Astro + React islands + shadcn/ui
 (new-york, zinc) on Tailwind v4, with **live PixiJS demos** that mount the real
-`@open-ui/pixi` HUD onto a host app and a panel that reads controller state
+`@open-slot-ui/pixi` HUD onto a host app and a panel that reads controller state
 through the public `window.__OPENUI__` introspection API.
 
 Modeled on the `pixi-reels` docs site.
@@ -12,7 +12,7 @@ Modeled on the `pixi-reels` docs site.
 ```bash
 # from the repo root
 pnpm install
-pnpm --filter @open-ui/site dev      # http://localhost:5210
+pnpm --filter @open-slot-ui/site dev      # http://localhost:5210
 ```
 
 `predev`/`prebuild` run `scripts/sync-assets.mjs`, which copies the HUD art from
@@ -21,14 +21,14 @@ pnpm --filter @open-ui/site dev      # http://localhost:5210
 ## Build
 
 ```bash
-pnpm --filter @open-ui/site build     # → dist/
-pnpm --filter @open-ui/site preview
+pnpm --filter @open-slot-ui/site build     # → dist/
+pnpm --filter @open-slot-ui/site preview
 ```
 
 ## How it's wired
 
 - The site is **always built against local library source**. `astro.config.mjs`
-  aliases `@open-ui/core` and `@open-ui/pixi` to `packages/*/src`.
+  aliases `@open-slot-ui/core` and `@open-slot-ui/pixi` to `packages/*/src`.
 - `pixi.js` / `react` / `react-dom` / `gsap` are deduped so there is one
   instance shared between the host app and the library.
 - Live demos are React islands (`OpenUiPlayground.tsx`) hydrated with

@@ -1,5 +1,5 @@
 import { Container, Graphics, Text, Circle, type Ticker } from 'pixi.js';
-import { type StepperControl, type OpenUI, type Theme } from '@open-ui/core';
+import { type StepperControl, type OpenUI, type Theme } from '@open-slot-ui/core';
 import { ControlView } from './ControlView';
 
 /**

@@ -1,5 +1,5 @@
 import { type Container, type Ticker } from 'pixi.js';
-import { type Transition, type Theme } from '@open-ui/core';
+import { type Transition, type Theme } from '@open-slot-ui/core';
 
 type Frame = (ticker: Ticker) => void;
 

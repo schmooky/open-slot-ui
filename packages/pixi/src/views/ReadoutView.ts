@@ -1,5 +1,5 @@
 import { Text, type Ticker } from 'pixi.js';
-import { type ReadoutControl, type OpenUI, formatAmount } from '@open-ui/core';
+import { type ReadoutControl, type OpenUI, formatAmount } from '@open-slot-ui/core';
 import { ControlView } from './ControlView';
 
 const CAP_DY = -20;

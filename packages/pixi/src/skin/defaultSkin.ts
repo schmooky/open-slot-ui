@@ -1,5 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
-import { type Theme } from '@open-ui/core';
+import { type Theme } from '@open-slot-ui/core';
 import { type SpinSkin, type SpinSkinFactory } from './SpinSkin';
 
 /**

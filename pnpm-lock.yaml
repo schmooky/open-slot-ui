@@ -36,10 +36,10 @@ importers:
 
   examples/demo:
     dependencies:
-      '@open-ui/core':
+      '@open-slot-ui/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@open-ui/pixi':
+      '@open-slot-ui/pixi':
         specifier: workspace:*
         version: link:../../packages/pixi
       gsap:
@@ -70,7 +70,7 @@ importers:
 
   packages/pixi:
     dependencies:
-      '@open-ui/core':
+      '@open-slot-ui/core':
         specifier: workspace:*
         version: link:../core
       pixi.js:

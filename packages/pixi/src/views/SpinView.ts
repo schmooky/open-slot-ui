@@ -1,5 +1,5 @@
 import { Container, Circle, Graphics, Text, type Ticker } from 'pixi.js';
-import { type SpinControl, type OpenUI, type Transition } from '@open-ui/core';
+import { type SpinControl, type OpenUI, type Transition } from '@open-slot-ui/core';
 import { ControlView } from './ControlView';
 import { Tweener } from '../tween';
 import { defaultSpinSkin } from '../skin/defaultSkin';

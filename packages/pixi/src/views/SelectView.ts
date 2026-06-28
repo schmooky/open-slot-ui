@@ -1,5 +1,5 @@
 import { Container, Graphics, Text, Rectangle, type FederatedPointerEvent, type Ticker } from 'pixi.js';
-import { type SelectControl, type OpenUI, type Transition } from '@open-ui/core';
+import { type SelectControl, type OpenUI, type Transition } from '@open-slot-ui/core';
 import { ControlView } from './ControlView';
 import { Tweener } from '../tween';
 

@@ -17,7 +17,7 @@ import {
   type NoticeAction,
   type NoticeOptions,
   type RgsErrorOptions,
-} from '@open-ui/core';
+} from '@open-slot-ui/core';
 import { OpenUIPixi, type OpenUIPixiOptions } from './OpenUIPixi';
 import { PanelBodyView } from './views/PanelBodyView';
 

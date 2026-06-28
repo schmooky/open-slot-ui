@@ -7,7 +7,7 @@ const fromRoot = (p: string): string => new URL(p, root).pathname;
 
 // Share ONE pixi.js instance between the host app and the lib (Charter B2), and
 // read the workspace packages straight from TS source. The package `exports` now
-// point at built `dist/` (so the lib is publishable), so we alias @open-ui/* back
+// point at built `dist/` (so the lib is publishable), so we alias @open-slot-ui/* back
 // to `src/` here — the demo is ALWAYS run against source, never a build.
 // (apps/site does the same in astro.config.mjs; keep the two in sync.)
 export default defineConfig({
@@ -19,6 +19,6 @@ export default defineConfig({
     ],
     dedupe: ['pixi.js'],
   },
-  optimizeDeps: { exclude: ['@open-ui/core', '@open-ui/pixi'] },
+  optimizeDeps: { exclude: ['@open-slot-ui/core', '@open-slot-ui/pixi'] },
   server: { fs: { allow: [root.pathname] }, port: 5199, strictPort: true },
 });

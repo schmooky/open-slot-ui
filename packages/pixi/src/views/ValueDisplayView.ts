@@ -1,5 +1,5 @@
 import { Container, Text, type Ticker } from 'pixi.js';
-import { type ValueDisplay, type OpenUI, displayDigits, valueFitMaxWidth } from '@open-ui/core';
+import { type ValueDisplay, type OpenUI, displayDigits, valueFitMaxWidth } from '@open-slot-ui/core';
 import { Counter, type CounterOptions, type GsapLike } from 'pixi-text-counter';
 import { ControlView } from './ControlView';
 import { TextCellRenderer } from '../renderers/TextCellRenderer';

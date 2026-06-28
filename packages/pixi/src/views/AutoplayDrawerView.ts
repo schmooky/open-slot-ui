@@ -1,5 +1,5 @@
 import { Container, Graphics, Text, Rectangle, type Ticker } from 'pixi.js';
-import { type AutoplayControl, type OpenUI, type ScreenState } from '@open-ui/core';
+import { type AutoplayControl, type OpenUI, type ScreenState } from '@open-slot-ui/core';
 
 // Black-and-white palette — the autoplay picker is monochrome (no theme accent).
 const WHITE = 0xffffff;

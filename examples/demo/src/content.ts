@@ -1,4 +1,4 @@
-import type { BlockSpec } from '@open-ui/core';
+import type { BlockSpec } from '@open-slot-ui/core';
 
 /**
  * The RULES section content as declarative BLOCKS — the single source of truth

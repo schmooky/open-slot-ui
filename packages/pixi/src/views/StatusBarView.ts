@@ -1,5 +1,5 @@
 import { Container, Graphics, type Ticker } from 'pixi.js';
-import { type ReadoutControl, type OpenUI, type ScreenState } from '@open-ui/core';
+import { type ReadoutControl, type OpenUI, type ScreenState } from '@open-slot-ui/core';
 import { ReadoutView } from './ReadoutView';
 
 export type StatusBarSide = 'top' | 'bottom';

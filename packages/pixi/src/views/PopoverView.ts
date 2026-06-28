@@ -1,5 +1,5 @@
 import { type Ticker, type Texture } from 'pixi.js';
-import { type PanelControl, type SliderControl, type ButtonControl, type OpenUI } from '@open-ui/core';
+import { type PanelControl, type SliderControl, type ButtonControl, type OpenUI } from '@open-slot-ui/core';
 import { ControlView } from './ControlView';
 import { SliderView } from './SliderView';
 import { ButtonView } from './ButtonView';

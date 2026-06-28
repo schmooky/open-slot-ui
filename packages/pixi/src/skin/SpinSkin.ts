@@ -1,5 +1,5 @@
 import { type Container } from 'pixi.js';
-import { type Theme } from '@open-ui/core';
+import { type Theme } from '@open-slot-ui/core';
 
 /**
  * A skin owns a control's *look* and nothing else. The view drives it with the

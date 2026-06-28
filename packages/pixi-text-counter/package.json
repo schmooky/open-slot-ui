@@ -1,7 +1,7 @@
 {
   "name": "pixi-text-counter",
   "version": "0.2.0",
-  "description": "Animated numeric counter as a PixiJS 8 Container — mechanical-reel digit roll for slot balance/win displays. Vendored as source into open-ui (the 0.2.0 fork isn't on npm); bundled into @open-ui/pixi. MIT © schmooky.",
+  "description": "Animated numeric counter as a PixiJS 8 Container — mechanical-reel digit roll for slot balance/win displays. Vendored as source into open-ui (the 0.2.0 fork isn't on npm); bundled into @open-slot-ui/pixi. MIT © schmooky.",
   "private": true,
   "type": "module",
   "sideEffects": false,

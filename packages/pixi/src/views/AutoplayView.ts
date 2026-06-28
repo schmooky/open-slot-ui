@@ -1,5 +1,5 @@
 import { Container, Graphics, Sprite, Text, Circle, type Texture, type Ticker, type FederatedPointerEvent } from 'pixi.js';
-import { type AutoplayControl, type OpenUI } from '@open-ui/core';
+import { type AutoplayControl, type OpenUI } from '@open-slot-ui/core';
 import { ControlView } from './ControlView';
 
 const DEG = Math.PI / 180;

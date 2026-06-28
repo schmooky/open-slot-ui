@@ -1,5 +1,5 @@
 {
-  "//": "Self-contained (does NOT extend the workspace base): this is vendored third-party source, kept on its own upstream tsconfig — notably verbatimModuleSyntax:false — so it typechecks unmodified. @open-ui/* code uses the stricter root base.",
+  "//": "Self-contained (does NOT extend the workspace base): this is vendored third-party source, kept on its own upstream tsconfig — notably verbatimModuleSyntax:false — so it typechecks unmodified. @open-slot-ui/* code uses the stricter root base.",
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",

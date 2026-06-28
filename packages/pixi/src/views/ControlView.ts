@@ -1,5 +1,5 @@
 import { Container } from 'pixi.js';
-import { resolvePlacement, type Control, type OpenUI, type Rect, type ScreenState } from '@open-ui/core';
+import { resolvePlacement, type Control, type OpenUI, type Rect, type ScreenState } from '@open-slot-ui/core';
 
 /**
  * Base view: a Pixi Container bound to a core Control. Owns layout placement and

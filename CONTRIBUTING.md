@@ -16,7 +16,7 @@ them).
 ## The loop
 
 ```bash
-pnpm test           # @open-ui/core unit tests (Vitest)
+pnpm test           # @open-slot-ui/core unit tests (Vitest)
 pnpm typecheck      # core + pixi + demo
 pnpm build          # build both libraries (tsup → ESM + CJS + d.ts)
 pnpm dev            # the example client, for eyeballing changes

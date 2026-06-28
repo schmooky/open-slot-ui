@@ -7,7 +7,7 @@ import {
   buildBlocks,
   buttonBlocks,
   composeMenu,
-} from '@open-ui/core';
+} from '@open-slot-ui/core';
 import { type ControlView } from './views/ControlView';
 import { SpinView } from './views/SpinView';
 import { ValueDisplayView } from './views/ValueDisplayView';

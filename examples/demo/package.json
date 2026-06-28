@@ -13,8 +13,8 @@
     "matrix": "playwright test -c playwright.matrix.config.ts && node scripts/montage.mjs"
   },
   "dependencies": {
-    "@open-ui/core": "workspace:*",
-    "@open-ui/pixi": "workspace:*",
+    "@open-slot-ui/core": "workspace:*",
+    "@open-slot-ui/pixi": "workspace:*",
     "gsap": "^3.13.0",
     "pixi.js": "^8.6.6"
   },

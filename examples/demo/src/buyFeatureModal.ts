@@ -1,6 +1,6 @@
 import type { Application } from 'pixi.js';
-import type { BootedHud } from '@open-ui/pixi';
-import type { CurrencySpec } from '@open-ui/core';
+import type { BootedHud } from '@open-slot-ui/pixi';
+import type { CurrencySpec } from '@open-slot-ui/core';
 import { FEATURES, type FeatureSpec } from './content';
 
 /**

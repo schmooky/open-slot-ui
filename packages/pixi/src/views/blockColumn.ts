@@ -9,7 +9,7 @@ import {
   type SelectControl,
   type StepperControl,
   type ValueDisplay,
-} from '@open-ui/core';
+} from '@open-slot-ui/core';
 import { ControlView } from './ControlView';
 import { SliderView } from './SliderView';
 import { ToggleView } from './ToggleView';

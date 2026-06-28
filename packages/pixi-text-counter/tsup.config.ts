@@ -1,10 +1,10 @@
 import { defineConfig } from 'tsup';
 
 // Builds the vendored counter to dist (ESM + CJS + .d.ts). `pixi.js` stays
-// external (the single shared instance comes from the host). @open-ui/pixi then
+// external (the single shared instance comes from the host). @open-slot-ui/pixi then
 // resolves + INLINES this dist into its own bundle, so the counter ships inside
-// @open-ui/pixi and is never a separate runtime dependency. Build order:
-// pixi-text-counter → @open-ui/core → @open-ui/pixi (see the root `build` script).
+// @open-slot-ui/pixi and is never a separate runtime dependency. Build order:
+// pixi-text-counter → @open-slot-ui/core → @open-slot-ui/pixi (see the root `build` script).
 export default defineConfig({
   entry: { index: 'src/index.ts' },
   format: ['esm', 'cjs'],

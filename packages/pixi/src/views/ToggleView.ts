@@ -1,5 +1,5 @@
 import { Container, Graphics, Sprite, Circle, Rectangle, type Texture, type Ticker } from 'pixi.js';
-import { type ToggleControl, type OpenUI, type Transition } from '@open-ui/core';
+import { type ToggleControl, type OpenUI, type Transition } from '@open-slot-ui/core';
 import { ControlView } from './ControlView';
 import { Tweener } from '../tween';
 

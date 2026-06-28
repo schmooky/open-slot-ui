@@ -1,4 +1,4 @@
-// @open-ui/core — headless M + C. Zero dependencies.
+// @open-slot-ui/core — headless M + C. Zero dependencies.
 export * from './signal';
 export * from './events';
 export * from './types';

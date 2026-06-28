@@ -1,6 +1,6 @@
 import { Application, Assets, Container, Graphics, Rectangle, Texture } from 'pixi.js';
-import { mountHud, svgSpinSkin, StatusBarView } from '@open-ui/pixi';
-import type { UISpec, CurrencySpec, ThemePreset, JurisdictionConfig } from '@open-ui/core';
+import { mountHud, svgSpinSkin, StatusBarView } from '@open-slot-ui/pixi';
+import type { UISpec, CurrencySpec, ThemePreset, JurisdictionConfig } from '@open-slot-ui/core';
 import { MESSAGES } from './locales';
 import { RULES_BLOCKS, FEATURES } from './content';
 import { mountHtmlMenu } from './htmlMenu';
