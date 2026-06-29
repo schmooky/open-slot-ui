@@ -197,8 +197,9 @@ export class AutoplayView extends ControlView {
         this.sprite.tint = th.color.accent;
         this.sprite.alpha = 0.9; // slightly dimmed → reads as disabled
       } else {
-        // Drawn fallback (no art): a yellow disc at the real button radius.
+        // Drawn fallback (no art): a yellow disc + dark play glyph at the real radius.
         this.bg.circle(0, 0, this.radius).fill({ color: th.color.accent }).stroke({ width: 4, color: th.color.accentText });
+        this.drawGlyph(th.color.accentText);
       }
       return;
     }
@@ -212,9 +213,18 @@ export class AutoplayView extends ControlView {
       this.fit();
       this.sprite.alpha = st === 'disabled' ? 0.5 : 1;
     } else {
+      // Drawn fallback (no art): dark disc + accent ring + an accent play glyph so
+      // the button is never a blank circle when a host omits the autoplay art.
       this.bg.clear();
       this.bg.circle(0, 0, this.radius).fill({ color: th.color.surface }).stroke({ width: 4, color: th.color.accent });
+      this.drawGlyph(st === 'disabled' ? th.color.disabled : th.color.accent);
     }
+  }
+
+  /** A simple right-pointing "play" triangle, sized to the button radius. */
+  private drawGlyph(color: string): void {
+    const r = this.radius;
+    this.bg.poly([-r * 0.26, -r * 0.42, r * 0.46, 0, -r * 0.26, r * 0.42]).fill({ color });
   }
 
   override dispose(): void {
