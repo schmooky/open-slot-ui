@@ -18,7 +18,6 @@ import { AutoplayDrawerView } from './views/AutoplayDrawerView';
 import { MenuView } from './views/MenuView';
 import { ReadoutView } from './views/ReadoutView';
 import { DialogView } from './views/DialogView';
-import { StatusBarView, type StatusBarSide } from './views/StatusBarView';
 import { type ControlViewFactory } from './views/blockColumn';
 import { type SpinSkinFactory } from './skin/SpinSkin';
 import { type GsapLike } from 'pixi-text-counter';
@@ -70,12 +69,6 @@ export interface OpenUIPixiOptions {
    * `'radial'` fans the count chips around the spin button.
    */
   autoplayPicker?: 'drawer' | 'radial';
-  /**
-   * Put the compliance readouts (net · RTP · session) in a thin status strip at the
-   * `'top'` or `'bottom'` edge instead of at screen corners. Each readout still only
-   * shows when its jurisdiction `display*` flag is set.
-   */
-  statusBar?: StatusBarSide;
   /**
    * Text colour for the top-corner compliance readouts (RTP / net / session). Defaults
    * to the theme text colour; a light-background host can pass a dark colour so the
@@ -185,15 +178,14 @@ export class OpenUIPixi {
     // edge controls (master mute + fullscreen) — b&w "mono" buttons like turbo.
     const muteView = new ButtonView(this.ui.muteButton, this.ui, ticker, { shape: 'circle', radius: 30, glyph: 'speaker', iconTarget: 60, mono: true });
     const fullscreenView = new ButtonView(this.ui.fullscreenButton, this.ui, ticker, { shape: 'circle', radius: 30, glyph: 'fullscreen', iconTarget: 60, mono: true });
-    muteView.zIndex = 65; // above the status bar (60) so they read as part of it
+    muteView.zIndex = 65;
     fullscreenView.zIndex = 65;
-    // Compliance readouts (RTP / net / session): in a thin status bar if configured,
-    // else at screen corners. Bar items are created inline by the StatusBarView.
-    const statusBarSide = this.opts.statusBar;
+    // Compliance readouts (RTP / net / session) — a plain `Label: value` block in the
+    // top-left corner. Each readout still only shows when its jurisdiction flag is set.
     const roOpts = { prefix: true, fill: this.opts.readoutColor } as const;
-    const rtpView = statusBarSide ? undefined : new ReadoutView(this.ui.rtp, this.ui, ticker, roOpts);
-    const netView = statusBarSide ? undefined : new ReadoutView(this.ui.netPosition, this.ui, ticker, roOpts);
-    const timerView = statusBarSide ? undefined : new ReadoutView(this.ui.sessionTimer, this.ui, ticker, roOpts);
+    const rtpView = new ReadoutView(this.ui.rtp, this.ui, ticker, roOpts);
+    const netView = new ReadoutView(this.ui.netPosition, this.ui, ticker, roOpts);
+    const timerView = new ReadoutView(this.ui.sessionTimer, this.ui, ticker, roOpts);
 
     // Every view is mounted; `ui.hidden` only toggles VISIBILITY (so a responsive
     // breakpoint can show/hide a control at runtime — Charter P10). Hidden views
@@ -211,9 +203,9 @@ export class OpenUIPixi {
       [this.ui.muteButton.id, muteView],
       [this.ui.fullscreenButton.id, fullscreenView],
     ];
-    if (rtpView) entries.push([this.ui.rtp.id, rtpView]);
-    if (netView) entries.push([this.ui.netPosition.id, netView]);
-    if (timerView) entries.push([this.ui.sessionTimer.id, timerView]);
+    entries.push([this.ui.rtp.id, rtpView]);
+    entries.push([this.ui.netPosition.id, netView]);
+    entries.push([this.ui.sessionTimer.id, timerView]);
     const viewById = new Map<string, ControlView>();
     const idByView = new Map<ControlView, string>();
     for (const [id, view] of entries) {
@@ -290,30 +282,23 @@ export class OpenUIPixi {
     this.root.addChild(dialog);
     this.overlays.push(dialog);
 
-    // Optional status bar (net · RTP · session) pinned to the top/bottom edge.
-    if (statusBarSide) {
-      const bar = new StatusBarView([this.ui.netPosition, this.ui.rtp, this.ui.sessionTimer], this.ui, ticker, statusBarSide);
-      this.root.addChild(bar);
-      this.overlays.push(bar);
-    } else {
-      // Figma: a soft dark radial vignette in the top-left corner keeps the white 50%
-      // RTP/session/net readouts legible over any background.
-      const vignette = new Graphics();
-      vignette.zIndex = -1; // behind the readout text views
-      this.root.addChild(vignette);
-      this.overlays.push({
-        applyLayout: (s) => {
-          const r = 200 * s.scale;
-          vignette.clear();
-          // concentric rings fading out from the corner approximate a radial gradient
-          for (let i = 0; i < 14; i++) {
-            const t = i / 14;
-            vignette.circle(0, 0, r * (1 - t)).fill({ color: 0x000000, alpha: 0.5 / 14 });
-          }
-        },
-        dispose: () => { if (!vignette.destroyed) vignette.destroy(); },
-      });
-    }
+    // Figma: a soft dark radial vignette in the top-left corner keeps the white 50%
+    // RTP/session/net readouts legible over any background.
+    const vignette = new Graphics();
+    vignette.zIndex = -1; // behind the readout text views
+    this.root.addChild(vignette);
+    this.overlays.push({
+      applyLayout: (s) => {
+        const r = 200 * s.scale;
+        vignette.clear();
+        // concentric rings fading out from the corner approximate a radial gradient
+        for (let i = 0; i < 14; i++) {
+          const t = i / 14;
+          vignette.circle(0, 0, r * (1 - t)).fill({ color: 0x000000, alpha: 0.5 / 14 });
+        }
+      },
+      dispose: () => { if (!vignette.destroyed) vignette.destroy(); },
+    });
 
     // REPLAY badge (Stake replay mode) — a pill shown while `ui.replay` is true.
     const replayBadge = new Container();
@@ -329,8 +314,7 @@ export class OpenUIPixi {
         const w = replayText.width + 36;
         const h = 32;
         replayBg.clear().roundRect(-w / 2, -h / 2, w, h, h / 2).fill({ color: 0x0c0d10 }).stroke({ width: 2, color: 0xffffff });
-        const top = statusBarSide === 'top' ? StatusBarView.heightFor(s) + 28 : 40;
-        replayBadge.position.set(s.width / 2, top);
+        replayBadge.position.set(s.width / 2, 40);
       },
       dispose: () => {
         if (!replayBadge.destroyed) replayBadge.destroy({ children: true });
@@ -350,18 +334,11 @@ export class OpenUIPixi {
 
     const applyLayout = (): void => {
       const screen = this.ui.screen.get();
-      // A status bar insets the HUD by its height on that edge — controls anchored to
-      // the same edge shift away, as if the bar added a margin to them.
-      const barH = statusBarSide ? StatusBarView.heightFor(screen) : 0;
       this.slideBaseY.clear();
       this.slideSign.clear();
       for (const v of this.views) {
         v.applyLayout(screen);
         const anchor = this.ui.control(idByView.get(v) ?? '')?.layout.anchor ?? 'bottom-center';
-        if (barH) {
-          if (statusBarSide === 'top' && anchor.startsWith('top')) v.y += barH;
-          else if (statusBarSide === 'bottom' && anchor.startsWith('bottom')) v.y -= barH;
-        }
         // record the resting y + slide direction (top controls up, the rest down)
         this.slideBaseY.set(v, v.y);
         this.slideSign.set(v, anchor.startsWith('top') ? -1 : 1);

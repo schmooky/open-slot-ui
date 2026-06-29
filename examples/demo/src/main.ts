@@ -1,5 +1,5 @@
 import { Application, Assets, Container, Graphics, Rectangle, Texture } from 'pixi.js';
-import { mountHud, svgSpinSkin, StatusBarView } from '@open-slot-ui/pixi';
+import { mountHud, svgSpinSkin } from '@open-slot-ui/pixi';
 import type { UISpec, CurrencySpec, ThemePreset, JurisdictionConfig } from '@open-slot-ui/core';
 import { MESSAGES } from './locales';
 import { RULES_BLOCKS, FEATURES } from './content';
@@ -46,9 +46,6 @@ const cfg = {
   // buy-feature: ?activation=single|multi (default multi) · ?blockbuy=1
   activation: (q.get('activation') === 'single' ? 'single' : 'multi') as 'single' | 'multi',
   blockBuy: q.get('blockbuy') === '1',
-  // Compliance readouts default to the Figma top-left `Label: value` block; opt into
-  // the thin status bar with ?statusbar=top|bottom.
-  statusBar: (q.get('statusbar') === 'bottom' ? 'bottom' : q.get('statusbar') === 'top' ? 'top' : undefined) as 'top' | 'bottom' | undefined,
   // reality-check interval in minutes (?reality=0.2 ≈ 12s, for demoing); replay mode
   reality: Number(q.get('reality')) || 0,
   replay: q.get('replay') === '1',
@@ -99,7 +96,6 @@ function buildSpec(): UISpec {
     // reads ?juris=…; a real game gets this from the RGS authenticate response).
     rtp: 96,
     jurisdiction: JURISDICTION,
-    statusBar: cfg.statusBar,
     game: { name: 'Scrolls of Fate', version: '1.0.0' },
     realityCheck: cfg.reality > 0 ? { everyMinutes: cfg.reality } : undefined,
     // Desktop button layout CLONED from the reference UI design (Dev.svg): a bottom
@@ -350,20 +346,10 @@ async function main(): Promise<void> {
 
   // center the reels on resize
   const layoutReels = (): void => reels.layout(app.screen.width, app.screen.height);
-  // Keep the status bar uncovered by the HTML menu: inset the menu by the bar height
-  // (the bar is in the Pixi canvas; the menu is DOM, so it gets a CSS top/bottom inset).
-  const setMenuInset = (): void => {
-    const h = cfg.statusBar ? StatusBarView.heightFor(ui.screen.get()) : 0;
-    const root = document.documentElement.style;
-    root.setProperty('--ohm-top', cfg.statusBar === 'top' ? `${h}px` : '0px');
-    root.setProperty('--ohm-bottom', cfg.statusBar === 'bottom' ? `${h}px` : '0px');
-  };
   app.renderer.on('resize', () => {
     layoutReels();
-    setMenuInset();
   });
   layoutReels();
-  setMenuInset();
 
 }
 

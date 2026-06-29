@@ -98,7 +98,7 @@ export function mountHud(app: Application, spec: UISpec = {}, opts: HudOptions =
   if (menu && spec.game && (spec.game.name || spec.game.version)) {
     menu.push({ kind: 'legal', id: 'openui-game-info', text: [spec.game.name, spec.game.version ? `v${spec.game.version}` : ''].filter(Boolean).join('  ·  ') });
   }
-  const pixi = new OpenUIPixi(ui, { ...pixiOpts, menu, statusBar: pixiOpts.statusBar ?? spec.statusBar });
+  const pixi = new OpenUIPixi(ui, { ...pixiOpts, menu });
   pixi.mount(app);
 
   // The reality-check reminder (RTS 13) is now wired in `createUI` (core), so it runs

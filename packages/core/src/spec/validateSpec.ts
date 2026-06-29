@@ -111,9 +111,6 @@ export function validateSpec(spec: UISpec): { ok: boolean; issues: SpecIssue[] }
     if (spec.rtp != null && !(typeof spec.rtp === 'number' && Number.isFinite(spec.rtp))) {
       add('error', 'rtp', 'bad-rtp', `rtp must be a number, got ${String(spec.rtp)}`);
     }
-    if (spec.statusBar != null && spec.statusBar !== 'top' && spec.statusBar !== 'bottom') {
-      add('error', 'statusBar', 'bad-statusbar', `statusBar must be 'top' or 'bottom', got "${String(spec.statusBar)}"`);
-    }
     if (spec.realityCheck != null && !(typeof spec.realityCheck.everyMinutes === 'number' && spec.realityCheck.everyMinutes > 0)) {
       add('error', 'realityCheck.everyMinutes', 'bad-interval', 'realityCheck.everyMinutes must be a number > 0');
     }
