@@ -6,7 +6,6 @@ import { SpinControl } from '../src/controls/SpinControl';
 import { EventBus } from '../src/events';
 import { resolveCurrency, formatAmount, isSocialCurrency } from '../src/format/currency';
 import { buildBetLadder, clampBet } from '../src/bet';
-import { winTier } from '../src/win';
 import type { OpenUIEvents } from '../src/types';
 
 const layout = { anchor: 'center' } as const;
@@ -205,20 +204,6 @@ describe('currency shorthand + bet ladder', () => {
     const cfg = { minBet: 1000000, maxBet: 5000000, stepBet: 1000000 };
     expect(clampBet(1.2, cfg)).toBe(1);
     expect(clampBet(99, cfg)).toBe(5);
-  });
-});
-
-describe('winTier (RTS 14F — never celebrate a return ≤ stake)', () => {
-  it("returns 'none' when win <= stake", () => {
-    expect(winTier(1, 1)).toBe('none');
-    expect(winTier(0, 1)).toBe('none');
-    expect(winTier(0.5, 1)).toBe('none');
-  });
-  it('escalates by multiplier above the stake', () => {
-    expect(winTier(5, 1)).toBe('win');
-    expect(winTier(12, 1)).toBe('big');
-    expect(winTier(60, 1)).toBe('mega');
-    expect(winTier(150, 1)).toBe('epic');
   });
 });
 

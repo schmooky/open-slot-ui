@@ -206,9 +206,6 @@ export interface UISpec {
   jurisdiction?: JurisdictionConfig;
   /** Initial RTP percentage for the RTP readout (e.g. 96 → "96.0%"). */
   rtp?: number;
-  /** Put the compliance readouts (net · RTP · session) in a thin status bar pinned
-   *  to the `'top'` or `'bottom'` edge instead of at screen corners. */
-  statusBar?: 'top' | 'bottom';
   /** Game name + version — shown in the menu footer (support / certification). */
   game?: { name?: string; version?: string };
   /** Reality-check reminder (RTS 13): open-ui runs a wall-clock timer, emits a
