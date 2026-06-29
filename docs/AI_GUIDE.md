@@ -144,6 +144,50 @@ Reposition any of them via `controls[id].layout = { anchor, offset:[x,y], scale?
 (reference frames: landscape **1920×1080**, portrait **1080×2337** — offsets are in
 reference px, scaled to fit).
 
+### Showing rules / paytable / settings (the ☰ menu)
+
+There is **no standalone "rules" button** — the ☰ menu button opens one scrollable
+sheet with up to three sections, in order: **settings → paytable → rules**. You fill
+each with declarative **blocks**; every text string runs through `ui.t()`, so the whole
+sheet localizes. Omit a section to hide it.
+
+```ts
+menu: {
+  // 1) settings — shown first (the audio sliders live here)
+  settings: [
+    { kind: 'toggle', id: 'sound', label: 'openui.sound' },
+    { kind: 'select', id: 'lang', label: 'openui.language',
+      options: [{ value: 'en', label: 'English' }, { value: 'de', label: 'Deutsch' }] },
+  ],
+  // 2) paytable — symbol → payouts grid
+  paytable: [
+    { kind: 'paytable', id: 'pt', columns: 3, rows: [
+      { symbol: 'Wild', icon: 'https://cdn/.../wild.png', payouts: '5× = 50\n4× = 20\n3× = 5' },
+      { symbol: 'A',    icon: 'https://cdn/.../a.png',    payouts: '5× = 10\n4× = 4\n3× = 1' },
+    ] },
+  ],
+  // 3) rules — free-form game info, any mix of blocks
+  rules: [
+    { kind: 'heading', id: 'r1', text: 'How to play' },
+    { kind: 'text',    id: 'r2', text: 'Match **3 or more** symbols on a line to win.' },
+    { kind: 'steps',   id: 'r3', ordered: true, items: ['Set your bet with ± ', 'Press spin', 'Wins pay left→right'] },
+    { kind: 'stat-grid', id: 'r4', items: [{ label: 'RTP', value: '96.0%' }, { label: 'Max win', value: '5000×' }] },
+    { kind: 'image',   id: 'r5', src: 'https://cdn/.../reels.png', width: 1000, height: 400 },
+  ],
+},
+```
+
+**Block kinds** (all `{ kind, id, ... }`): `heading` · `subheading` · `text`
+(supports `**bold**` and `\n`) · `legal` · `divider` · `callout`* · `stat-grid` ·
+`table` · `cards` · `paytable` · `image` · `media` · `steps` (`ordered?`) · `group`
+(`title?`, `children`) — plus interactive: `toggle` · `slider` · `select` · `stepper` ·
+`button` · `value`.
+*\*`callout` renders in the **menu** only — modals are plain heading + text by design.*
+
+Opening it from code (or wire it to your own button): `ui.settingsButton.activate()`
+toggles the sheet; `ui.settingsPanel.openPanel()` / `closePanel()` control it directly.
+Pass renderer option `menu: false` instead if you supply your own DOM menu (the demo does).
+
 ---
 
 ## 5. Autoplay (fully host-configurable)
