@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Open Slot UI — документация (API)</title>
+<style>
+  :root { --fg:#1b1f27; --dim:#5b6472; --acc:#b8860b; --bg:#ffffff; --code:#f4f5f7; --border:#e3e6ea; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:16px/1.65 -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color:var(--fg); background:var(--bg); }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 30px; margin: 0 0 4px; }
+  h2 { font-size: 22px; margin: 40px 0 10px; padding-top: 10px; border-top: 2px solid var(--border); }
+  h3 { font-size: 17px; margin: 22px 0 6px; }
+  p, li { color: var(--fg); }
+  .sub { color: var(--dim); margin-top: 0; }
+  code { background: var(--code); padding: 1px 5px; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 90%; }
+  pre { background: var(--code); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; }
+  pre code { background: none; padding: 0; font-size: 13.5px; line-height: 1.55; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14.5px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--dim); font-weight: 700; }
+  td code { white-space: nowrap; }
+  .note { background: #fff8e6; border-left: 4px solid var(--acc); padding: 10px 14px; border-radius: 6px; margin: 14px 0; }
+  .toc a { color: var(--acc); text-decoration: none; }
+  .toc { columns: 2; font-size: 14.5px; }
+  a { color: var(--acc); }
+  .tag { display:inline-block; background:var(--code); border:1px solid var(--border); border-radius:999px; padding:1px 9px; font-size:12px; color:var(--dim); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Open Slot UI</h1>
+<p class="sub">HUD для слотов на Pixi.js. Документация по подключению и настройке. Версия 0.2.4.</p>
+
+<h2 id="toc">Содержание</h2>
+<div class="toc">
+  <p><a href="#install">1. Установка</a><br>
+  <a href="#start">2. Быстрый старт</a><br>
+  <a href="#contract">3. Как HUD общается с игрой</a><br>
+  <a href="#spec">4. UISpec — конфигурация</a><br>
+  <a href="#controls">5. Элементы управления</a><br>
+  <a href="#autoplay">6. Автоигра</a><br>
+  <a href="#buy">7. Кнопка бонуса (Buy Feature)</a><br>
+  <a href="#menu">8. Меню и правила</a><br>
+  <a href="#reg">9. Регуляторная конфигурация</a><br>
+  <a href="#i18n">10. Локализация и social-режим</a><br>
+  <a href="#theme">11. Тема</a><br>
+  <a href="#events">12. События</a><br>
+  <a href="#api">13. API объекта HUD</a></p>
+</div>
+
+<h2 id="install">1. Установка</h2>
+<pre><code>npm i @open-slot-ui/core @open-slot-ui/pixi pixi.js</code></pre>
+<p>Нужен <b>один</b> общий экземпляр <code>pixi.js</code> (peer-зависимость). GSAP не обязателен, но включает авто-уменьшение широких сумм в счётчике.</p>
+
+<h2 id="start">2. Быстрый старт</h2>
+<p>Весь HUD монтируется одним вызовом <code>mountHud(app, spec, opts)</code> поверх уже существующего Pixi-приложения.</p>
+<pre><code>import { Application } from 'pixi.js';
+import { mountHud } from '@open-slot-ui/pixi';
+
+const app = new Application();
+await app.init({ resizeTo: window, backgroundAlpha: 0 });
+document.body.appendChild(app.canvas);
+
+const hud = mountHud(app, {
+  currency: { code: 'USD', symbol: '$', display: 'symbol', position: 'prefix', decimals: 2 },
+  betLadder: { levels: [0.5, 1, 2, 5, 10, 20], index: 1 },
+});
+const ui = hud.ui;
+
+ui.balance.set(1000);
+
+// Игра слушает запросы HUD и крутит барабаны:
+ui.on('spinRequested', async () => {
+  if (ui.balance.get() &lt; ui.bet.get()) { hud.showRgsError('ERR_IPB'); return; }
+  ui.spin.busy();
+  ui.balance.set(ui.balance.get() - ui.bet.get());
+  await playRound();            // ваша логика барабанов
+  const win = /* ... */ 0;
+  ui.balance.set(ui.balance.get() + win);
+  ui.reportRound(win, ui.bet.get()); // net / автоигра / лимиты
+  ui.spin.idle();
+});</code></pre>
+
+<h2 id="contract">3. Как HUD общается с игрой</h2>
+<p>Правило простое: <b>HUD рисует и шлёт события — игра выполняет логику и обновляет данные</b>.</p>
+<ul>
+  <li><b>Наружу (события):</b> <code>ui.on('spinRequested', ...)</code>, <code>'autoplayStarted'</code>, <code>'skipRequested'</code> и т.д.</li>
+  <li><b>Внутрь (фасад):</b> <code>ui.balance.set()</code>, <code>ui.spin.busy()/idle()</code>, <code>ui.reportRound()</code>, <code>hud.showError()</code>.</li>
+</ul>
+
+<h2 id="spec">4. UISpec — конфигурация</h2>
+<p>Второй аргумент <code>mountHud</code> — декларативный объект. Все поля необязательны.</p>
+<pre><code>mountHud(app, {
+  // деньги
+  currency: { code:'USD', symbol:'$', display:'symbol', position:'prefix', decimals:2 },
+  betLadder: { levels:[0.5,1,2,5,10,20], index:1 },
+
+  // спин / турбо
+  spin:  { press: 'tap' | 'hold-to-spin' },
+  turbo: { index: 0 },              // турбо: только 2 режима (выкл/вкл)
+
+  // автоигра
+  autoplay: {
+    mode: 'options' | 'infinite',
+    options:    [5, 10, 25, 50, 100, Infinity],
+    lossLimits: [10, 25, 50, Infinity],   // необязательно (RG)
+    winLimits:  [25, 50, 100, Infinity],  // необязательно (RG)
+  },
+
+  // регуляторика
+  rtp: 96,
+  jurisdiction: { /* см. §9 */ },
+  realityCheck: { everyMinutes: 60 },
+
+  // презентация
+  theme: 'default' | { color?, radius?, type?:{ family? } },
+  responsive: { portrait?:{controls}, landscape?, mobile?, tablet?, desktop? },
+  controls: { [id]: { layout?, label?, hidden?, disabled?, currency?, initial?, digits? } },
+  menu: { settings?: Block[], paytable?: Block[], rules?: Block[] },
+  audio: { startMuted: false },
+
+  // локализация
+  locale: { locale:'ru', messages:{...}, socialMessages:{...} },
+  social: true | { coin:'GC' },
+  game: { name:'Моя игра', version:'1.0.0' },
+}, {
+  // опции рендерера
+  intro: 'shown' | 'hidden' | 'slide-in',
+  autoplayPicker: 'drawer' | 'radial',
+  gsap,                              // включает авто-уменьшение широких сумм
+  spinSkin,                         // своя графика кнопки спина
+  icons: { turboOff, turboOn, autoIdle, autoActive, bonus, betPlus, betMinus },
+});</code></pre>
+
+<h2 id="controls">5. Элементы управления</h2>
+<p>На экране: <code>spin</code> · <code>autoplay</code> · <code>turbo</code> · <code>bet-minus</code> · <code>bet-plus</code> · <code>bonus</code> (Buy) · <code>settings</code> (☰) · <code>mute</code> · <code>fullscreen</code> · <code>balance</code> · <code>bet</code> · <code>rtp</code> · <code>net-position</code> · <code>session-timer</code>.</p>
+<p>Позиция любого — через <code>controls[id].layout = { anchor, offset:[x,y], scale?, rotation? }</code>. Опорные кадры: ландшафт <b>1920×1080</b>, портрет <b>1080×2337</b> (offset в опорных px, масштабируется под экран).</p>
+<div class="note"><b>RTP / Net / Session Time</b> — это только полупрозрачный блок в левом-верхнем углу. Плашки-хедера/футера нет. Показываются флагами юрисдикции (см. §9).</div>
+
+<h2 id="autoplay">6. Автоигра</h2>
+<p>Полностью настраивается. Задаёте варианты числа спинов; два поля лимитов (стоп по проигрышу / по выигрышу) появляются, только если их указать.</p>
+<pre><code>autoplay: {
+  mode: 'options',                     // тап открывает выбор; 'infinite' — сразу ∞
+  options: [10, 25, 50, 100, Infinity],
+  lossLimits: [10, 25, 50, Infinity],  // «Стоп при проигрыше N×ставки» (опц.)
+  winLimits:  [25, 50, Infinity],      // «Стоп при выигрыше ≥ N×ставки» (опц.)
+}</code></pre>
+<p>Во время автоигры кнопка автоигры становится жёлтой (неактивной), а кнопка <b>спина превращается в STOP N</b> (для ∞ — «STOP ∞») и останавливает автоигру. Игра обязана вызывать <code>ui.reportRound(win, bet)</code> после каждого раунда — счётчик и лимиты работают на этом.</p>
+
+<h2 id="buy">7. Кнопка бонуса (Buy Feature)</h2>
+<div class="note">Кнопка Buy <b>скрыта по умолчанию</b>. Если в игре нет покупки функции — кнопка не показывается. Чтобы включить: <code>controls: { bonus: { hidden: false } }</code> или в рантайме <code>ui.setHidden('bonus', false)</code>.</div>
+<p>Модалка Buy Feature задаётся конфигом: до 4 вариантов, каждый — либо покупаемый (<code>buy</code>), либо активируемый бонус (<code>boost</code>). Для Stake активируемые могут быть взаимоисключающими (<code>activation:'single'</code>). У каждого варианта — ключ, картинка и цена.</p>
+<pre><code>const FEATURES = [
+  { id:'freespins', kind:'buy',   name:'Free Spins',   cost:100, image:'https://cdn/…/fs.png' },
+  { id:'super',     kind:'buy',   name:'Super Spins',  cost:300, image:'https://cdn/…/super.png' },
+  { id:'ante',      kind:'boost', name:'Ante Bet',     cost:0.25, image:'https://cdn/…/ante.png' },
+  { id:'double',    kind:'boost', name:'Double Chance',cost:0.5,  image:'https://cdn/…/dc.png' },
+];
+// activation:'single' → активируемые взаимоисключающие (Stake)</code></pre>
+
+<h2 id="menu">8. Меню и правила</h2>
+<p>Отдельной кнопки «Правила» нет. Кнопка ☰ открывает <b>один прокручиваемый лист</b> с секциями по порядку: <b>настройки → пейтабл → правила</b>. Каждую наполняете «блоками»; весь текст проходит через <code>ui.t()</code> (локализуется). Меню всегда светлое (тема не делает его тёмным).</p>
+<pre><code>menu: {
+  settings: [
+    { kind:'toggle', id:'sound', label:'openui.sound' },
+    { kind:'select', id:'lang',  label:'openui.language',
+      options:[{value:'ru',label:'Русский'},{value:'en',label:'English'}] },
+  ],
+  paytable: [
+    { kind:'paytable', id:'pt', columns:3, rows:[
+      { symbol:'Wild', icon:'…/wild.png', payouts:'5× = 50\n4× = 20\n3× = 5' },
+    ]},
+  ],
+  rules: [
+    { kind:'heading', id:'r1', text:'Как играть' },
+    { kind:'text',    id:'r2', text:'Соберите **3 и более** символов на линии.' },
+    { kind:'steps',   id:'r3', ordered:true, items:['Выберите ставку ±','Нажмите спин','Выплаты слева направо'] },
+    { kind:'stat-grid', id:'r4', items:[{label:'RTP',value:'96.0%'},{label:'Макс. выигрыш',value:'5000×'}] },
+    { kind:'image',   id:'r5', src:'…/reels.png', width:1000, height:400 },
+  ],
+}</code></pre>
+<p><b>Виды блоков:</b> <code>heading</code>, <code>subheading</code>, <code>text</code> (поддержка <code>**жирного**</code> и <code>\n</code>), <code>legal</code>, <code>divider</code>, <code>callout</code>, <code>stat-grid</code>, <code>table</code>, <code>cards</code>, <code>paytable</code>, <code>image</code>, <code>media</code>, <code>steps</code>, <code>group</code>; интерактивные: <code>toggle</code>, <code>slider</code>, <code>select</code>, <code>stepper</code>, <code>button</code>, <code>value</code>.</p>
+<div class="note">В <b>модалках</b> (ошибка/уведомление) «callout»-плашек нет — только заголовок и текст. Блок <code>callout</code> используется только в меню.</div>
+<p>Открыть из кода: <code>ui.settingsButton.activate()</code> или <code>ui.settingsPanel.openPanel()/closePanel()</code>.</p>
+
+<h2 id="reg">9. Регуляторная конфигурация</h2>
+<p>Объект <code>jurisdiction</code> (обычно из ответа RGS) — один вызов <code>ui.applyJurisdiction(cfg)</code> или поле <code>jurisdiction</code> в spec.</p>
+<table>
+<tr><th>Флаг</th><th>Действие</th></tr>
+<tr><td><code>displayRTP</code></td><td>показать RTP</td></tr>
+<tr><td><code>displayNetPosition</code></td><td>показать net (баланс сессии)</td></tr>
+<tr><td><code>displaySessionTimer</code></td><td>показать таймер сессии</td></tr>
+<tr><td><code>disabledTurbo</code></td><td>скрыть/выключить турбо</td></tr>
+<tr><td><code>disabledAutoplay</code></td><td>скрыть/выключить автоигру</td></tr>
+<tr><td><code>disabledSlamstop</code></td><td>запретить тап-стоп во время спина</td></tr>
+<tr><td><code>disabledSpacebar</code></td><td>запретить спин с клавиатуры и hold-to-spin</td></tr>
+<tr><td><code>disabledBuyFeature</code></td><td>скрыть/выключить Buy</td></tr>
+<tr><td><code>disabledFullscreen</code></td><td>скрыть полноэкранный режим</td></tr>
+<tr><td><code>socialCasino</code></td><td>social-режим (см. §10)</td></tr>
+<tr><td><code>minimumRoundDuration</code></td><td>мин. длительность раунда (мс) — соблюдает игра</td></tr>
+</table>
+<p><b>Ответственная игра:</b> reality check (RTS 13), лимиты автоигры (по проигрышу / одному выигрышу / числу спинов), авто-стоп при недостатке средств, коды ошибок RGS (<code>hud.showRgsError('ERR_IPB')</code> и т.п.). Проверка флага в коде: <code>ui.isDisabled('autoplay')</code>.</p>
+
+<h2 id="i18n">10. Локализация и social-режим</h2>
+<p>Встроенный словарный переводчик, 16 локалей Stake, подстановка <code>{{minutes}}</code>. Переключение: <code>ui.setLocale('ru')</code> (или select в меню). Ключи без перевода отображаются как есть.</p>
+<pre><code>locale: {
+  locale: 'ru',
+  messages: { ru: { 'openui.spin':'Крутить', 'openui.bet':'Ставка' } },
+  // ОТДЕЛЬНЫЙ словарь для social-режима — нельзя перепутать с обычным
+  socialMessages: { ru: { 'openui.bet':'Игра', 'openui.balance':'Кредиты' } },
+}</code></pre>
+<div class="note">Social-локализация задаётся <b>отдельным</b> словарём <code>locale.socialMessages</code> (те же ключи). В social-режиме он используется <b>в первую очередь</b> — так по дизайну исключено смешивание обычных и social-текстов. Включение: <code>ui.setSocial(true, 'GC')</code>.</div>
+
+<h2 id="theme">11. Тема</h2>
+<p>Одна встроенная тема — <code>default</code> (чёрно-белая с жёлтым акцентом). Хост может переопределить только безопасное подмножество: цвета, радиусы и <b>семейство шрифта</b>. Некорректные значения отбрасываются (HUD не ломается).</p>
+<pre><code>theme: { color: { accent: '#ffcc00' }, type: { family: '"Montserrat", sans-serif' } }</code></pre>
+
+<h2 id="events">12. События</h2>
+<p>Подписка: <code>ui.on(type, fn)</code>. Основные:</p>
+<p><code>spinRequested</code> · <code>skipRequested</code> · <code>holdSpinStarted</code> · <code>holdSpinStopped</code> · <code>autoplayStarted</code> · <code>autoplayStopped</code> · <code>turboChanged</code> · <code>toggled</code> · <code>buttonActivated</code> · <code>cardActivated</code> · <code>valueChanged</code> · <code>optionSelected</code> · <code>panelToggled</code> · <code>stateChanged</code> · <code>visibilityChanged</code> · <code>localeChanged</code> · <code>realityCheck</code> · <code>noticeShown</code> · <code>noticeDismissed</code>.</p>
+
+<h2 id="api">13. API объекта HUD</h2>
+<p><code>const hud = mountHud(...)</code> возвращает фасад:</p>
+<table>
+<tr><th>Метод</th><th>Назначение</th></tr>
+<tr><td><code>hud.ui</code></td><td>ядро HUD (контролы, сигналы, <code>on</code>, <code>t</code>, <code>setLocale</code>…)</td></tr>
+<tr><td><code>setBalance / setBet / setCurrency</code></td><td>обновить деньги/валюту</td></tr>
+<tr><td><code>reportRound(win, bet)</code></td><td>итог раунда → net, автоигра, лимиты</td></tr>
+<tr><td><code>applyJurisdiction(cfg)</code></td><td>применить регуляторику</td></tr>
+<tr><td><code>setRtp(percent)</code></td><td>значение RTP</td></tr>
+<tr><td><code>setMuted / setSocial / setReplay / setFreeSpins</code></td><td>состояния HUD</td></tr>
+<tr><td><code>showNotice / showError / showRgsError / showFatal / hideNotice</code></td><td>модалки</td></tr>
+<tr><td><code>confirmBuy(opts)</code></td><td>подтверждение покупки</td></tr>
+<tr><td><code>showControls / hideControls / setControlsVisible</code></td><td>показ/скрытие HUD со слайдом</td></tr>
+<tr><td><code>snapshot()</code></td><td>состояние всех контролов (для тестов)</td></tr>
+<tr><td><code>unmount() / dispose()</code></td><td>полная очистка</td></tr>
+</table>
+
+<p class="sub" style="margin-top:40px">Open Slot UI · v0.2.4 · <span class="tag">@open-slot-ui/core</span> <span class="tag">@open-slot-ui/pixi</span></p>
+
+</div>
+</body>
+</html>
