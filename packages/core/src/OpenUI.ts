@@ -17,6 +17,7 @@ import {
   type LayoutConfig,
   type ScreenState,
 } from './layout/screen';
+import { defaultLayout } from './layout/defaultLayouts';
 import type { ControlSnapshot, OpenUIEvents } from './types';
 import type { UISpec, BlockSpec } from './spec/types';
 import { applyJurisdiction as applyJurisdictionTo, type JurisdictionConfig } from './spec/jurisdiction';
@@ -147,26 +148,26 @@ export class OpenUI {
       }),
     );
 
-    this.spin = new SpinControl({ layout: { anchor: 'bottom-center', offset: [0, -440] } }, this.bus);
+    this.spin = new SpinControl({ layout: defaultLayout('spin') }, this.bus);
 
     this.balance = new ValueDisplay({
       id: 'balance',
       label: 'openui.balance', // i18n key → localizes + swaps in social mode
-      layout: { anchor: 'bottom-left', offset: [220, -96] },
+      layout: defaultLayout('balance'),
       currency: { code: 'USD', decimals: 2 },
       initial: 1000,
     });
     this.bet = new ValueDisplay({
       id: 'bet',
       label: 'openui.bet',
-      layout: { anchor: 'bottom-right', offset: [-220, -96] },
+      layout: defaultLayout('bet'),
       currency: { code: 'USD', decimals: 2 },
       initial: 1,
     });
 
     // settings flyout: a button that toggles a popover with sound sliders + a Rules button
     this.settingsButton = new ButtonControl(
-      { id: 'settings', layout: { anchor: 'bottom-center', offset: [400, -440] } },
+      { id: 'settings', layout: defaultLayout('settings') },
       this.bus,
     );
     this.settingsPanel = new PanelControl(
@@ -177,28 +178,28 @@ export class OpenUI {
     this.sfxSlider = new SliderControl({ id: 'sfx', label: 'Sound', layout: { anchor: 'center' }, initial: 0.5 }, this.bus);
 
     // bottom-bar controls
-    this.bonusButton = new ButtonControl({ id: 'bonus', layout: { anchor: 'bottom-center', offset: [-400, -440] } }, this.bus);
+    this.bonusButton = new ButtonControl({ id: 'bonus', layout: defaultLayout('bonus') }, this.bus);
     this.autoplay = new AutoplayControl(
-      { id: 'autoplay', layout: { anchor: 'bottom-center', offset: [-225, -440] }, options: [5, 10, 25, 50, 100, Infinity] },
+      { id: 'autoplay', layout: defaultLayout('autoplay'), options: [5, 10, 25, 50, 100, Infinity] },
       this.bus,
     );
-    this.turbo = new TurboControl({ id: 'turbo', layout: { anchor: 'bottom-center', offset: [225, -440] } }, this.bus);
-    this.betMinus = new ButtonControl({ id: 'bet-minus', layout: { anchor: 'bottom-center', offset: [-150, -270] } }, this.bus);
-    this.betPlus = new ButtonControl({ id: 'bet-plus', layout: { anchor: 'bottom-center', offset: [150, -270] } }, this.bus);
+    this.turbo = new TurboControl({ id: 'turbo', layout: defaultLayout('turbo') }, this.bus);
+    this.betMinus = new ButtonControl({ id: 'bet-minus', layout: defaultLayout('bet-minus') }, this.bus);
+    this.betPlus = new ButtonControl({ id: 'bet-plus', layout: defaultLayout('bet-plus') }, this.bus);
     this.betStepper = new StepperControl({ id: 'bet-stepper', layout: { anchor: 'center' }, levels: [0.5, 1, 2, 5, 10, 20], index: 1 }, this.bus);
 
     // edge controls: master mute + fullscreen (icon buttons at the screen corner)
     // Figma "default": two prominent b&w round buttons in the top-right corner with a
     // comfortable edge margin (sound on the left, fullscreen on the right).
-    this.muteButton = new ButtonControl({ id: 'mute', layout: { anchor: 'top-right', offset: [-122, 46] } }, this.bus);
-    this.fullscreenButton = new ButtonControl({ id: 'fullscreen', layout: { anchor: 'top-right', offset: [-46, 46] } }, this.bus);
+    this.muteButton = new ButtonControl({ id: 'mute', layout: defaultLayout('mute') }, this.bus);
+    this.fullscreenButton = new ButtonControl({ id: 'fullscreen', layout: defaultLayout('fullscreen') }, this.bus);
 
     // compliance readouts — created hidden; a jurisdiction's display* flag reveals them
     // Figma "default" compliance block: three plain `Label: value` lines stacked in
     // the top-left corner (RTP · Session Time · Net).
-    this.rtp = new ReadoutControl({ id: 'rtp', kind: 'percent', label: 'RTP', layout: { anchor: 'top-left', offset: [20, 18] } });
-    this.sessionTimer = new ReadoutControl({ id: 'session-timer', kind: 'duration', label: 'Session Time', layout: { anchor: 'top-left', offset: [20, 46] } });
-    this.netPosition = new ReadoutControl({ id: 'net-position', kind: 'currency', label: 'Net', currency: { code: 'USD', symbol: '$', display: 'symbol', position: 'prefix', decimals: 2 }, layout: { anchor: 'top-left', offset: [20, 74] } });
+    this.rtp = new ReadoutControl({ id: 'rtp', kind: 'percent', label: 'RTP', layout: defaultLayout('rtp') });
+    this.sessionTimer = new ReadoutControl({ id: 'session-timer', kind: 'duration', label: 'Session Time', layout: defaultLayout('session-timer') });
+    this.netPosition = new ReadoutControl({ id: 'net-position', kind: 'currency', label: 'Net', currency: { code: 'USD', symbol: '$', display: 'symbol', position: 'prefix', decimals: 2 }, layout: defaultLayout('net-position') });
 
     // notice / error modal (rendered in the unified menu style)
     this.noticePanel = new PanelControl({ id: 'notice-panel', variant: 'modal', layout: { anchor: 'center' } }, this.bus);

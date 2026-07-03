@@ -26,8 +26,17 @@ type Anchor =
   | 'bottom-left' | 'bottom-center' | 'bottom-right';
 ```
 
-For example, the spin button is `{ anchor: 'bottom-center', offset: [0, -440] }`
-and the balance is `{ anchor: 'bottom-left', offset: [220, -96] }`.
+For example, the spin button is `{ anchor: 'bottom-center', offset: [0, -140] }`
+and the balance is `{ anchor: 'bottom-left', offset: [135, -104] }` on a
+landscape screen.
+
+The defaults are **per-orientation**: the base layouts follow the landscape
+reference frame (the "Desk DEF" design — the whole cluster stays in the bottom
+band, clear of the reels), and a built-in `responsive.portrait` bucket reflows
+the HUD into the mobile arrangement. Both tables are exported as
+`landscapeDefaultLayouts` / `portraitDefaultLayouts`. Your own
+`controls.{id}.layout` wins everywhere; your own `responsive.portrait` entry
+wins per-control.
 
 ## Resize just works
 

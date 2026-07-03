@@ -99,25 +99,12 @@ function buildSpec(): UISpec {
     jurisdiction: JURISDICTION,
     game: { name: 'Scrolls of Fate', version: '1.0.0' },
     realityCheck: cfg.reality > 0 ? { everyMinutes: cfg.reality } : undefined,
-    // Desktop button layout CLONED from the reference UI design (Dev.svg): a bottom
-    // bar — balance · play · SPIN · turbo · bet (+ steppers to its right) — with the
-    // bonus on the right rail and the ☰ menu on the lower left. The design has no
-    // tilted buttons (rotation 0), but LayoutSpec.rotation now supports it. (Portrait
-    // reflows below; audio/rules live in the ☰ menu, not on a left rail.)
-    // Positions cloned 1:1 from the Figma "Desk DEF" frame (1920×1080 = our landscape
-    // reference, so the px map directly). Balance/Bet labels are tilted ∓5° like the
-    // design; the ☰ menu shares the −5° tilt.
+    // Layout is the LIBRARY default (the Figma "Desk DEF" desktop bar + the
+    // "Mobile DEF" portrait reflow ship as built-ins since v0.3.0) — the demo
+    // sets no layouts at all, proving the zero-config HUD lands right on every
+    // viewport. Only reveal the buy button: this demo HAS a buy feature.
     controls: {
-      spin: { layout: { anchor: 'bottom-center', offset: [0, -140], scale: 0.9, rotation: 0 } },
-      autoplay: { layout: { anchor: 'bottom-center', offset: [-204, -112] } },
-      turbo: { layout: { anchor: 'bottom-center', offset: [204, -112] } },
-      balance: { layout: { anchor: 'bottom-left', offset: [135, -104], rotation: -5 } },
-      bet: { layout: { anchor: 'bottom-right', offset: [-186, -104], rotation: 5 } },
-      'bet-plus': { layout: { anchor: 'bottom-right', offset: [-120, -188], rotation: 5 } },
-      'bet-minus': { layout: { anchor: 'bottom-right', offset: [-120, -104], rotation: 5 } },
-      // The buy button is hidden by default; this demo HAS a buy feature, so show it.
-      bonus: { hidden: false, layout: { anchor: 'bottom-center', offset: [740, -320] } },
-      settings: { layout: { anchor: 'bottom-center', offset: [-740, -320], rotation: -5 } },
+      bonus: { hidden: false },
     },
     // The unified ☰ menu — every part is a modular, configurable BLOCK: a banner
     // image, a divider+settings, a multiplier paytable with symbol icons, and rules
@@ -149,37 +136,8 @@ function buildSpec(): UISpec {
     },
     // 10-locale dictionary + starting locale; a Language switch appears in Settings.
     locale: { messages: MESSAGES, locale: cfg.locale },
-    // Portrait reflow: a thumb-friendly stack that holds together down to the
-    // narrowest phone. SPIN drops to the same row as autoplay + turbo (which move
-    // out to the screen sides); the bet steppers tuck directly below SPIN; the buy
-    // (bonus) + ☰ menu sit on the row above. The buy button is NEVER hidden.
-    responsive: {
-      // Cloned 1:1 from the Figma "Mobile DEF" frame (360-wide → ×3 to our 1080
-      // portrait reference). Row: buy · play · SPIN · turbo · ☰ menu; the bet ±
-      // steppers sit centred below SPIN; balance/bet are tilted ∓5° in the corners.
-      portrait: {
-        controls: {
-          // Mobile sizes run ~1.5× the desktop base (the Figma mobile frame draws the
-          // controls larger relative to its width), so the buttons read well on a phone.
-          spin: { layout: { anchor: 'bottom-center', offset: [0, -510], scale: 1.35 } },
-          autoplay: { layout: { anchor: 'bottom-center', offset: [-258, -510], scale: 1.5 } },
-          turbo: { layout: { anchor: 'bottom-center', offset: [258, -510], scale: 1.5 } },
-          bonus: { layout: { anchor: 'bottom-center', offset: [-438, -480], scale: 1.3 } },
-          settings: { layout: { anchor: 'bottom-center', offset: [438, -480], scale: 1.5, rotation: -5 } },
-          'bet-minus': { layout: { anchor: 'bottom-center', offset: [-105, -267], scale: 1.5 } },
-          'bet-plus': { layout: { anchor: 'bottom-center', offset: [105, -267], scale: 1.5 } },
-          mute: { layout: { anchor: 'top-right', offset: [-159, 57], scale: 1.5 } },
-          fullscreen: { layout: { anchor: 'top-right', offset: [-57, 57], scale: 1.5 } },
-          // Compliance readouts scale up ~2× on mobile (Figma draws them larger
-          // relative to the narrow frame) with wider line spacing so they don't crowd.
-          rtp: { layout: { anchor: 'top-left', offset: [16, 16], scale: 2 } },
-          'session-timer': { layout: { anchor: 'top-left', offset: [16, 66], scale: 2 } },
-          'net-position': { layout: { anchor: 'top-left', offset: [16, 116], scale: 2 } },
-          balance: { layout: { anchor: 'bottom-left', offset: [36, -110], scale: 1.0, rotation: -5 } },
-          bet: { layout: { anchor: 'bottom-right', offset: [-36, -110], scale: 1.0, rotation: 5 } },
-        },
-      },
-    },
+    // No `responsive` either: the built-in portrait bucket (Figma "Mobile DEF")
+    // reflows the HUD on phones out of the box.
   };
 }
 
