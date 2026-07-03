@@ -47,7 +47,7 @@ export class ReadoutView extends ControlView {
 
     // Figma top-corner block: one left-aligned `Label: value` line per readout. Sized
     // for legibility and given a soft dark shadow so the white text stays readable on
-    // ANY background (light or dark), not just over the corner vignette.
+    // ANY background (light or dark) — the readouts draw no backdrop of their own.
     if (this.prefix) {
       this.valueText = new Text({
         text: '',
