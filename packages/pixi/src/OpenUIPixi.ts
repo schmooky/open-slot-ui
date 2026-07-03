@@ -282,24 +282,6 @@ export class OpenUIPixi {
     this.root.addChild(dialog);
     this.overlays.push(dialog);
 
-    // Figma: a soft dark radial vignette in the top-left corner keeps the white 50%
-    // RTP/session/net readouts legible over any background.
-    const vignette = new Graphics();
-    vignette.zIndex = -1; // behind the readout text views
-    this.root.addChild(vignette);
-    this.overlays.push({
-      applyLayout: (s) => {
-        const r = 200 * s.scale;
-        vignette.clear();
-        // concentric rings fading out from the corner approximate a radial gradient
-        for (let i = 0; i < 14; i++) {
-          const t = i / 14;
-          vignette.circle(0, 0, r * (1 - t)).fill({ color: 0x000000, alpha: 0.5 / 14 });
-        }
-      },
-      dispose: () => { if (!vignette.destroyed) vignette.destroy(); },
-    });
-
     // REPLAY badge (Stake replay mode) — a pill shown while `ui.replay` is true.
     const replayBadge = new Container();
     const replayBg = new Graphics();
