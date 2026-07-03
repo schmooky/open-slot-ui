@@ -47,6 +47,24 @@ describe('responsive overrides (per device / orientation)', () => {
     expect(ui.hidden.has('bonus')).toBe(false); // only mobile hides it
   });
 
+  it('keeps runtime visibility changes (post-mount jurisdiction reveal) across resizes', () => {
+    // The Stake flow: mountHud first, then applyJurisdiction(session.jurisdiction)
+    // when the RGS answers. The reveal must survive screen changes even though the
+    // readouts sit in the built-in portrait bucket (a 0.3.0 regression re-hid them).
+    const ui = createUI();
+    expect(ui.hidden.has('rtp')).toBe(true); // readouts start hidden
+    ui.applyJurisdiction({ displayRTP: true });
+    expect(ui.hidden.has('rtp')).toBe(false);
+    ui.setScreen(...MOBILE);
+    expect(ui.hidden.has('rtp')).toBe(false); // reveal survives the portrait bucket
+    ui.setScreen(...DESKTOP);
+    expect(ui.hidden.has('rtp')).toBe(false);
+    // and a plain host setHidden is the same kind of base-truth change
+    ui.setHidden('bonus', false);
+    ui.setScreen(...MOBILE);
+    expect(ui.hidden.has('bonus')).toBe(false);
+  });
+
   it('restores the base when leaving a bucket, emitting visibilityChanged', () => {
     const ui = createUI(spec);
     const seen = vi.fn();
