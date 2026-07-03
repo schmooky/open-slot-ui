@@ -61,6 +61,11 @@ export class ValueDisplayView extends ControlView {
       this.ui.locale.subscribe(() => {
         if (!this.destroyed) this.rebuild();
       }),
+      // accent emphasis (e.g. a bet display showing the boosted effective stake):
+      // rebuild the odometer with the accent fill at the same width
+      this.vd.emphasized.subscribe(() => {
+        if (!this.destroyed && this.counter) this.buildCounter(this.counter.digits, this.vd.minorUnits);
+      }),
     );
   }
 
@@ -116,7 +121,9 @@ export class ValueDisplayView extends ControlView {
       style: {
         fontFamily: theme.type.family,
         fontSize: FONT_SIZE,
-        fill: 0xffffff,
+        // Emphasis (ValueDisplay.setEmphasis) renders the value in the theme
+        // accent — "this number is modified" (boosted effective stake, etc.).
+        fill: this.vd.emphasized.get() ? theme.color.accent : 0xffffff,
         fontWeight: '900',
         stroke: { color: 0x000000, width: 8, join: 'round' },
         dropShadow: { color: 0x000000, alpha: 0.25, blur: 2, distance: 4, angle: Math.PI / 2 },
