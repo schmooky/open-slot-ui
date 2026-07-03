@@ -5,6 +5,7 @@ export * from './types';
 export * from './theme/tokens';
 export * from './layout/screen';
 export * from './layout/anchor';
+export * from './layout/defaultLayouts';
 export * from './transition/Transition';
 export * from './control/Control';
 export * from './controls/SpinControl';

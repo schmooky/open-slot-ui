@@ -11,7 +11,8 @@ import { DictionaryTranslator } from '../i18n/translator';
 import { validateSpec } from './validateSpec';
 import { installResponsive } from './responsive';
 import { resolveCurrency } from '../format/currency';
-import type { UISpec, HostHooks, TurboSpec } from './types';
+import { portraitDefaultLayouts } from '../layout/defaultLayouts';
+import type { UISpec, HostHooks, TurboSpec, ResponsiveOverride } from './types';
 import type { OpenUIEvents } from '../types';
 
 /** Resolve the turbo `modes` config (`2`/`3` presets or explicit names) to a ladder. */
@@ -115,9 +116,22 @@ export function createUI(spec: UISpec = {}, hooks: HostHooks = {}): OpenUI {
   // Responsive overrides layer on top of the static `controls` (snapshotted as the
   // base), re-applied on every resize. Installed here — before the renderer mounts
   // — so it runs first on each screen change and the views read fresh layouts.
-  if (spec.responsive) {
-    installResponsive(ui, spec.responsive);
+  //
+  // The library ships a BUILT-IN portrait bucket (the Figma "Mobile DEF" reflow;
+  // the base layouts are the landscape "Desk DEF" frame) so the zero-config HUD is
+  // right on phones AND desktops. It layers UNDER host overrides: a host's static
+  // `controls.{id}.layout` wins everywhere, and a host's own `responsive.portrait`
+  // entry wins per-control.
+  const portraitControls: NonNullable<ResponsiveOverride['controls']> = {};
+  for (const [id, layout] of Object.entries(portraitDefaultLayouts)) {
+    if (spec.controls?.[id]?.layout) continue; // host laid it out statically — respect it
+    portraitControls[id] = { layout };
   }
+  Object.assign(portraitControls, spec.responsive?.portrait?.controls);
+  installResponsive(ui, {
+    ...spec.responsive,
+    portrait: { ...spec.responsive?.portrait, controls: portraitControls },
+  });
 
   // Ref-counted whole-HUD lock for the duration of a spin (Charter P6/G7). The
   // host drives spin state via `ui.spin.busy()`; this just brackets it.

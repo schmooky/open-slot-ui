@@ -26,7 +26,7 @@ describe('responsive overrides (per device / orientation)', () => {
   it('starts at the base layout on desktop', () => {
     const ui = createUI(spec);
     expect(ui.screen.get().breakpoint).toBe('desktop');
-    expect(ui.spin.layout.offset).toEqual([0, -440]); // reference default, untouched
+    expect(ui.spin.layout.offset).toEqual([0, -140]); // landscape reference default, untouched
     expect(ui.hidden.has('bonus')).toBe(false);
   });
 
@@ -55,7 +55,7 @@ describe('responsive overrides (per device / orientation)', () => {
     expect(ui.hidden.has('bonus')).toBe(true);
     expect(seen).toHaveBeenCalledWith({ id: 'bonus', hidden: true });
     ui.setScreen(...DESKTOP);
-    expect(ui.spin.layout.offset).toEqual([0, -440]); // base restored
+    expect(ui.spin.layout.offset).toEqual([0, -140]); // landscape base restored
     expect(ui.hidden.has('bonus')).toBe(false);
     expect(seen).toHaveBeenCalledWith({ id: 'bonus', hidden: false });
   });
