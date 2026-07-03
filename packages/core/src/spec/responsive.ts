@@ -49,27 +49,46 @@ export function installResponsive(ui: OpenUI, responsive: Responsive): Dispose {
     base.set(id, { layout: cloneLayout(c.layout), hidden: ui.hidden.has(id) });
   }
 
+  let applying = false;
   const apply = (screen: ScreenState): void => {
-    const keys = activeKeys(screen);
-    for (const [id, b] of base) {
-      const c = ui.control(id);
-      if (!c) continue;
-      let layout = b.layout;
-      let hidden = b.hidden;
-      for (const key of keys) {
-        const ov = responsive[key]?.controls?.[id];
-        if (!ov) continue;
-        if (ov.layout) layout = ov.layout;
-        if (ov.hidden != null) hidden = ov.hidden;
+    applying = true;
+    try {
+      const keys = activeKeys(screen);
+      for (const [id, b] of base) {
+        const c = ui.control(id);
+        if (!c) continue;
+        let layout = b.layout;
+        let hidden = b.hidden;
+        for (const key of keys) {
+          const ov = responsive[key]?.controls?.[id];
+          if (!ov) continue;
+          if (ov.layout) layout = ov.layout;
+          if (ov.hidden != null) hidden = ov.hidden;
+        }
+        c.layout = cloneLayout(layout);
+        ui.setHidden(id, hidden);
       }
-      c.layout = cloneLayout(layout);
-      ui.setHidden(id, hidden);
+    } finally {
+      applying = false;
     }
   };
+
+  // A visibility change we did NOT cause is the base truth moving at runtime —
+  // e.g. `applyJurisdiction` revealing the RTP/session readouts after mount, or a
+  // host calling `setHidden` — so fold it into the base instead of reverting it
+  // on the next screen change.
+  const offVis = ui.on('visibilityChanged', ({ id, hidden }) => {
+    if (applying) return;
+    const b = base.get(id);
+    if (b) b.hidden = hidden;
+  });
 
   // Subscribe in createUI (before the renderer mounts) so this runs BEFORE the
   // views' own screen subscribers — they then read the freshly-set layouts.
   const off = ui.screen.subscribe(apply);
   apply(ui.screen.get());
-  return off;
+  return () => {
+    off();
+    offVis();
+  };
 }
