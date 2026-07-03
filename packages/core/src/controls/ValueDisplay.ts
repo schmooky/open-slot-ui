@@ -90,6 +90,15 @@ export class ValueDisplay extends Control {
     this.currency.set({ ...spec, decimals: clampDecimals(spec.decimals) });
   }
 
+  /** Accent emphasis: the renderer tints the value in the theme accent while on.
+   *  For "this number is modified" moments — e.g. a bet display showing the
+   *  EFFECTIVE stake while an ante/boost multiplies it. */
+  readonly emphasized = new Signal<boolean>(false);
+
+  setEmphasis(on: boolean): void {
+    this.emphasized.set(on === true);
+  }
+
   /** Integer minor units for the counter (no float drift). */
   get minorUnits(): number {
     return Math.round(this.value.get() * Math.pow(10, this.currency.get().decimals));
