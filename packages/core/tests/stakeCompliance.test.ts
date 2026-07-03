@@ -285,6 +285,16 @@ describe('social / sweepstakes mode', () => {
     expect(ui.social.get()).toBe(true);
     expect(ui.t('openui.buyFeature.message')).toBe('Play this bonus now?');
   });
+
+  it('social copy avoids Stake US restricted phrases (credit/gambling/bet)', () => {
+    const ui = createUI({ social: { coin: 'GC' } });
+    expect(ui.t('openui.balance')).toBe('Balance');
+    expect(ui.t('openui.err.limit.message')).toBe('A play limit has been reached. Please try again later.');
+    expect(ui.t('openui.err.insufficient.message')).toBe("You don't have enough balance for this play.");
+    for (const key of ['openui.err.limit.message', 'openui.err.insufficient.message']) {
+      expect(ui.t(key).toLowerCase()).not.toMatch(/gambling|bet/);
+    }
+  });
 });
 
 describe('session aggregates (RTS 12 — money spent)', () => {

@@ -77,10 +77,12 @@ export const openuiDefaults: Record<string, string> = {
  */
 export const openuiSocialDefaults: Record<string, string> = {
   'openui.bet': 'Play',
-  'openui.balance': 'Credits',
+  'openui.balance': 'Balance',
   'openui.win': 'Prize',
   'openui.buyFeature.title': 'Play bonus',
   'openui.buyFeature.message': 'Play this bonus now?',
+  'openui.err.insufficient.message': "You don't have enough balance for this play.",
+  'openui.err.limit.message': 'A play limit has been reached. Please try again later.',
 };
 
 function interpolate(template: string, vars?: Record<string, string | number>): string {
