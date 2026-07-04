@@ -1,13 +1,13 @@
 <svg width="120" height="240" viewBox="0 0 120 240" fill="none" xmlns="http://www.w3.org/2000/svg">
 <g filter="url(#filter0_d)">
-<circle cx="60" cy="60" r="40" fill="white"/>
+<circle cx="60" cy="60" r="38.5" fill="white"/>
 <circle cx="60" cy="60" r="37" stroke="black" stroke-width="6"/>
 </g>
 <g clip-path="url(#clip0)">
 <path d="M44.2619 60.2005L67.8115 40.1768C68.3388 39.7284 69.1329 40.1954 69.0052 40.8789L66.0165 56.8784C65.9326 57.3274 66.2687 57.7449 66.7219 57.7546L75.2806 57.9357C75.9717 57.9503 76.2609 58.8324 75.7146 59.2595L49.3755 79.8417C48.814 80.2805 48.0235 79.7387 48.2218 79.051L52.9604 62.6106C53.095 62.1437 52.7536 61.6752 52.2714 61.665L44.7195 61.5052C44.0433 61.4909 43.745 60.6402 44.2619 60.2005Z" fill="black"/>
 </g>
 <g filter="url(#filter1_d)">
-<circle cx="60" cy="180" r="40" fill="#FFC935"/>
+<circle cx="60" cy="180" r="38.5" fill="#FFC935"/>
 <circle cx="60" cy="180" r="37" stroke="black" stroke-width="6"/>
 </g>
 <g clip-path="url(#clip1)">

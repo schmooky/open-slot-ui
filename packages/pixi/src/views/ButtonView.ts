@@ -207,8 +207,11 @@ export class ButtonView extends ControlView {
       if (this.mono) {
         // Figma b&w button: a soft drop shadow, a white fill, and an INSET black ring
         // (ring at ~0.925r, width ~0.15r — matching the exported button art).
+        // The white fill stops just short of the ring's outer edge (0.98r vs 1.0r):
+        // with both edges coincident, the fill's AA fringe peeks past the ring and
+        // reads as white dither against dark game backgrounds.
         g.circle(0, r * 0.16, r).fill({ color: 0x000000, alpha: disabled ? 0.08 : 0.18 });
-        g.circle(0, 0, r).fill({ color: '#ffffff', alpha: disabled ? 0.6 : 1 });
+        g.circle(0, 0, r * 0.98).fill({ color: '#ffffff', alpha: disabled ? 0.6 : 1 });
         g.circle(0, 0, r * 0.925).stroke({ width: r * 0.15, color: '#0a0a0a', alpha: disabled ? 0.5 : 1 });
       } else if (this.dark) {
         g.circle(0, r * 0.16, r).fill({ color: 0x000000, alpha: 0.18 });
