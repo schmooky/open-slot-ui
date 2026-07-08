@@ -22,6 +22,31 @@ import {
 import { OpenUIPixi, type OpenUIPixiOptions } from './OpenUIPixi';
 import { PanelBodyView } from './views/PanelBodyView';
 
+/** Shared BLOCKING replay modal — the round's facts + one button, non-dismissible
+ *  (no ✕, no backdrop close; only the button advances). Used for both the start ("Play")
+ *  and the end ("Replay") of a replay so it's a strict modal → round → modal loop. */
+function showReplayModal(ui: OpenUI, info: ReplayInfo, buttonKey: string, onSelect: () => void): void {
+  const cur = info.currency ?? ui.balance.currency.get();
+  const money = (n: number): string => formatAmount(n, cur);
+  ui.showNotice(
+    [
+      { kind: 'heading', id: 'openui-replay-h', text: 'openui.replay.title' },
+      {
+        kind: 'stat-grid',
+        id: 'openui-replay-g',
+        items: [
+          { label: 'openui.replay.baseBet', value: money(info.baseBet) },
+          { label: 'openui.replay.costMultiplier', value: `${info.costMultiplier}×` },
+          { label: 'openui.replay.payoutMultiplier', value: `${info.payoutMultiplier}×` },
+          { label: 'openui.replay.amount', value: money(info.amount) },
+        ],
+      },
+    ],
+    [{ label: buttonKey, variant: 'primary', onSelect: () => { ui.hideNotice(); onSelect(); } }],
+    { blocking: true },
+  );
+}
+
 /** The round facts shown at the start of a replay (Stake "Replay Support"). */
 export interface ReplayInfo {
   /** The base bet (before the mode's cost multiplier). */
@@ -88,8 +113,9 @@ export interface BootedHud {
    *  amounts format with `info.currency` (defaults to the balance currency). Also flips
    *  the HUD into replay mode (badge + lock). */
   replayStart(info: ReplayInfo, onPlay?: () => void): void;
-  /** At the END of a replay, show a "Replay" button (open-ui styled) that re-runs it. */
-  replayEnd(onReplay: () => void): void;
+  /** At the END of a replay, show the SAME facts + a "Replay" button that re-runs it.
+   *  Non-dismissible (no ✕ / backdrop close) — it's a strict modal → round → modal loop. */
+  replayEnd(info: ReplayInfo, onReplay: () => void): void;
   /** Show a buy-feature confirm modal (Cancel / Confirm). Texts are literal-or-key. */
   confirmBuy(opts: { title?: string; message?: string; onConfirm: () => void; confirmLabel?: string; cancelLabel?: string }): void;
   /** Confirm-GATE a buy / bet-mode activation: when its `cost` (× base bet) exceeds
@@ -206,30 +232,10 @@ export function mountHud(app: Application, spec: UISpec = {}, opts: HudOptions =
     setReplay: (on) => ui.setReplay(on),
     replayStart: (info, onPlay) => {
       ui.setReplay(true); // REPLAY badge + locked HUD
-      const cur = info.currency ?? ui.balance.currency.get();
-      const money = (n: number): string => formatAmount(n, cur);
-      ui.showNotice(
-        [
-          { kind: 'heading', id: 'openui-replay-h', text: 'openui.replay.title' },
-          {
-            kind: 'stat-grid',
-            id: 'openui-replay-g',
-            items: [
-              { label: 'openui.replay.baseBet', value: money(info.baseBet) },
-              { label: 'openui.replay.costMultiplier', value: `${info.costMultiplier}×` },
-              { label: 'openui.replay.payoutMultiplier', value: `${info.payoutMultiplier}×` },
-              { label: 'openui.replay.amount', value: money(info.amount) },
-            ],
-          },
-        ],
-        [{ label: 'openui.replay.play', variant: 'primary', onSelect: onPlay }],
-      );
+      showReplayModal(ui, info, 'openui.replay.play', () => onPlay?.());
     },
-    replayEnd: (onReplay) => {
-      ui.showNotice(
-        [{ kind: 'heading', id: 'openui-replay-end', text: 'openui.replay.title' }],
-        [{ label: 'openui.replay.again', variant: 'primary', onSelect: onReplay }],
-      );
+    replayEnd: (info, onReplay) => {
+      showReplayModal(ui, info, 'openui.replay.again', onReplay);
     },
     confirmBuy: (o) => {
       // Real guard: a jurisdiction that disabled buy-feature makes this a no-op.
