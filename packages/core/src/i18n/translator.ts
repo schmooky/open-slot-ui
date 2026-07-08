@@ -48,6 +48,8 @@ export const openuiDefaults: Record<string, string> = {
   'openui.replay': 'Replay',
   'openui.buyFeature.title': 'Buy feature',
   'openui.buyFeature.message': 'Buy this feature now?',
+  // Confirm step for a higher-cost play — {{name}} / {{price}} are interpolated.
+  'openui.buyFeature.confirm': 'Buy {{name}} for {{price}}?',
   'openui.freeSpins': 'FS',
   // reality check (RTS 13) — {{minutes}} is interpolated by open-ui's scheduler
   'openui.realityCheck.title': 'Reality check',
@@ -89,6 +91,7 @@ export const openuiSocialDefaults: Record<string, string> = {
   'openui.err.insufficient.title': 'Insufficient balance',
   'openui.buyFeature.title': 'Play bonus',
   'openui.buyFeature.message': 'Play this bonus now?',
+  'openui.buyFeature.confirm': 'Play {{name}} for {{price}}?',
   'openui.err.insufficient.message': "You don't have enough balance for this play.",
   'openui.err.limit.message': 'A play limit has been reached. Please try again later.',
 };

@@ -24,6 +24,11 @@ export interface JurisdictionConfig {
   displaySessionTimer?: boolean;
   /** Minimum ms a round must take — stored on the HUD for the GAME to enforce. */
   minimumRoundDuration?: number;
+  /** Buy-feature confirm threshold (× base bet). A play costing more than this must
+   *  be confirmed before it commits — Stake requires that bet modes above 2× never
+   *  activate on a single click, so a Stake preset sets this to `2`. Not part of the
+   *  wallet schema; a convenience so a jurisdiction can require the confirm step. */
+  confirmBuyAboveCost?: number;
 }
 
 /**
@@ -76,5 +81,8 @@ export function applyJurisdiction(ui: OpenUI, jur: JurisdictionConfig | undefine
   if (jur.socialCasino != null) ui.setSocial(jur.socialCasino);
   if (typeof jur.minimumRoundDuration === 'number' && Number.isFinite(jur.minimumRoundDuration)) {
     ui.minimumRoundDuration = Math.max(0, jur.minimumRoundDuration);
+  }
+  if (typeof jur.confirmBuyAboveCost === 'number' && Number.isFinite(jur.confirmBuyAboveCost)) {
+    ui.confirmBuyAboveCost = Math.max(0, jur.confirmBuyAboveCost);
   }
 }

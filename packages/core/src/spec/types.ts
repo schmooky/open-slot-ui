@@ -216,6 +216,13 @@ export interface UISpec {
   rtp?: number;
   /** Game name + version — shown in the menu footer (support / certification). */
   game?: { name?: string; version?: string };
+  /** Buy-feature / bet-mode confirmation. `confirmAboveCost` (× base bet) makes any
+   *  play costing MORE than that require a confirm step before it commits — Stake
+   *  requires bet modes above 2× to never activate on a single click, so set `2`.
+   *  The game routes a purchase/activation through `hud.requestBuyFeature(...)`, which
+   *  shows the confirm popup itself when the cost exceeds the threshold. A jurisdiction
+   *  can set the same threshold (`JurisdictionConfig.confirmBuyAboveCost`). */
+  buyFeature?: { confirmAboveCost?: number };
   /** Reality-check reminder (RTS 13): open-ui runs a wall-clock timer, emits a
    *  `realityCheck` event, stops autoplay, and (unless `showModal:false`) shows an
    *  acknowledge modal. You supply only the cadence + text. `title`/`message` are

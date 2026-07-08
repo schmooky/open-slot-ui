@@ -69,6 +69,23 @@ export interface BootedHud {
   setReplay(on: boolean): void;
   /** Show a buy-feature confirm modal (Cancel / Confirm). Texts are literal-or-key. */
   confirmBuy(opts: { title?: string; message?: string; onConfirm: () => void; confirmLabel?: string; cancelLabel?: string }): void;
+  /** Confirm-GATE a buy / bet-mode activation: when its `cost` (× base bet) exceeds
+   *  the configured `confirmBuyAboveCost` threshold, show a confirm popup naming the
+   *  feature + `price` and run `onConfirm` only on confirm; otherwise run `onConfirm`
+   *  straight away. This is how a game honors Stake's "no one-click activation above
+   *  2×" rule — the library owns the threshold + popup, the game just calls this. */
+  requestBuyFeature(opts: {
+    cost: number;
+    name?: string;
+    price?: string;
+    onConfirm: () => void;
+    title?: string;
+    message?: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
+  }): void;
+  /** Read-back: would a play of this `cost` (× base bet) require confirmation? */
+  shouldConfirmBuy(cost: number): boolean;
   /** Slide the whole interactive HUD in / out — bottom controls go down, top ones up
    *  (behind the status-bar plaque). Non-interactive while moving. */
   showControls(): void;
@@ -171,6 +188,30 @@ export function mountHud(app: Application, spec: UISpec = {}, opts: HudOptions =
         [
           { kind: 'heading', id: 'buy-title', text: o.title ?? 'openui.buyFeature.title' },
           { kind: 'text', id: 'buy-body', text: o.message ?? 'openui.buyFeature.message' },
+        ],
+        [
+          { label: o.cancelLabel ?? 'openui.cancel', variant: 'secondary' },
+          { label: o.confirmLabel ?? 'openui.confirm', variant: 'primary', onSelect: o.onConfirm },
+        ],
+      );
+    },
+    shouldConfirmBuy: (cost) => ui.shouldConfirmBuy(cost),
+    requestBuyFeature: (o) => {
+      if (ui.isDisabled('buyFeature')) return; // jurisdiction fully disabled the feature
+      if (!ui.shouldConfirmBuy(o.cost)) {
+        o.onConfirm(); // cost at/under the threshold → one click is allowed
+        return;
+      }
+      // Pre-resolve the message (block text can't interpolate); social/locale at open time.
+      const message =
+        o.message ??
+        (o.name
+          ? ui.t('openui.buyFeature.confirm', { name: ui.t(o.name), price: o.price ?? '' })
+          : 'openui.buyFeature.message');
+      ui.showNotice(
+        [
+          { kind: 'heading', id: 'buy-title', text: o.title ?? 'openui.buyFeature.title' },
+          { kind: 'text', id: 'buy-body', text: message },
         ],
         [
           { label: o.cancelLabel ?? 'openui.cancel', variant: 'secondary' },

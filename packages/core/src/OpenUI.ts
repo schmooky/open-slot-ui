@@ -102,6 +102,11 @@ export class OpenUI {
   gameInfo: { name?: string; version?: string } = {};
   /** Minimum round duration (ms) from jurisdiction — stored for the GAME to enforce. */
   minimumRoundDuration = 0;
+  /** Buy-feature confirm threshold, as a multiple of the base bet. A play (buy or
+   *  bet-mode activation) that costs STRICTLY MORE than this must show a confirm step
+   *  — Stake requires that bet modes above 2× never activate on a single click. `0`
+   *  (the default) = off. Set via `spec.buyFeature.confirmAboveCost` or a jurisdiction. */
+  confirmBuyAboveCost = 0;
   private sessionNet = 0;
   private prevVolumes: { music: number; sfx: number } | null = null;
 
@@ -520,6 +525,14 @@ export class OpenUI {
       (feature === 'slamstop' && !!j.disabledSlamstop) ||
       (feature === 'spacebar' && !!j.disabledSpacebar)
     );
+  }
+
+  /** True when a buy / bet-mode activation of `cost`× the base bet must be confirmed
+   *  before it commits (Stake: no one-click activation above `confirmBuyAboveCost`×).
+   *  Always false when the threshold is 0/unset or `cost` isn't a finite number. */
+  shouldConfirmBuy(cost: number): boolean {
+    const t = this.confirmBuyAboveCost;
+    return t > 0 && Number.isFinite(cost) && cost > t;
   }
 
   /**

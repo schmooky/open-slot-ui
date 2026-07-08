@@ -128,6 +128,12 @@ export function createUI(spec: UISpec = {}, hooks: HostHooks = {}): OpenUI {
     }
   }
 
+  // Buy-feature confirm threshold (explicit config) — set before jurisdiction so a
+  // platform jurisdiction can tighten it, but the game's own value is the default.
+  if (spec.buyFeature?.confirmAboveCost != null && Number.isFinite(spec.buyFeature.confirmAboveCost)) {
+    ui.confirmBuyAboveCost = Math.max(0, spec.buyFeature.confirmAboveCost);
+  }
+
   // Jurisdiction (the Stake Engine compliance switchboard) is applied BEFORE the
   // responsive layer snapshots its base, so a `disabled*` hide is part of that base
   // and survives every resize (it's force-hidden too, belt-and-braces).
