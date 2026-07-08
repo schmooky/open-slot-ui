@@ -27,6 +27,7 @@ export * from './spec/types';
 export * from './spec/validateSpec';
 export * from './spec/buildPanel';
 export * from './spec/createUI';
+export * from './spec/socialPhrases';
 export * from './spec/responsive';
 export * from './spec/menu';
 export * from './spec/jurisdiction';

@@ -103,11 +103,13 @@ export interface ResponsiveOverride {
  * a `slider` cannot carry them.
  */
 export type BlockSpec =
-  | { kind: 'slider'; id: string; label?: string; initial?: number }
-  | { kind: 'toggle'; id: string; label?: string; on?: boolean }
-  | { kind: 'button'; id: string; label: string; action?: 'closePanel' | 'openPanel' | 'emit'; target?: string; role?: string }
-  | { kind: 'select'; id: string; label?: string; options: SelectOption[]; index?: number }
-  | { kind: 'stepper'; id: string; label?: string; levels: number[]; index?: number }
+  // `hint` is a short description of what the control does, shown dim UNDER it — so
+  // every interactive control in the Info/settings menu explains its own function.
+  | { kind: 'slider'; id: string; label?: string; initial?: number; hint?: string }
+  | { kind: 'toggle'; id: string; label?: string; on?: boolean; hint?: string }
+  | { kind: 'button'; id: string; label: string; action?: 'closePanel' | 'openPanel' | 'emit'; target?: string; role?: string; hint?: string }
+  | { kind: 'select'; id: string; label?: string; options: SelectOption[]; index?: number; hint?: string }
+  | { kind: 'stepper'; id: string; label?: string; levels: number[]; index?: number; hint?: string }
   | { kind: 'value'; id: string; label?: string; currency?: CurrencySpec; initial?: number }
   | { kind: 'text'; id: string; text: string }
   // ── static "rules"/info content (no control; every text run through `ui.t`) ──

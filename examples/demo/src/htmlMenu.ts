@@ -162,11 +162,20 @@ export function mountHtmlMenu(app: Application, hud: BootedHud): void {
         <img class="ohm-logo" alt="LOGO" width="640" height="200" src="https://placehold.co/640x200?text=LOGO" />
 
         <div class="ohm-sec"><span data-t="Settings">${tr('Settings')}</span></div>
-        <label class="ohm-row ohm-check"><span data-t="Sound">${tr('Sound')}</span>
-          <span class="ohm-ctl"><input id="ohm-soundtoggle" type="checkbox" checked></span></label>
-        <label class="ohm-row"><span data-t="Language">${tr('Language')}</span>
-          <select id="ohm-lang">${langOptions}</select></label>
-        ${turboRow}
+        <div class="ohm-setting">
+          <label class="ohm-row ohm-check"><span data-t="Sound">${tr('Sound')}</span>
+            <span class="ohm-ctl"><input id="ohm-soundtoggle" type="checkbox" checked></span></label>
+          <div class="ohm-hint" data-t="Turns all game sound and music on or off.">${tr('Turns all game sound and music on or off.')}</div>
+        </div>
+        <div class="ohm-setting">
+          <label class="ohm-row"><span data-t="Language">${tr('Language')}</span>
+            <select id="ohm-lang">${langOptions}</select></label>
+          <div class="ohm-hint" data-t="Choose the display language.">${tr('Choose the display language.')}</div>
+        </div>
+        <div class="ohm-setting">
+          ${turboRow}
+          <div class="ohm-hint" data-t="Speeds up spins by shortening the animation.">${tr('Speeds up spins by shortening the animation.')}</div>
+        </div>
 
         <div class="ohm-sec"><span data-t="Paytable">${tr('Paytable')}</span></div>
         <div class="ohm-grid">${payCells}</div>
@@ -254,6 +263,9 @@ const OHM_CSS = `
 .ohm-sec::before, .ohm-sec::after { content: ""; flex: 1; height: 2px; background: color-mix(in srgb, var(--text) 80%, transparent); border-radius: 2px; }
 .ohm-root *, .ohm-root *::before, .ohm-root *::after { box-sizing: border-box; }
 .ohm-row { display: flex; align-items: center; gap: 16px; margin: 14px 0; font-weight: 700; }
+.ohm-setting { margin: 14px 0; }
+.ohm-setting .ohm-row { margin: 0; }
+.ohm-hint { margin: 3px 0 0; font-size: 12.5px; font-weight: 500; color: var(--text-dim); }
 .ohm-row > span:first-child { flex: none; min-width: 110px; }
 /* inputs don't stretch full width — capped (dvw-based, with a px ceiling so they
    never get giant on wide screens nor too small on phones). min-width:0 lets the

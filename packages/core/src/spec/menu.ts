@@ -20,6 +20,9 @@ export interface MenuSpec {
   titles?: { settings?: string; paytable?: string; rules?: string };
 }
 
+// The English section titles double as their i18n keys (a game's dict localizes them).
+// "Paytable" is social-restricted → the social dictionary swaps it to "Prizes" (see
+// openuiSocialDefaults), so the heading is compliant in social mode without extra config.
 export const DEFAULT_MENU_TITLES = { settings: 'Settings', paytable: 'Paytable', rules: 'Rules' } as const;
 
 /** Native names for the language switch; falls back to the upper-cased code.

@@ -3,6 +3,7 @@ import { ValueDisplay, type CurrencySpec } from '../src/controls/ValueDisplay';
 import { displayDigits, integerDigits, clampMinDigits, clampDigits, valueFitMaxWidth } from '../src/safe';
 import { createUI } from '../src/spec/createUI';
 import { validateSpec } from '../src/spec/validateSpec';
+import { resolveCurrency, formatAmount } from '../src/format/currency';
 
 const layout = { anchor: 'center' } as const;
 const vd = (currency: CurrencySpec, initial = 0): ValueDisplay =>
@@ -180,5 +181,43 @@ describe('digits override — optional minimum width (auto by default)', () => {
     const bad = validateSpec({ controls: { balance: { digits: 'x' as unknown as number } } });
     expect(bad.ok).toBe(false); // non-number is an error
     expect(bad.issues.some((i) => i.code === 'bad-digits' && i.level === 'error')).toBe(true);
+  });
+});
+
+describe('Stake currency formatter (symbol · decimals · placement)', () => {
+  it('resolves a code to the Stake symbol, side and decimals', () => {
+    expect(resolveCurrency('CNY')).toMatchObject({ code: 'CNY', symbol: 'CN¥', display: 'symbol', position: 'prefix', decimals: 2 });
+    expect(resolveCurrency('USD')).toMatchObject({ symbol: '$', position: 'prefix', decimals: 2 });
+    expect(resolveCurrency('JPY')).toMatchObject({ symbol: '¥', position: 'prefix', decimals: 0 });
+    expect(resolveCurrency('CAD')).toMatchObject({ symbol: 'CA$', position: 'prefix', decimals: 2 });
+    expect(resolveCurrency('PLN')).toMatchObject({ symbol: 'zł', position: 'suffix', decimals: 2 });
+    expect(resolveCurrency('VND')).toMatchObject({ symbol: '₫', position: 'suffix', decimals: 0 });
+    expect(resolveCurrency('BTC')).toMatchObject({ symbol: '₿', decimals: 8 });
+    expect(resolveCurrency('XGC')).toMatchObject({ code: 'GC', symbol: 'GC', decimals: 2 });
+    expect(resolveCurrency('ZZZ')).toMatchObject({ code: 'ZZZ', position: 'suffix', decimals: 2 }); // unknown → safe code-suffix
+  });
+
+  it('lets a game override (e.g. force more decimals for sub-cent payouts)', () => {
+    expect(resolveCurrency('CNY', { decimals: 4 }).decimals).toBe(4);
+    expect(resolveCurrency('USD', { position: 'suffix' }).position).toBe('suffix');
+    expect(resolveCurrency('EUR', { decimals: 99 }).decimals).toBe(8); // clamped
+  });
+
+  it('formatAmount: prefix symbol tight, suffix symbol spaced, ISO code spaced', () => {
+    expect(formatAmount(1000, resolveCurrency('CNY'))).toBe('CN¥1,000.00');
+    expect(formatAmount(10, resolveCurrency('USD'))).toBe('$10.00');
+    expect(formatAmount(10, resolveCurrency('JPY'))).toBe('¥10');
+    expect(formatAmount(10, resolveCurrency('IDR'))).toBe('Rp10');
+    expect(formatAmount(1234.5, resolveCurrency('PLN'))).toBe('1,234.50 zł');
+    expect(formatAmount(1234.5, { code: 'USD', decimals: 2 })).toBe('1,234.50 USD');
+  });
+
+  it('displays sub-cent payouts when the currency has >2 decimals', () => {
+    // a win of 0.0025 must render exactly, not round to 0.00 — needs >2 decimals.
+    expect(formatAmount(0.0025, resolveCurrency('BTC', { decimals: 4 }))).toBe('₿0.0025');
+    expect(formatAmount(0.002, resolveCurrency('CNY', { decimals: 3 }))).toBe('CN¥0.002');
+    // and the odometer sizes to it (integer digit + fraction columns).
+    expect(displayDigits(0.0025, 0, 4)).toBe(5);
+    expect(new ValueDisplay({ id: 'balance', layout, currency: resolveCurrency('CNY', { decimals: 4 }), initial: 0.0025 }).minorUnits).toBe(25);
   });
 });

@@ -12,6 +12,7 @@ import { validateSpec } from './validateSpec';
 import { installResponsive } from './responsive';
 import { resolveCurrency } from '../format/currency';
 import { portraitDefaultLayouts } from '../layout/defaultLayouts';
+import { checkSocialPhrases } from './socialPhrases';
 import type { UISpec, HostHooks, TurboSpec, ResponsiveOverride } from './types';
 import type { OpenUIEvents } from '../types';
 
@@ -62,6 +63,24 @@ export function createUI(spec: UISpec = {}, hooks: HostHooks = {}): OpenUI {
   if (spec.social) {
     if (typeof spec.social === 'object') ui.setSocial(true, spec.social.coin);
     else ui.setSocial(true);
+  }
+
+  // In social mode, LINT the game's English copy for restricted gambling wording
+  // (pay*/bet/funds/cash/…) and report each finding with a compliant replacement — so a
+  // stray "paytable" can't ship. Never blocks boot; forwarded to onDataIssue + console.
+  if (spec.social || spec.jurisdiction?.socialCasino) {
+    const found = checkSocialPhrases(spec);
+    for (const issue of found) {
+      hooks.onDataIssue?.({
+        level: 'warn',
+        path: issue.source,
+        code: 'social-forbidden-phrase',
+        message: `Social mode restricted wording in "${issue.text}": ${issue.matches.map((m) => `“${m.term}” → ${m.replacement}`).join('; ')}`,
+      });
+    }
+    if (found.length && typeof console !== 'undefined') {
+      console.warn(`[open-ui] social mode: ${found.length} string(s) contain restricted phrases (see onDataIssue). First: ${found[0]!.source} → "${found[0]!.text}"`);
+    }
   }
 
   if (typeof spec.rtp === 'number') ui.rtp.set(spec.rtp);

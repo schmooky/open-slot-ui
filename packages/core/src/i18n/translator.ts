@@ -81,6 +81,12 @@ export const openuiSocialDefaults: Record<string, string> = {
   'openui.balance': 'Balance',
   'openui.win': 'Prize',
   'openui.totalWin': 'Total Prize',
+  // "Paytable" (contains "pay") and "Insufficient funds" ("funds") are restricted in
+  // social mode → their compliant equivalents. The literal "Paytable" is overridden too
+  // because the menu SECTION heading uses it as its key (DEFAULT_MENU_TITLES).
+  'openui.paytable': 'Prizes',
+  Paytable: 'Prizes',
+  'openui.err.insufficient.title': 'Insufficient balance',
   'openui.buyFeature.title': 'Play bonus',
   'openui.buyFeature.message': 'Play this bonus now?',
   'openui.err.insufficient.message': "You don't have enough balance for this play.",

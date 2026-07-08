@@ -168,8 +168,10 @@ export class ValueDisplayView extends ControlView {
     // sizing keeps it adjacent to the number: "$1,234.50" / "1,234.50€" / "100,000 SATS".
     const symbolMode = cur.display === 'symbol' && !!cur.symbol;
     const affix = symbolMode ? (cur.symbol as string) : cur.code;
+    // Stake placement: a PREFIX symbol hugs the number ("$1,234.50"); a SUFFIX symbol
+    // (zł, kr, …) OR the ISO code is spaced ("1.234,50 zł" / "1,234.50 USD").
     if ((cur.position ?? 'suffix') === 'prefix') opts.prefix = symbolMode ? affix : `${affix} `;
-    else opts.suffix = symbolMode ? affix : ` ${affix}`;
+    else opts.suffix = ` ${affix}`;
 
     // A very large value (whale crypto, big SATS counts) is scaled down to a fixed
     // budget so it never spills into its neighbours; normal magnitudes render full size.
