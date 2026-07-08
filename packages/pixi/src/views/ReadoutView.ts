@@ -37,6 +37,9 @@ export class ReadoutView extends ControlView {
   private readonly valueText: Text;
   private readonly tick?: (t: Ticker) => void;
   private readonly prefix: boolean;
+  /** Normal + accent value colours for the `emphasized` (modified) tint. */
+  private readonly baseFill: string;
+  private readonly accentFill: string;
 
   constructor(private readonly ro: ReadoutControl, ui: OpenUI, private readonly ticker: Ticker, opts: ReadoutViewOptions = {}) {
     super(ro, ui);
@@ -44,6 +47,8 @@ export class ReadoutView extends ControlView {
     const inline = opts.inline ?? false;
     this.prefix = opts.prefix ?? false;
     const fill = opts.fill ?? (opts.mono ? '#ffffff' : t.color.text);
+    this.baseFill = this.prefix ? (opts.fill ?? '#ffffff') : fill;
+    this.accentFill = t.color.accent;
 
     // Figma top-corner block: one left-aligned `Label: value` line per readout. Sized
     // for legibility and given a soft dark shadow so the white text stays readable on
@@ -65,12 +70,14 @@ export class ReadoutView extends ControlView {
       this.disposers.push(
         this.ro.value.subscribe(() => this.render()),
         this.ui.locale.subscribe(() => { if (!this.destroyed) this.render(); }),
+        this.ro.emphasized.subscribe(() => this.applyEmphasis()),
       );
       if (this.ro.currency) this.disposers.push(this.ro.currency.subscribe(() => this.render()));
       if (this.ro.kind === 'duration') {
         this.tick = (tk) => this.ro.tick(tk.deltaMS / 1000);
         this.ticker.add(this.tick);
       }
+      this.applyEmphasis();
       this.render();
       return;
     }
@@ -108,12 +115,20 @@ export class ReadoutView extends ControlView {
       }),
     );
     if (this.ro.currency) this.disposers.push(this.ro.currency.subscribe(() => this.render()));
+    this.disposers.push(this.ro.emphasized.subscribe(() => this.applyEmphasis()));
 
     if (this.ro.kind === 'duration') {
       this.tick = (tk) => this.ro.tick(tk.deltaMS / 1000);
       this.ticker.add(this.tick);
     }
+    this.applyEmphasis();
     this.render();
+  }
+
+  /** Tint the value in the theme accent while the readout is emphasized (modified). */
+  private applyEmphasis(): void {
+    if (this.destroyed) return;
+    this.valueText.style.fill = this.ro.emphasized.get() ? this.accentFill : this.baseFill;
   }
 
   private render(): void {

@@ -112,6 +112,10 @@ export class OpenUIPixi {
   private slideTickFn?: (t: Ticker) => void;
   private readonly slideBaseY = new Map<ControlView, number>();
   private readonly slideSign = new Map<ControlView, number>();
+  /** Buy-feature ⇄ total-win swap: only one shows at a time (see `setupBonusSwap`). */
+  private bonusView?: ButtonView;
+  private totalWinView?: ValueDisplayView;
+  private readonly fadeFns = new Map<Container, (t: Ticker) => void>();
 
   constructor(
     private readonly ui: OpenUI,
@@ -174,6 +178,12 @@ export class OpenUIPixi {
     const bonusView = new ButtonView(this.ui.bonusButton, this.ui, ticker, { shape: 'circle', radius: 60, iconTexture: ic.bonus, iconTarget: 130 });
     const betPlusView = new ButtonView(this.ui.betPlus, this.ui, ticker, { shape: 'circle', radius: 30, iconTexture: ic.betPlus, iconTarget: 64 });
     const betMinusView = new ButtonView(this.ui.betMinus, this.ui, ticker, { shape: 'circle', radius: 30, iconTexture: ic.betMinus, iconTarget: 64 });
+    // Bonus total-win readout — the same value renderer as balance/bet (caption pill +
+    // rolling counter, same currency/locale money logic). Parked in the buy-feature
+    // slot; shown only in a bonus (free-spins) round, swapped for the buy button.
+    const totalWinView = new ValueDisplayView(this.ui.totalWin, this.ui, ticker, this.opts.gsap);
+    this.bonusView = bonusView;
+    this.totalWinView = totalWinView;
 
     // edge controls (master mute + fullscreen) — b&w "mono" buttons like turbo.
     const muteView = new ButtonView(this.ui.muteButton, this.ui, ticker, { shape: 'circle', radius: 30, glyph: 'speaker', iconTarget: 60, mono: true });
@@ -198,6 +208,7 @@ export class OpenUIPixi {
       [this.ui.turbo.id, turboView],
       [this.ui.autoplay.id, autoplayView],
       [this.ui.bonusButton.id, bonusView],
+      [this.ui.totalWin.id, totalWinView],
       [this.ui.betPlus.id, betPlusView],
       [this.ui.betMinus.id, betMinusView],
       [this.ui.muteButton.id, muteView],
@@ -353,9 +364,89 @@ export class OpenUIPixi {
 
     this.disposers.push(() => renderer.off('resize', onResize), unsubScreen);
 
+    // Buy-feature ⇄ total-win: the buy button and the total-win readout share the
+    // same slot; the renderer shows exactly one, keyed off free-spins mode.
+    this.setupBonusSwap();
+
     this._eventLog = new EventLog(this.ui.bus);
 
     if (this.opts.expose ?? true) this.expose();
+  }
+
+  /**
+   * Wire the buy-feature ⇄ total-win swap. In base play the buy button shows (unless
+   * hidden by config/jurisdiction); once the spin button enters free-spins mode
+   * (`setFreeSpins(n > 0)` — you "can't buy" mid-bonus) the buy button fades out and
+   * the localized total-win counter fades in over the same slot, then back on exit.
+   */
+  private setupBonusSwap(): void {
+    const bonus = this.bonusView;
+    const tw = this.totalWinView;
+    if (!bonus || !tw) return;
+    const apply = (inBonus: boolean, animate: boolean): void => {
+      // Base-play visibility of the buy button still honours config / jurisdiction.
+      const bonusShouldShow = !inBonus && !this.ui.hidden.has(this.ui.bonusButton.id);
+      if (animate) {
+        if (inBonus) {
+          tw.visible = true;
+          tw.alpha = 0;
+          this.fadeTo(tw, 1, 220);
+          this.fadeTo(bonus, 0, 160, () => (bonus.visible = false));
+        } else {
+          if (bonusShouldShow) {
+            bonus.visible = true;
+            bonus.alpha = 0;
+            // settle on the button's own interactable alpha (1, or 0.4 when locked)
+            this.fadeTo(bonus, this.ui.bonusButton.interactable ? 1 : 0.4, 220);
+          }
+          this.fadeTo(tw, 0, 160, () => (tw.visible = false));
+        }
+      } else {
+        this.stopFade(bonus);
+        this.stopFade(tw);
+        bonus.visible = bonusShouldShow;
+        bonus.alpha = this.ui.bonusButton.interactable ? 1 : 0.4;
+        tw.visible = inBonus;
+        tw.alpha = inBonus ? 1 : 0;
+      }
+    };
+    apply(this.ui.spin.freeSpins.get() > 0, false);
+    this.disposers.push(this.ui.spin.freeSpins.subscribe((n) => apply(n > 0, true)));
+  }
+
+  /** Fade a view's alpha to `to` over `ms` (wall-clock paced); cancels any prior fade
+   *  on the same view. `onDone` runs once when it settles. */
+  private fadeTo(view: Container, to: number, ms: number, onDone?: () => void): void {
+    this.stopFade(view);
+    const t = this.appTicker;
+    const from = view.alpha;
+    if (!t || from === to) {
+      view.alpha = to;
+      onDone?.();
+      return;
+    }
+    const startMs = typeof performance !== 'undefined' ? performance.now() : 0;
+    const fn = (): void => {
+      const nowMs = typeof performance !== 'undefined' ? performance.now() : startMs + ms;
+      const k = Math.min(1, (nowMs - startMs) / Math.max(ms, 1));
+      view.alpha = from + (to - from) * k;
+      if (k >= 1) {
+        view.alpha = to;
+        this.stopFade(view);
+        onDone?.();
+      }
+    };
+    this.fadeFns.set(view, fn);
+    t.add(fn);
+  }
+
+  /** Cancel an in-flight fade on `view` (if any). */
+  private stopFade(view: Container): void {
+    const fn = this.fadeFns.get(view);
+    if (fn) {
+      this.appTicker?.remove(fn);
+      this.fadeFns.delete(view);
+    }
   }
 
   /**
@@ -439,6 +530,8 @@ export class OpenUIPixi {
   unmount(): void {
     if (this.slideTickFn && this.appTicker) this.appTicker.remove(this.slideTickFn);
     this.slideTickFn = undefined;
+    for (const fn of this.fadeFns.values()) this.appTicker?.remove(fn);
+    this.fadeFns.clear();
     for (const v of this.views) v.dispose();
     this.views.length = 0;
     for (const o of this.overlays) o.dispose();

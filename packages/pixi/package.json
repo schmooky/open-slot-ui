@@ -38,6 +38,13 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs",
       "default": "./dist/index.js"
+    },
+    "./art": {
+      "source": "./src/art/index.ts",
+      "types": "./dist/art.d.ts",
+      "import": "./dist/art.js",
+      "require": "./dist/art.cjs",
+      "default": "./dist/art.js"
     }
   },
   "files": [

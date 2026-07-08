@@ -29,6 +29,16 @@ test('device matrix screenshots', async ({ page }, testInfo) => {
   await waitForHud(page);
   await page.screenshot({ path: `${dir}${base} - 1 hud.png` });
 
+  // Big balance + bet: proves the odometer stays bounded inside its box (never drifts
+  // onto the spin/steppers) on every device — the "text can't overlap buttons" guard.
+  await page.evaluate(() => {
+    const ui = (window as unknown as { ui: { balance: { set(n: number): void }; bet: { set(n: number): void } } }).ui;
+    ui.balance.set(98765432.1);
+    ui.bet.set(12500);
+  });
+  await page.waitForTimeout(600); // let the odometer roll + fit-scale settle
+  await page.screenshot({ path: `${dir}${base} - 1b hud (big values).png` });
+
   // the ☰ menu — in the device viewport (top)
   await page.evaluate(() => window.ui.settingsPanel.openPanel());
   await page.waitForTimeout(1100); // open transition + placehold.co logo

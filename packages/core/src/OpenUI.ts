@@ -112,6 +112,9 @@ export class OpenUI {
   readonly spin: SpinControl;
   readonly balance: ValueDisplay;
   readonly bet: ValueDisplay;
+  /** Bonus "total win" readout — shown in the buy-feature slot during a bonus/free-
+   *  spins round (the renderer swaps it for the buy button). Same money logic as `bet`. */
+  readonly totalWin: ValueDisplay;
   readonly settingsButton: ButtonControl;
   readonly settingsPanel: PanelControl;
   readonly musicSlider: SliderControl;
@@ -164,6 +167,15 @@ export class OpenUI {
       currency: { code: 'USD', decimals: 2 },
       initial: 1,
     });
+    // Bonus total-win readout — same look/money logic as bet (caption pill + rolling
+    // value), parked in the buy-feature slot; the renderer shows it only in a bonus.
+    this.totalWin = new ValueDisplay({
+      id: 'total-win',
+      label: 'openui.totalWin',
+      layout: defaultLayout('total-win'),
+      currency: { code: 'USD', decimals: 2 },
+      initial: 0,
+    });
 
     // settings flyout: a button that toggles a popover with sound sliders + a Rules button
     this.settingsButton = new ButtonControl(
@@ -208,6 +220,7 @@ export class OpenUI {
       this.spin,
       this.balance,
       this.bet,
+      this.totalWin,
       this.settingsButton,
       this.settingsPanel,
       this.musicSlider,

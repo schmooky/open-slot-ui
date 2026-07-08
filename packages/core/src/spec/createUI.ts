@@ -54,6 +54,7 @@ export function createUI(spec: UISpec = {}, hooks: HostHooks = {}): OpenUI {
     const cur = typeof spec.currency === 'string' ? resolveCurrency(spec.currency) : spec.currency;
     ui.balance.setCurrency(cur);
     ui.bet.setCurrency(cur);
+    ui.totalWin.setCurrency(cur); // bonus total-win formats like the money displays
     ui.netPosition.setCurrency(cur);
   }
 

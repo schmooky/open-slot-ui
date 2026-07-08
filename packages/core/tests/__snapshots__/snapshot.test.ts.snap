@@ -111,6 +111,12 @@ exports[`OpenUI.snapshot() > matches the documented initial control surface 1`] 
     "state": "idle",
   },
   {
+    "id": "total-win",
+    "interactable": false,
+    "role": "status",
+    "state": "idle",
+  },
+  {
     "id": "turbo",
     "interactable": true,
     "role": "switch",

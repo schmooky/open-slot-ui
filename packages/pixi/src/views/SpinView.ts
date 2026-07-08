@@ -52,17 +52,18 @@ export class SpinView extends ControlView {
     this.skin = skinFactory(ui.theme);
     this.art.addChild(this.skin.view);
 
-    // Free-spins face: a themed ring + big remaining count over a small "FS" label.
-    // Built once, hidden until `setFreeSpins(n > 0)`; lives in `art` so it squishes too.
-    const c = ui.theme.color;
-    const ring = new Graphics().circle(0, 0, 64).fill({ color: c.surface }).stroke({ width: 6, color: c.accent });
-    this.fsCount = new Text({ text: '0', style: { fontFamily: ui.theme.type.family, fontSize: 44, fill: c.text, fontWeight: '800' } });
+    // Free-spins face: the SAME white spin-button coin (white fill, black ring — matching
+    // the spin skin + the autoplay STOP face) with the big remaining count over a small
+    // "FS" label. Built once, hidden until `setFreeSpins(n > 0)`; lives in `art` so it
+    // squishes too. Not a separate dark/accent disc — it must read as the spin button.
+    const fsRing = new Graphics().circle(0, 0, 98).fill({ color: 0xffffff }).circle(0, 0, 94).stroke({ width: 8, color: 0x0a0a0a });
+    this.fsCount = new Text({ text: '0', style: { fontFamily: ui.theme.type.family, fontSize: 60, fill: 0x0a0a0a, fontWeight: '900' } });
     this.fsCount.anchor.set(0.5);
-    this.fsCount.y = -8;
-    this.fsLabel = new Text({ text: ui.t('openui.freeSpins'), style: { fontFamily: ui.theme.type.family, fontSize: 18, fill: c.accent, fontWeight: '800', letterSpacing: 2 } });
+    this.fsCount.y = -14;
+    this.fsLabel = new Text({ text: ui.t('openui.freeSpins'), style: { fontFamily: ui.theme.type.family, fontSize: 24, fill: 0x0a0a0a, fontWeight: '900', letterSpacing: 3 } });
     this.fsLabel.anchor.set(0.5);
-    this.fsLabel.y = 26;
-    this.fsFace.addChild(ring, this.fsCount, this.fsLabel);
+    this.fsLabel.y = 34;
+    this.fsFace.addChild(fsRing, this.fsCount, this.fsLabel);
     this.fsFace.visible = false;
     this.art.addChild(this.fsFace);
 

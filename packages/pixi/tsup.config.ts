@@ -15,7 +15,9 @@ import { defineConfig } from 'tsup';
 // NOTE: the .d.ts rollup resolves `@open-slot-ui/core` via its built `dist`, so build
 // core BEFORE pixi (the root `build` script enforces this order).
 export default defineConfig({
-  entry: { index: 'src/index.ts' },
+  // `art` is a second entry so `@open-slot-ui/pixi/art` is its own tree-shakeable
+  // chunk — a game importing one default icon doesn't pull the HUD, and vice versa.
+  entry: { index: 'src/index.ts', art: 'src/art/index.ts' },
   format: ['esm', 'cjs'],
   // Inline `pixi-text-counter`'s *types* into the rollup too (the JS is already
   // bundled because it's a devDep). Without this the .d.ts keeps an `import …

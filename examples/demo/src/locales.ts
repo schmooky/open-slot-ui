@@ -18,6 +18,7 @@ export const MESSAGES: Messages = {
   es: {
     Menu: 'Menú', Settings: 'Ajustes', Paytable: 'Tabla de pagos', Rules: 'Reglas',
     Music: 'Música', Sound: 'Sonido', Effects: 'Efectos', Language: 'Idioma', Balance: 'Saldo', Bet: 'Apuesta',
+    'openui.totalWin': 'Ganancia total',
     Autoplay: 'Auto', Start: 'Empezar', 'How to win': 'Cómo ganar', 'Quick spin': 'Giro rápido',
     Tip: 'Consejo', 'Match symbols to win.': 'Combina símbolos para ganar.', 'Hold spin for turbo.': 'Mantén para turbo.',
     // rules content
@@ -43,6 +44,7 @@ export const MESSAGES: Messages = {
   pt: {
     Menu: 'Menu', Settings: 'Configurações', Paytable: 'Tabela de pagamentos', Rules: 'Regras',
     Music: 'Música', Sound: 'Som', Effects: 'Efeitos', Language: 'Idioma', Balance: 'Saldo', Bet: 'Aposta',
+    'openui.totalWin': 'Ganho total',
     Autoplay: 'Auto', Start: 'Começar', 'How to win': 'Como ganhar', 'Quick spin': 'Giro rápido',
     Tip: 'Dica', 'Match symbols to win.': 'Combine símbolos para ganhar.', 'Hold spin for turbo.': 'Segure para turbo.',
     'Match symbols on a line to win — **bigger symbols pay more**, and **Wild** substitutes for all.':
@@ -67,6 +69,7 @@ export const MESSAGES: Messages = {
   de: {
     Menu: 'Menü', Settings: 'Einstellungen', Paytable: 'Gewinntabelle', Rules: 'Regeln',
     Music: 'Musik', Sound: 'Ton', Effects: 'Effekte', Language: 'Sprache', Balance: 'Guthaben', Bet: 'Einsatz',
+    'openui.totalWin': 'Gesamtgewinn',
     Autoplay: 'Auto', Start: 'Starten', 'How to win': 'So gewinnst du', 'Quick spin': 'Schnelldrehung',
     Tip: 'Tipp', 'Match symbols to win.': 'Kombiniere Symbole, um zu gewinnen.', 'Hold spin for turbo.': 'Halten für Turbo.',
     'Match symbols on a line to win — **bigger symbols pay more**, and **Wild** substitutes for all.':
@@ -91,6 +94,7 @@ export const MESSAGES: Messages = {
   fr: {
     Menu: 'Menu', Settings: 'Paramètres', Paytable: 'Table de paiement', Rules: 'Règles',
     Music: 'Musique', Sound: 'Son', Effects: 'Effets', Language: 'Langue', Balance: 'Solde', Bet: 'Mise',
+    'openui.totalWin': 'Gain total',
     Autoplay: 'Auto', Start: 'Démarrer', 'How to win': 'Comment gagner', 'Quick spin': 'Tour rapide',
     Tip: 'Astuce', 'Match symbols to win.': 'Associez des symboles pour gagner.', 'Hold spin for turbo.': 'Maintenir pour le turbo.',
     'Match symbols on a line to win — **bigger symbols pay more**, and **Wild** substitutes for all.':
@@ -115,6 +119,7 @@ export const MESSAGES: Messages = {
   ru: {
     Menu: 'Меню', Settings: 'Настройки', Paytable: 'Таблица выплат', Rules: 'Правила',
     Music: 'Музыка', Sound: 'Звук', Effects: 'Эффекты', Language: 'Язык', Balance: 'Баланс', Bet: 'Ставка',
+    'openui.totalWin': 'Общий выигрыш',
     Autoplay: 'Авто', Start: 'Старт', 'How to win': 'Как выиграть', 'Quick spin': 'Быстрый спин',
     Tip: 'Совет', 'Match symbols to win.': 'Совпадайте символы, чтобы выиграть.', 'Hold spin for turbo.': 'Удерживайте для турбо.',
     'Match symbols on a line to win — **bigger symbols pay more**, and **Wild** substitutes for all.':
@@ -139,6 +144,7 @@ export const MESSAGES: Messages = {
   tr: {
     Menu: 'Menü', Settings: 'Ayarlar', Paytable: 'Ödeme tablosu', Rules: 'Kurallar',
     Music: 'Müzik', Sound: 'Ses', Effects: 'Efektler', Language: 'Dil', Balance: 'Bakiye', Bet: 'Bahis',
+    'openui.totalWin': 'Toplam kazanç',
     Autoplay: 'Oto', Start: 'Başlat', 'How to win': 'Nasıl kazanılır', 'Quick spin': 'Hızlı çevir',
     Tip: 'İpucu', 'Match symbols to win.': 'Kazanmak için sembolleri eşleştir.', 'Hold spin for turbo.': 'Turbo için basılı tut.',
     'Match symbols on a line to win — **bigger symbols pay more**, and **Wild** substitutes for all.':
@@ -163,6 +169,7 @@ export const MESSAGES: Messages = {
   zh: {
     Menu: '菜单', Settings: '设置', Paytable: '赔付表', Rules: '规则',
     Music: '音乐', Sound: '声音', Effects: '音效', Language: '语言', Balance: '余额', Bet: '投注',
+    'openui.totalWin': '总赢金',
     Autoplay: '自动', Start: '开始', 'How to win': '如何获胜', 'Quick spin': '快速旋转',
     Tip: '提示', 'Match symbols to win.': '匹配符号即可获胜。', 'Hold spin for turbo.': '按住以加速。',
     'Match symbols on a line to win — **bigger symbols pay more**, and **Wild** substitutes for all.':
@@ -187,6 +194,7 @@ export const MESSAGES: Messages = {
   ja: {
     Menu: 'メニュー', Settings: '設定', Paytable: '配当表', Rules: 'ルール',
     Music: '音楽', Sound: 'サウンド', Effects: '効果音', Language: '言語', Balance: '残高', Bet: 'ベット',
+    'openui.totalWin': '合計配当',
     Autoplay: 'オート', Start: 'スタート', 'How to win': '勝ち方', 'Quick spin': 'クイックスピン',
     Tip: 'ヒント', 'Match symbols to win.': 'シンボルを揃えて勝とう。', 'Hold spin for turbo.': '長押しでターボ。',
     'Match symbols on a line to win — **bigger symbols pay more**, and **Wild** substitutes for all.':
@@ -377,6 +385,20 @@ export const MESSAGES: Messages = {
     'Super Spins': 'सुपर स्पिन', 'Ante Bet': 'एंटे बेट', 'Double Chance': 'डबल चांस',
   },
 };
+
+// The HUD's value-display captions resolve the `openui.*` keys (openui.balance /
+// openui.bet / openui.win), but the dictionaries above are keyed by the plain English
+// word. Alias one to the other so a SINGLE translation localizes both — otherwise the
+// captions fall through to their English defaults while everything else is translated
+// (the "mixed languages" bug). Done once here, for every locale.
+for (const dict of Object.values(MESSAGES)) {
+  const alias = (key: string, plain: string): void => {
+    if (dict[plain] && !dict[key]) dict[key] = dict[plain];
+  };
+  alias('openui.balance', 'Balance');
+  alias('openui.bet', 'Bet');
+  alias('openui.win', 'Win');
+}
 
 /** The locale codes available in the language switch (en first). */
 export const LOCALE_CODES = Object.keys(MESSAGES);

@@ -3,7 +3,7 @@ import { resolvePlacement, type LayoutSpec } from '../src/layout/anchor';
 import { computeScreen, defaultLayoutConfig } from '../src/layout/screen';
 import type { ScreenState } from '../src/layout/screen';
 
-const screen: ScreenState = { width: 1920, height: 1080, orientation: 'landscape', scale: 1 };
+const screen: ScreenState = { width: 1920, height: 1080, orientation: 'landscape', scale: 1, stage: { x: 0, y: 0, width: 1920, height: 1080 } };
 
 describe('resolvePlacement', () => {
   it('places each anchor at the expected fraction of the screen', () => {
@@ -61,5 +61,24 @@ describe('computeScreen', () => {
     expect(s.width).toBe(1);
     expect(s.height).toBe(1);
     expect(Number.isFinite(s.scale)).toBe(true);
+  });
+
+  it('at the reference aspect the stage fills the screen exactly', () => {
+    const s = computeScreen(1920, 1080, defaultLayoutConfig);
+    expect(s.stage).toEqual({ x: 0, y: 0, width: 1920, height: 1080 });
+  });
+
+  it('letterboxes a uniformly-scaled stage on an off-reference aspect (homogeneous)', () => {
+    // ultrawide 2560x1080: height-bound (scale 1), so the 16:9 stage is 1920 wide,
+    // centred horizontally (320px side margins) with the bar at the bottom.
+    const s = computeScreen(2560, 1080, defaultLayoutConfig);
+    expect(s.scale).toBe(1);
+    expect(s.stage).toEqual({ x: 320, y: 0, width: 1920, height: 1080 });
+    // a bottom-left control anchors to the STAGE's left, not the screen's — its gap to
+    // the centre spin is a FIXED fraction of the frame, so nothing can drift together.
+    const bal = resolvePlacement({ anchor: 'bottom-left', offset: [135, -104] }, s);
+    const spin = resolvePlacement({ anchor: 'bottom-center', offset: [0, -118] }, s);
+    expect(bal.x).toBe(320 + 135); // inset from the screen edge by the letterbox margin
+    expect(spin.x - bal.x).toBe(1920 / 2 - 135); // gap independent of viewport width
   });
 });

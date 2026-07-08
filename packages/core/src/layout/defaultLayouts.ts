@@ -20,14 +20,21 @@ import type { LayoutSpec } from './anchor';
  * `responsive.portrait` entry wins per-control).
  */
 export const landscapeDefaultLayouts: Readonly<Record<string, LayoutSpec>> = Object.freeze({
-  spin: { anchor: 'bottom-center', offset: [0, -140], scale: 0.9 },
-  autoplay: { anchor: 'bottom-center', offset: [-204, -112] },
-  turbo: { anchor: 'bottom-center', offset: [204, -112] },
+  // The bottom cluster hugs the very bottom edge so the spin stays clear of the reel
+  // area above (landscape has far less vertical room than portrait): a slightly
+  // smaller spin, dropped low, with autoplay/turbo pulled in to flank it tightly.
+  spin: { anchor: 'bottom-center', offset: [0, -118], scale: 0.82 },
+  autoplay: { anchor: 'bottom-center', offset: [-182, -100] },
+  turbo: { anchor: 'bottom-center', offset: [182, -100] },
   balance: { anchor: 'bottom-left', offset: [135, -104], rotation: -5 },
   bet: { anchor: 'bottom-right', offset: [-186, -104], rotation: 5 },
   'bet-plus': { anchor: 'bottom-right', offset: [-120, -188], rotation: 5 },
   'bet-minus': { anchor: 'bottom-right', offset: [-120, -104], rotation: 5 },
   bonus: { anchor: 'bottom-center', offset: [740, -320] },
+  // Bonus "total win" readout — occupies the buy-feature corner; the renderer swaps
+  // the two so only one shows at a time (buy in base play, total-win in a bonus round).
+  // Right-anchored so a long localized caption grows LEFT and never clips the edge.
+  'total-win': { anchor: 'bottom-right', offset: [-150, -300] },
   settings: { anchor: 'bottom-center', offset: [-740, -320], rotation: -5 },
   mute: { anchor: 'top-right', offset: [-122, 46] },
   fullscreen: { anchor: 'top-right', offset: [-46, 46] },
@@ -43,6 +50,9 @@ export const portraitDefaultLayouts: Readonly<Record<string, LayoutSpec>> = Obje
   autoplay: { anchor: 'bottom-center', offset: [-258, -510], scale: 1.5 },
   turbo: { anchor: 'bottom-center', offset: [258, -510], scale: 1.5 },
   bonus: { anchor: 'bottom-center', offset: [-438, -480], scale: 1.3 },
+  // Figma "Mobile FS": the total-win sits on the LEFT at the spin's level (where the
+  // buy coin lives in base play), left-aligned + tilted −10° — NOT centred over spin.
+  'total-win': { anchor: 'bottom-left', offset: [30, -520], rotation: -10 },
   settings: { anchor: 'bottom-center', offset: [438, -480], scale: 1.5, rotation: -5 },
   'bet-minus': { anchor: 'bottom-center', offset: [-105, -267], scale: 1.5 },
   'bet-plus': { anchor: 'bottom-center', offset: [105, -267], scale: 1.5 },

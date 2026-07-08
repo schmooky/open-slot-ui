@@ -23,5 +23,9 @@ export * from './renderers/TextCellRenderer';
 export * from './skin/SpinSkin';
 export * from './skin/defaultSkin';
 export * from './skin/svgSpinSkin';
+// NOTE: the built-in default icon art is intentionally NOT re-exported here — it
+// lives on its own tree-shakeable subpath `@open-slot-ui/pixi/art`, so a game that
+// mounts the HUD never pulls the bundled reference SVGs, and one that wants an icon
+// imports just that icon's loader. See `src/art/index.ts`.
 export * from './tween';
 export * from './util';

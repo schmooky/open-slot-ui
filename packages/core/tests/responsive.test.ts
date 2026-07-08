@@ -1,6 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createUI } from '../src/spec/createUI';
+import { landscapeDefaultLayouts } from '../src/layout/defaultLayouts';
 import type { UISpec } from '../src/spec/types';
+
+const LANDSCAPE_SPIN_OFFSET = landscapeDefaultLayouts.spin!.offset;
 
 // Default breakpoints (short edge): mobile <= 480, tablet <= 840, else desktop.
 const DESKTOP = [1920, 1080] as const; // short 1080 → desktop, landscape
@@ -26,7 +29,7 @@ describe('responsive overrides (per device / orientation)', () => {
   it('starts at the base layout on desktop', () => {
     const ui = createUI(spec);
     expect(ui.screen.get().breakpoint).toBe('desktop');
-    expect(ui.spin.layout.offset).toEqual([0, -140]); // landscape reference default, untouched
+    expect(ui.spin.layout.offset).toEqual(LANDSCAPE_SPIN_OFFSET); // landscape reference default, untouched
     expect(ui.hidden.has('bonus')).toBe(false);
   });
 
@@ -73,7 +76,7 @@ describe('responsive overrides (per device / orientation)', () => {
     expect(ui.hidden.has('bonus')).toBe(true);
     expect(seen).toHaveBeenCalledWith({ id: 'bonus', hidden: true });
     ui.setScreen(...DESKTOP);
-    expect(ui.spin.layout.offset).toEqual([0, -140]); // landscape base restored
+    expect(ui.spin.layout.offset).toEqual(LANDSCAPE_SPIN_OFFSET); // landscape base restored
     expect(ui.hidden.has('bonus')).toBe(false);
     expect(seen).toHaveBeenCalledWith({ id: 'bonus', hidden: false });
   });

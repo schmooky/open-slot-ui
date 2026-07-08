@@ -36,6 +36,9 @@ export interface BootedHud {
   on<K extends keyof OpenUIEvents>(type: K, fn: (p: OpenUIEvents[K]) => void): Dispose;
   setBalance(major: number): void;
   setBet(major: number): void;
+  /** Set the bonus total-win amount (major units). Shown in the buy-feature slot while
+   *  the spin button is in free-spins mode (`setFreeSpins(n > 0)`). */
+  setTotalWin(major: number): void;
   setCurrency(spec: CurrencySpec): void;
   /** Apply a Stake Engine jurisdiction config (the compliance switchboard) at runtime. */
   applyJurisdiction(jur: JurisdictionConfig): void;
@@ -142,9 +145,11 @@ export function mountHud(app: Application, spec: UISpec = {}, opts: HudOptions =
     on,
     setBalance: (n) => ui.balance.set(n),
     setBet: (n) => ui.bet.set(n),
+    setTotalWin: (n) => ui.totalWin.set(n),
     setCurrency: (c) => {
       ui.balance.setCurrency(c);
       ui.bet.setCurrency(c);
+      ui.totalWin.setCurrency(c);
       ui.netPosition.setCurrency(c);
     },
     applyJurisdiction: (j) => ui.applyJurisdiction(j),
