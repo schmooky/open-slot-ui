@@ -27,7 +27,9 @@ describe('social-mode forbidden-phrase check', () => {
 
   it('walks menu blocks, section titles, game name and the en dictionary', () => {
     const issues = checkSocialPhrases({
-      menu: { rules: [{ kind: 'text', id: 'r', text: 'See the paytable for every payout.' }], titles: { paytable: 'Paytable' } },
+      // titles.paytable = 'Cash Prizes' has no built-in social default → still flags;
+      // a bare 'Paytable' would auto-resolve to 'Prizes' (see the resolve test below).
+      menu: { rules: [{ kind: 'text', id: 'r', text: 'See the paytable for every payout.' }], titles: { paytable: 'Cash Prizes' } },
       game: { name: 'Lucky Bet' },
       locale: { locale: 'en', messages: { en: { x: 'Cash out anytime' } } },
     });
@@ -38,17 +40,40 @@ describe('social-mode forbidden-phrase check', () => {
     expect(src.some((s) => s.startsWith('locale.en'))).toBe(true);
   });
 
+  it('resolves through the social dictionary — a phrase WITH a social override passes', () => {
+    // The dice-cascade pattern: base copy carries "bet"/"paytable"; social overrides fix them.
+    const spec = {
+      game: { name: 'Lucky Bet' },
+      menu: { rules: [{ kind: 'text' as const, id: 'r', text: 'See the paytable above.' }] },
+      locale: {
+        locale: 'en',
+        messages: { en: {} },
+        socialMessages: { en: { 'Lucky Bet': 'Lucky Boost', 'See the paytable above.': 'See the prizes above.' } },
+      },
+    };
+    expect(checkSocialPhrases(spec)).toEqual([]);
+    // Drop the override for the rules line → it renders "paytable" and IS flagged.
+    spec.locale.socialMessages.en = { 'Lucky Bet': 'Lucky Boost' } as Record<string, string>;
+    expect(checkSocialPhrases(spec).map((i) => i.source)).toEqual(['menu.rules[0]']);
+  });
+
+  it('auto-resolves built-in restricted headings (Paytable → Prizes) so they pass', () => {
+    // 'Paytable' has a built-in social default (→ 'Prizes'), so a bare heading is compliant.
+    expect(checkSocialPhrases({ menu: { rules: [{ kind: 'heading', id: 'h', text: 'Paytable' }] } })).toEqual([]);
+  });
+
   it('createUI runs it in social mode → onDataIssue, and never throws', () => {
     const issues: SpecIssue[] = [];
     expect(() =>
-      createUI({ social: true, menu: { rules: [{ kind: 'heading', id: 'h', text: 'Paytable' }] } }, { onDataIssue: (i) => issues.push(i) }),
+      // 'Big Cash Prizes' has no social default → renders forbidden ("cash") in social mode.
+      createUI({ social: true, menu: { rules: [{ kind: 'heading', id: 'h', text: 'Big Cash Prizes' }] } }, { onDataIssue: (i) => issues.push(i) }),
     ).not.toThrow();
     expect(issues.some((i) => i.code === 'social-forbidden-phrase')).toBe(true);
   });
 
   it('does NOT run when social mode is off', () => {
     const issues: SpecIssue[] = [];
-    createUI({ menu: { rules: [{ kind: 'heading', id: 'h', text: 'Paytable' }] } }, { onDataIssue: (i) => issues.push(i) });
+    createUI({ menu: { rules: [{ kind: 'heading', id: 'h', text: 'Big Cash Prizes' }] } }, { onDataIssue: (i) => issues.push(i) });
     expect(issues.some((i) => i.code === 'social-forbidden-phrase')).toBe(false);
   });
 });

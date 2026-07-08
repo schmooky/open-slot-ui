@@ -14,6 +14,7 @@
  * list; this covers the common roots and their recommended replacements.
  */
 import type { UISpec, BlockSpec } from './types';
+import { openuiSocialDefaults } from '../i18n/translator';
 
 export interface ForbiddenMatch {
   /** The restricted root that matched ("pay*", "bet", "funds", …). */
@@ -64,7 +65,10 @@ export function findForbiddenPhrases(text: string): ForbiddenMatch[] {
   return out;
 }
 
-type Entry = { source: string; text: string };
+/** A collected string. `text` is the base English (what renders with no social
+ *  override); `key` is the i18n key used to look up a social override — it defaults
+ *  to `text`, since a game's menu/rules copy doubles as its own key. */
+type Entry = { source: string; text: string; key?: string };
 
 function walkBlock(b: BlockSpec, src: string, out: Entry[]): void {
   const add = (t: unknown, s: string = src): void => {
@@ -149,16 +153,29 @@ export function collectSocialCopy(spec: UISpec): Entry[] {
   (spec.rules ?? []).forEach((b, i) => walkBlock(b, `rules[${i}]`, out));
   if (spec.game?.name) out.push({ source: 'game.name', text: spec.game.name });
   const en = spec.locale?.messages?.en;
-  if (en) for (const [k, v] of Object.entries(en)) if (typeof v === 'string') out.push({ source: `locale.en[${JSON.stringify(k)}]`, text: v });
+  // The en dict is a translation SOURCE: in social mode the KEY resolves through the
+  // social dictionary, so carry `key: k` and check what actually renders for that key.
+  if (en) for (const [k, v] of Object.entries(en)) if (typeof v === 'string') out.push({ source: `locale.en[${JSON.stringify(k)}]`, text: v, key: k });
   return out;
 }
 
-/** Scan a whole spec's English copy and return every restricted-phrase finding. */
+/**
+ * Scan a spec's English copy AS IT RENDERS IN SOCIAL MODE and return every restricted
+ * phrase. Each collected string is first resolved through the social dictionary
+ * (`locale.socialMessages.en` → built-in `openuiSocialDefaults` → the base text) —
+ * exactly like the translator does — so a game that already swaps "bet"/"pay(table)"
+ * for compliant wording in social mode is NOT flagged, while a phrase with NO social
+ * override (the classic slipped-through "paytable") IS. English by design: the check
+ * targets the base `en` copy that every jurisdiction review starts from.
+ */
 export function checkSocialPhrases(spec: UISpec): SocialPhraseIssue[] {
+  const socialEn = spec.locale?.socialMessages?.en ?? {};
+  const render = (e: Entry): string => socialEn[e.key ?? e.text] ?? openuiSocialDefaults[e.key ?? e.text] ?? e.text;
   const issues: SocialPhraseIssue[] = [];
-  for (const { source, text } of collectSocialCopy(spec)) {
+  for (const e of collectSocialCopy(spec)) {
+    const text = render(e);
     const matches = findForbiddenPhrases(text);
-    if (matches.length) issues.push({ source, text, matches });
+    if (matches.length) issues.push({ source: e.source, text, matches });
   }
   return issues;
 }
