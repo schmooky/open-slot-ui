@@ -1,61 +1,74 @@
 import { defineConfig } from '@playwright/test';
 
 /**
- * DEVICE MATRIX — the idiomatic Playwright way: one PROJECT per device/orientation,
- * each carrying its real viewport + device-pixel-ratio + touch flags. Running it
- * fans the SAME spec (tests/matrix.spec.ts) across every project in parallel and
- * drops a screenshot of the HUD, the menu and the buy-feature modal into
- * `screenshots/matrix/<category>/`. A 2026-ish set of popular phones (portrait +
- * landscape), tablets (both orientations) and desktop resolutions.
+ * STAKE ENGINE DIMENSION MATRIX — modelled on the real Stake web-sdk, not a random
+ * pick of named phones. Two things drive it (see StakeEngine/web-sdk
+ * `utils-layout/createLayout.svelte.ts` + `config-storybook`):
+ *
+ *  1. The game runs inside Stake's own **16:9 iframe** players — `1200×675` (main),
+ *     `800×450` (mini expanded), `400×225` (mini). These are the primary targets.
+ *  2. Fullscreen, the sdk buckets the viewport by RATIO and short-edge SIZE:
+ *       ratio ≥ 1.3            → longWidth   (landscape / desktop)
+ *       0.8 < ratio < 1.3      → almostSquare (a dedicated 1920×1920 "tablet" layout)
+ *       ratio ≤ 0.8            → longHeight  (portrait)
+ *       short edge ≤375/480/820/1024 → smallMobile / mobile / tablet / largeTablet
+ *
+ * So we sweep every ratio band × size band (incl. the almost-square band a plain
+ * phone/tablet list never hits) and each Stake iframe. Each project screenshots the
+ * HUD, big-values, menu and buy-feature into `screenshots/matrix/<category>/`.
  *
  *   pnpm --dir examples/demo matrix        # capture + build contact sheets
  */
 
-type Dev = readonly [name: string, w: number, h: number];
+type Dev = readonly [name: string, w: number, h: number, mobile?: boolean];
 
-// CSS-viewport sizes (portrait) for popular 2026 devices.
-const PHONES: Dev[] = [
-  ['iPhone 16 Pro Max', 440, 956],
-  ['iPhone 16 Pro', 402, 874],
-  ['iPhone 15', 393, 852],
-  ['iPhone SE', 375, 667],
-  ['Galaxy S24 Ultra', 384, 824],
-  ['Pixel 9', 412, 915],
-];
-const TABLETS: Dev[] = [
-  ['iPad Pro 12.9', 1024, 1366],
-  ['iPad Pro 11', 834, 1194],
-  ['iPad Air', 820, 1180],
-  ['Galaxy Tab S9', 800, 1280],
-];
-const DESKTOPS: Dev[] = [
-  ['Laptop 13in', 1280, 800],
-  ['Laptop 15in', 1440, 900],
-  ['Full HD 1080p', 1920, 1080],
-  ['QHD 1440p', 2560, 1440],
+// Stake's own player containers — the 16:9 iframes the game literally runs in.
+const STAKE_PLAYER: Dev[] = [
+  ['stake mini 400', 400, 225, true],
+  ['stake mini expanded 800', 800, 450],
+  ['stake iframe 1200', 1200, 675],
 ];
 
-// dpr capped at 2 for mobile/tablet (3 only inflates file size — layout is identical).
-const touch = (category: string, devices: Dev[]) =>
-  devices.flatMap(([name, w, h]) =>
-    (['portrait', 'landscape'] as const).map((orientation) => ({
-      name: `${category}__${name}__${orientation}`,
-      metadata: { category, device: name, orientation },
-      use: {
-        browserName: 'chromium' as const,
-        viewport: orientation === 'portrait' ? { width: w, height: h } : { width: h, height: w },
-        deviceScaleFactor: 2,
-        isMobile: true,
-        hasTouch: true,
-      },
-    })),
-  );
+// Fullscreen LANDSCAPE — ratio ≥ 1.3 (createLayout "longWidth").
+const LANDSCAPE: Dev[] = [
+  ['desktop FHD 16-9', 1920, 1080],
+  ['laptop 16-10', 1440, 900],
+  ['ultrawide 21-9', 2560, 1080],
+  ['super-ultrawide 32-9', 3840, 1080],
+  ['ipad landscape 4-3', 1180, 886], // ratio 1.33 — just into landscape
+  ['phone landscape', 844, 390, true], // small-mobile → sdk "landscape" bucket
+  ['small phone landscape', 667, 375, true], // iPhone-SE landscape, smallMobile
+];
 
-const screens = (category: string, devices: Dev[]) =>
-  devices.map(([name, w, h]) => ({
+// ALMOST-SQUARE — 0.8 < ratio < 1.3 (createLayout "tablet", the square 1920×1920 layout).
+const SQUARE: Dev[] = [
+  ['square 1-1', 1024, 1024],
+  ['near-square wide 1.17', 1200, 1024],
+  ['near-square tall 0.9', 940, 1044],
+  ['fold expanded', 1104, 884, true],
+];
+
+// PORTRAIT — ratio ≤ 0.8 (createLayout "longHeight").
+const PORTRAIT: Dev[] = [
+  ['portrait 9-16', 1080, 1920],
+  ['iphone 9-19.5', 393, 852, true],
+  ['pixel 9-20', 412, 915, true],
+  ['tall phone 9-21', 360, 800, true],
+  ['small phone', 375, 667, true], // smallMobile portrait
+  ['ipad portrait 3-4', 820, 1180, true], // ratio 0.69 → portrait
+];
+
+const proj = (category: string, devices: Dev[]) =>
+  devices.map(([name, w, h, mobile]) => ({
     name: `${category}__${name}`,
-    metadata: { category, device: name, orientation: 'landscape' },
-    use: { browserName: 'chromium' as const, viewport: { width: w, height: h }, deviceScaleFactor: 1 },
+    metadata: { category, device: name, orientation: w >= h ? 'landscape' : 'portrait' },
+    use: {
+      browserName: 'chromium' as const,
+      viewport: { width: w, height: h },
+      deviceScaleFactor: mobile ? 2 : 1,
+      isMobile: !!mobile,
+      hasTouch: !!mobile,
+    },
   }));
 
 export default defineConfig({
@@ -67,7 +80,12 @@ export default defineConfig({
   workers: 4, // be gentle on the placehold.co art the menu/modal load
   reporter: [['list']],
   use: { baseURL: 'http://localhost:5199', headless: true },
-  projects: [...touch('phones', PHONES), ...touch('tablets', TABLETS), ...screens('desktops', DESKTOPS)],
+  projects: [
+    ...proj('stake-player', STAKE_PLAYER),
+    ...proj('landscape', LANDSCAPE),
+    ...proj('square', SQUARE),
+    ...proj('portrait', PORTRAIT),
+  ],
   webServer: {
     command: 'pnpm dev',
     url: 'http://localhost:5199',

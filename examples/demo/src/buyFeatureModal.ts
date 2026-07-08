@@ -90,23 +90,32 @@ export function mountBuyFeatureModal(
   const cardsEl = $<HTMLElement>('#bfm-cards');
   const betValEl = $<HTMLElement>('#bfm-betval');
 
-  // Fit the modal to the viewport by UNIFORM scale (proportional — never squished).
-  // Cards keep their natural 16:10 aspect and fill the available width; 4 in a line
-  // when the screen is wide or short, a 2×2 grid otherwise; then the whole block is
-  // scaled down only if it's taller than the screen.
-  const layout = (): void => {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const cols = vh <= 540 || vw >= 900 ? 4 : 2;
-    cardsEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-    const fitW = Math.min(vw * 0.96, cols === 4 ? 1180 : 760);
-    fitEl.style.width = `${fitW}px`;
+  // Fit the modal to the viewport by ONE uniform scale (proportional — never squished,
+  // never clipped). The cards are laid out at a FIXED natural width, so the whole block
+  // has a natural size; we try the sensible column counts and keep whichever fits the
+  // viewport at the LARGEST scale (best use of space), constraining by BOTH width AND
+  // height. That's what makes it work on a tiny 400×225 Stake mini as well as desktop.
+  const CARD_W = 240; // natural card width (px) before the uniform scale
+  const measure = (cols: number): { natW: number; natH: number; scale: number } => {
+    cardsEl.style.gridTemplateColumns = `repeat(${cols}, ${CARD_W}px)`;
     fitEl.style.transform = 'none';
-    const natH = fitEl.offsetHeight; // natural height at this width (forces layout)
-    const s = Math.min(1, (vh * 0.95) / natH);
+    const natW = fitEl.offsetWidth; // forces layout
+    const natH = fitEl.offsetHeight;
+    const scale = Math.min((window.innerWidth * 0.94) / natW, (window.innerHeight * 0.94) / natH);
+    return { natW, natH, scale };
+  };
+  const layout = (): void => {
+    const options = [4, 2, 1].filter((c) => c <= Math.max(1, list.length));
+    let best = { cols: options[0]!, natW: 1, natH: 1, scale: 0 };
+    for (const cols of options) {
+      const m = measure(cols);
+      if (m.scale > best.scale) best = { cols, ...m };
+    }
+    const s = Math.min(1, best.scale);
+    cardsEl.style.gridTemplateColumns = `repeat(${best.cols}, ${CARD_W}px)`;
     fitEl.style.transform = `translateX(-50%) scale(${s})`;
-    panel.style.width = `${Math.ceil(fitW * s)}px`;
-    panel.style.height = `${Math.ceil(natH * s)}px`;
+    panel.style.width = `${Math.ceil(best.natW * s)}px`;
+    panel.style.height = `${Math.ceil(best.natH * s)}px`;
   };
 
   // ── render the cards (re-run on bet/locale/boost change) ────────────────────

@@ -20,12 +20,12 @@ import type { LayoutSpec } from './anchor';
  * `responsive.portrait` entry wins per-control).
  */
 export const landscapeDefaultLayouts: Readonly<Record<string, LayoutSpec>> = Object.freeze({
-  // The bottom cluster hugs the very bottom edge so the spin stays clear of the reel
-  // area above (landscape has far less vertical room than portrait): a slightly
-  // smaller spin, dropped low, with autoplay/turbo pulled in to flank it tightly.
-  spin: { anchor: 'bottom-center', offset: [0, -118], scale: 0.82 },
-  autoplay: { anchor: 'bottom-center', offset: [-182, -100] },
-  turbo: { anchor: 'bottom-center', offset: [182, -100] },
+  // Measured 1:1 from the Figma "Desk DEF" frame (1920×1080): spin ~0.95 of the base
+  // 220px coin, dropped to −124, autoplay/turbo flanking at ±204. (The homogeneous
+  // stage keeps this off the reels, so it no longer needs shrinking.)
+  spin: { anchor: 'bottom-center', offset: [0, -124], scale: 0.95 },
+  autoplay: { anchor: 'bottom-center', offset: [-204, -100] },
+  turbo: { anchor: 'bottom-center', offset: [204, -100] },
   balance: { anchor: 'bottom-left', offset: [135, -104], rotation: -5 },
   bet: { anchor: 'bottom-right', offset: [-186, -104], rotation: 5 },
   'bet-plus': { anchor: 'bottom-right', offset: [-120, -188], rotation: 5 },
