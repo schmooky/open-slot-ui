@@ -212,6 +212,28 @@ describe('Stake currency formatter (symbol · decimals · placement)', () => {
     expect(formatAmount(1234.5, { code: 'USD', decimals: 2 })).toBe('1,234.50 USD');
   });
 
+  it('newly-added Stake currencies: symbols, sides + dinar (3-dp) decimals', () => {
+    // prefix fiat
+    expect(resolveCurrency('NGN')).toMatchObject({ symbol: '₦', position: 'prefix', decimals: 2 });
+    expect(resolveCurrency('TWD')).toMatchObject({ symbol: 'NT$', position: 'prefix', decimals: 2 });
+    expect(resolveCurrency('SGD')).toMatchObject({ symbol: 'SG$', position: 'prefix', decimals: 2 });
+    expect(resolveCurrency('MYR')).toMatchObject({ symbol: 'RM', position: 'prefix', decimals: 2 });
+    expect(resolveCurrency('CRC')).toMatchObject({ symbol: '₡', position: 'prefix', decimals: 2 });
+    // Kuwaiti / Jordanian / Bahraini dinars — 3 decimals (1000 fils)
+    expect(resolveCurrency('KWD')).toMatchObject({ symbol: 'KD', position: 'prefix', decimals: 3 });
+    expect(resolveCurrency('JOD')).toMatchObject({ symbol: 'JD', position: 'prefix', decimals: 3 });
+    expect(resolveCurrency('BHD')).toMatchObject({ symbol: 'BD', position: 'prefix', decimals: 3 });
+    // suffix "kr" krone (both Danish + Norwegian)
+    expect(resolveCurrency('DKK')).toMatchObject({ symbol: 'kr', position: 'suffix', decimals: 2 });
+    expect(resolveCurrency('NOK')).toMatchObject({ symbol: 'kr', position: 'suffix', decimals: 2 });
+    // formatting: prefix tight, suffix spaced, dinar to 3 dp
+    expect(formatAmount(1234.5, resolveCurrency('TWD'))).toBe('NT$1,234.50');
+    expect(formatAmount(10, resolveCurrency('NGN'))).toBe('₦10.00');
+    expect(formatAmount(1234.5, resolveCurrency('NOK'))).toBe('1,234.50 kr');
+    expect(formatAmount(1.5, resolveCurrency('KWD'))).toBe('KD1.500');
+    expect(formatAmount(2.345, resolveCurrency('BHD'))).toBe('BD2.345');
+  });
+
   it('displays sub-cent payouts when the currency has >2 decimals', () => {
     // a win of 0.0025 must render exactly, not round to 0.00 — needs >2 decimals.
     expect(formatAmount(0.0025, resolveCurrency('BTC', { decimals: 4 }))).toBe('₿0.0025');

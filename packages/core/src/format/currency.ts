@@ -26,8 +26,9 @@ export interface CurrencyInfo {
 /**
  * The Stake Engine supported-currency matrix (symbol · decimals · placement), 1:1 with
  * the platform's `CurrencyMeta`. Symbol placement: prefix by default, SUFFIX for the
- * few that render after the amount (DKK/PLN/VND/CLP/ARS/PEN). Crypto is included for
- * completeness (8-dp with a symbol) so high-precision balances also format right.
+ * few that render after the amount (DKK/NOK/PLN/VND/CLP/ARS/PEN). Decimals follow the
+ * ISO minor units — 0 for JPY/KRW/IDR/VND/CLP, 3 for the KWD/JOD/BHD dinars (1000 fils),
+ * 2 otherwise. Crypto is included (8-dp) so high-precision balances also format right.
  */
 export const CURRENCY_TABLE: Readonly<Record<string, CurrencyInfo>> = Object.freeze({
   // ── fiat — symbol BEFORE the amount ──────────────────────────────────────────
@@ -45,8 +46,18 @@ export const CURRENCY_TABLE: Readonly<Record<string, CurrencyInfo>> = Object.fre
   MXN: { symbol: 'MX$', decimals: 2 },
   TRY: { symbol: '₺', decimals: 2 },
   GBP: { symbol: '£', decimals: 2 },
+  NGN: { symbol: '₦', decimals: 2 },
+  TWD: { symbol: 'NT$', decimals: 2 },
+  SGD: { symbol: 'SG$', decimals: 2 },
+  MYR: { symbol: 'RM', decimals: 2 },
+  CRC: { symbol: '₡', decimals: 2 },
+  // three-decimal dinars (1 unit = 1000 fils) — the >2-decimal path must format these
+  KWD: { symbol: 'KD', decimals: 3 },
+  JOD: { symbol: 'JD', decimals: 3 },
+  BHD: { symbol: 'BD', decimals: 3 },
   // ── fiat — symbol AFTER the amount ───────────────────────────────────────────
   DKK: { symbol: 'kr', decimals: 2, symbolAfter: true },
+  NOK: { symbol: 'kr', decimals: 2, symbolAfter: true },
   PLN: { symbol: 'zł', decimals: 2, symbolAfter: true },
   VND: { symbol: '₫', decimals: 0, symbolAfter: true },
   CLP: { symbol: 'CLP', decimals: 0, symbolAfter: true },
