@@ -46,6 +46,15 @@ export const openuiDefaults: Record<string, string> = {
   'openui.error': 'Error',
   'openui.notice': 'Notice',
   'openui.replay': 'Replay',
+  // Replay panel (Stake "Replay Support"): the round's cost + worth is shown at the
+  // start; a Replay button re-runs it at the end.
+  'openui.replay.title': 'Replay',
+  'openui.replay.baseBet': 'Base Bet',
+  'openui.replay.costMultiplier': 'Cost Multiplier',
+  'openui.replay.payoutMultiplier': 'Payout Multiplier',
+  'openui.replay.amount': 'Final amount',
+  'openui.replay.play': 'Play',
+  'openui.replay.again': 'Replay',
   'openui.buyFeature.title': 'Buy feature',
   'openui.buyFeature.message': 'Buy this feature now?',
   // Confirm step for a higher-cost play — {{name}} / {{price}} are interpolated.
@@ -92,6 +101,11 @@ export const openuiSocialDefaults: Record<string, string> = {
   'openui.buyFeature.title': 'Play bonus',
   'openui.buyFeature.message': 'Play this bonus now?',
   'openui.buyFeature.confirm': 'Play {{name}} for {{price}}?',
+  // Stake.us replay terms: Base Bet → Base Play, Cost Multiplier → Feature Multiplier,
+  // Payout Multiplier → Final Multiplier.
+  'openui.replay.baseBet': 'Base Play',
+  'openui.replay.costMultiplier': 'Feature Multiplier',
+  'openui.replay.payoutMultiplier': 'Final Multiplier',
   'openui.err.insufficient.message': "You don't have enough balance for this play.",
   'openui.err.limit.message': 'A play limit has been reached. Please try again later.',
 };
