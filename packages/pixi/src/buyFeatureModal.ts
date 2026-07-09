@@ -1,27 +1,34 @@
+// The BUY-FEATURE modal — the open-slot-ui host component opened by the bonus button.
+// The bonus (☰ coin) button opens a card LIST of the game's buyable/activatable features;
+// each card has its own Buy/Activate action, and buying (or activating a boost) above the
+// jurisdiction threshold is gated by a built-in confirm sub-dialog. One biased white design
+// (independent of the game theme), matching the info menu; fully localized + social-aware.
+//
+// Each feature is a card: `buy` = one-tap purchase (start that mode once), `boost` = an
+// activatable per-spin bet surcharge that toggles on/off. Actions emit `cardActivated` on the
+// bus AND call the `onBuy`/`onActivate` host hooks. Returns a leak-free teardown.
+
 import type { Application } from 'pixi.js';
-import type { BootedHud } from '@open-slot-ui/pixi';
+import type { BootedHud } from './mountHud';
+import { formatAmount } from '@open-slot-ui/core';
 import type { CurrencySpec } from '@open-slot-ui/core';
-import { FEATURES, type FeatureSpec } from './content';
 
-/**
- * The BUY-FEATURE modal — opened by the bonus (☰ coin) button. A blurred backdrop,
- * a corner ✕, a bet amount with − / + steppers, and up to 4 feature CARDS laid out
- * in a row (2×2 on narrow screens). Each card mirrors the reference design: art
- * image → gold strip → name → price, with a button beneath it that is either
- *  - "Buy"      → a one-tap purchase (cost = feature.cost × bet), or
- *  - "Activate" → an activatable bet boost that toggles on/off.
- *
- * Wired to real open-ui state: the steppers drive `ui.betStepper`, prices recompute
- * from `ui.bet`, and actions emit on the bus. One biased white design with a black
- * border, matching the menu. Fully localized; re-renders on locale change.
- */
+/** A buy-feature card. */
+export interface FeatureSpec {
+  id: string;
+  name: string;
+  variant: 'buy' | 'boost';
+  /** Price as a multiple of the current bet (× bet). */
+  cost: number;
+  /** Card image URL (or data URI). Optional — a neutral gradient is used when absent. */
+  image?: string;
+}
 
-const SYMBOLS: Record<string, string> = { USD: '$', EUR: '€', GBP: '£', BTC: '₿', ETH: 'Ξ' };
-
+// Format via the library's Stake currency formatter so the modal matches the HUD exactly:
+// correct symbol + side (CNY → CN¥1,000.00, PLN → 1,000.00 zł), thousands separators, right
+// decimals (JPY 0, BTC 8) and social coins (XGC → GC).
 function money(amount: number, cur: CurrencySpec): string {
-  const sym = SYMBOLS[cur.code] ?? '';
-  const s = amount.toFixed(Math.min(cur.decimals ?? 2, 8));
-  return sym ? `${sym}${s}` : `${s} ${cur.code}`;
+  return formatAmount(amount, cur);
 }
 
 const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -36,22 +43,25 @@ export interface BuyFeatureOptions {
   onBuy?: (id: string, cost: number) => void;
   /** Host hook whenever the active-boost set changes (the modal stays open). */
   onActivate?: (activeIds: string[], id: string, active: boolean) => void;
+  /** BASE bet source for pricing. Default reads ui.bet — pass this when ui.bet
+   *  displays a modified EFFECTIVE stake (boost active) instead of the base bet. */
+  getBet?: () => number;
 }
 
+/** Mount the buy-feature modal. Returns a leak-free teardown. */
 export function mountBuyFeatureModal(
-  app: Application,
+  _app: Application,
   hud: BootedHud,
-  features: FeatureSpec[] = FEATURES,
+  features: FeatureSpec[],
   opts: BuyFeatureOptions = {},
-): void {
+): () => void {
   const ui = hud.ui;
   const tr = (k: string): string => ui.t(k);
   const list = features.slice(0, 4); // up to 4
-  // The buy button is hidden by default — reveal it now that a buy feature exists.
-  ui.setHidden('bonus', list.length === 0);
   const boosts = new Set<string>(); // active bet-boost ids
   const activation = opts.activation ?? 'multi';
   const blocksBuy = opts.activationBlocksBuy ?? false;
+  const disposers: Array<() => void> = [];
 
   const host = document.createElement('div');
   host.className = 'bfm-root';
@@ -71,11 +81,20 @@ export function mountBuyFeatureModal(
       <div class="bfm-fit" id="bfm-fit">
         <h2 class="bfm-title" data-t="Buy Feature">${esc(tr('Buy Feature'))}</h2>
         <div class="bfm-bet">
-          <button class="bfm-step" id="bfm-minus" aria-label="Decrease bet">−</button>
+          <button class="bfm-step" id="bfm-minus" aria-label="Decrease">−</button>
           <div class="bfm-betbox"><span class="bfm-betlabel" data-t="Bet">${esc(tr('Bet'))}</span><b id="bfm-betval">—</b></div>
-          <button class="bfm-step" id="bfm-plus" aria-label="Increase bet">+</button>
+          <button class="bfm-step" id="bfm-plus" aria-label="Increase">+</button>
         </div>
         <div class="bfm-cards" id="bfm-cards"></div>
+      </div>
+    </div>
+    <div class="bfm-confirm" id="bfm-confirm">
+      <div class="bfm-confirm-card">
+        <p class="bfm-confirm-msg" id="bfm-confirm-msg"></p>
+        <div class="bfm-confirm-row">
+          <button class="bfm-confirm-btn bfm-confirm-no" id="bfm-confirm-no" data-t="openui.cancel">${esc(tr('openui.cancel'))}</button>
+          <button class="bfm-confirm-btn bfm-confirm-yes" id="bfm-confirm-yes" data-t="openui.confirm">${esc(tr('openui.confirm'))}</button>
+        </div>
       </div>
     </div>`;
 
@@ -90,37 +109,47 @@ export function mountBuyFeatureModal(
   const cardsEl = $<HTMLElement>('#bfm-cards');
   const betValEl = $<HTMLElement>('#bfm-betval');
 
-  // Fit the modal to the viewport by ONE uniform scale (proportional — never squished,
-  // never clipped). The cards are laid out at a FIXED natural width, so the whole block
-  // has a natural size; we try the sensible column counts and keep whichever fits the
-  // viewport at the LARGEST scale (best use of space), constraining by BOTH width AND
-  // height. That's what makes it work on a tiny 400×225 Stake mini as well as desktop.
-  const CARD_W = 240; // natural card width (px) before the uniform scale
-  const measure = (cols: number): { natW: number; natH: number; scale: number } => {
-    cardsEl.style.gridTemplateColumns = `repeat(${cols}, ${CARD_W}px)`;
-    fitEl.style.transform = 'none';
-    const natW = fitEl.offsetWidth; // forces layout
-    const natH = fitEl.offsetHeight;
-    const scale = Math.min((window.innerWidth * 0.94) / natW, (window.innerHeight * 0.94) / natH);
-    return { natW, natH, scale };
+  // ── confirm sub-dialog (Stake: no one-click activation above 2× the bet) ──────
+  // The LIBRARY owns the threshold + rule (`hud.shouldConfirmBuy`, fed by
+  // `spec.buyFeature.confirmAboveCost` / jurisdiction); we render the confirm as HTML
+  // so it layers over this HTML buy modal (the lib's own popup draws in the canvas
+  // BEHIND it). Message + labels come from the library's i18n (social-aware).
+  const confirmEl = $<HTMLElement>('#bfm-confirm');
+  const confirmMsg = $<HTMLElement>('#bfm-confirm-msg');
+  const confirmYes = $<HTMLButtonElement>('#bfm-confirm-yes');
+  const confirmNo = $<HTMLButtonElement>('#bfm-confirm-no');
+  let pendingConfirm: (() => void) | null = null;
+  const hideConfirm = (): void => { confirmEl.classList.remove('show'); pendingConfirm = null; };
+  confirmNo.addEventListener('click', hideConfirm);
+  confirmYes.addEventListener('click', () => { const fn = pendingConfirm; hideConfirm(); fn?.(); });
+  /** Run `onYes` immediately, or gate it behind a confirm popup when the play's total
+   *  cost (× base bet) exceeds the library's `confirmBuyAboveCost` threshold. */
+  const askConfirm = (totalCost: number, name: string, price: string, onYes: () => void): void => {
+    if (!hud.shouldConfirmBuy(totalCost)) { onYes(); return; }
+    confirmMsg.textContent = ui.t('openui.buyFeature.confirm', { name: ui.t(name), price });
+    pendingConfirm = onYes;
+    confirmEl.classList.add('show');
   };
+
+  // Fit the modal to the viewport by UNIFORM scale (proportional — never squished).
   const layout = (): void => {
-    const options = [4, 2, 1].filter((c) => c <= Math.max(1, list.length));
-    let best = { cols: options[0]!, natW: 1, natH: 1, scale: 0 };
-    for (const cols of options) {
-      const m = measure(cols);
-      if (m.scale > best.scale) best = { cols, ...m };
-    }
-    const s = Math.min(1, best.scale);
-    cardsEl.style.gridTemplateColumns = `repeat(${best.cols}, ${CARD_W}px)`;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const cols = vh <= 540 || vw >= 900 ? Math.min(4, list.length) : Math.min(2, list.length);
+    cardsEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    const fitW = Math.min(vw * 0.96, cols >= 4 ? 1180 : cols === 1 ? 380 : 760);
+    fitEl.style.width = `${fitW}px`;
+    fitEl.style.transform = 'none';
+    const natH = fitEl.offsetHeight; // natural height at this width (forces layout)
+    const s = Math.min(1, (vh * 0.95) / natH);
     fitEl.style.transform = `translateX(-50%) scale(${s})`;
-    panel.style.width = `${Math.ceil(best.natW * s)}px`;
-    panel.style.height = `${Math.ceil(best.natH * s)}px`;
+    panel.style.width = `${Math.ceil(fitW * s)}px`;
+    panel.style.height = `${Math.ceil(natH * s)}px`;
   };
 
   // ── render the cards (re-run on bet/locale/boost change) ────────────────────
   const renderCards = (): void => {
-    const bet = ui.bet.get();
+    const bet = opts.getBet ? opts.getBet() : ui.bet.get();
     const cur = ui.bet.currency.get();
     cardsEl.innerHTML = list
       .map((f) => {
@@ -129,10 +158,11 @@ export function mountBuyFeatureModal(
         const price = f.variant === 'buy' ? money(f.cost * bet, cur) : `+${money(f.cost * bet, cur)}`;
         const label = f.variant === 'buy' ? tr('Buy') : active ? tr('Activated') : tr('Activate');
         const cls = `bfm-action bfm-action--${f.variant}${active ? ' is-active' : ''}${buyBlocked ? ' is-blocked' : ''}`;
+        const img = f.image ? ` style="background-image:url('${f.image}')"` : '';
         return `
         <div class="bfm-cell">
           <div class="bfm-card">
-            <div class="bfm-cardimg" style="background-image:url('${f.image}')"></div>
+            <div class="bfm-cardimg"${img}></div>
             <div class="bfm-strip"></div>
             <div class="bfm-cardbody">
               <span class="bfm-name">${esc(tr(f.name))}</span>
@@ -144,7 +174,6 @@ export function mountBuyFeatureModal(
       })
       .join('');
     betValEl.textContent = money(bet, cur);
-    // wire each action button
     cardsEl.querySelectorAll<HTMLButtonElement>('.bfm-action').forEach((b) => {
       b.addEventListener('click', () => onAction(b.dataset.id!, b.dataset.variant as FeatureSpec['variant']));
     });
@@ -152,53 +181,68 @@ export function mountBuyFeatureModal(
   };
 
   const onAction = (id: string, variant: FeatureSpec['variant']): void => {
+    const f = list.find((x) => x.id === id);
+    const bet = opts.getBet ? opts.getBet() : ui.bet.get();
+    const cur = ui.bet.currency.get();
     if (variant === 'boost') {
       // Activation NEVER closes the modal. 'single' keeps at most one boost on.
       const wasActive = boosts.has(id);
-      if (activation === 'single') boosts.clear();
-      // Toggle: an already-active boost turns OFF; otherwise it turns ON. (In multi
-      // mode the clear() above doesn't run, so we must delete explicitly to deactivate.)
-      if (wasActive) boosts.delete(id);
-      else boosts.add(id);
-      ui.bus.emit('cardActivated', { id });
-      renderCards();
-      opts.onActivate?.([...boosts], id, boosts.has(id));
+      const commit = (): void => {
+        if (activation === 'single') boosts.clear();
+        if (wasActive) boosts.delete(id);
+        else boosts.add(id);
+        ui.bus.emit('cardActivated', { id });
+        renderCards();
+        opts.onActivate?.([...boosts], id, boosts.has(id));
+      };
+      if (wasActive) { commit(); return; } // turning a boost OFF never needs confirming
+      // A boost raises the per-spin cost to (1 + surcharge)× — confirm above 2×.
+      const total = 1 + (f?.cost ?? 0);
+      askConfirm(total, f?.name ?? id, money(total * bet, cur), commit);
     } else {
-      // Buying CLOSES the modal and hands the cost to the host (deduct + start it).
       if (blocksBuy && boosts.size > 0) return; // blocked while a boost is active
-      const f = list.find((x) => x.id === id);
-      const cost = (f?.cost ?? 0) * ui.bet.get();
-      ui.bus.emit('cardActivated', { id });
-      close();
-      opts.onBuy?.(id, cost);
+      const cost = (f?.cost ?? 0) * bet;
+      askConfirm(f?.cost ?? 0, f?.name ?? id, money(cost, cur), () => {
+        ui.bus.emit('cardActivated', { id });
+        close();
+        opts.onBuy?.(id, cost);
+      });
     }
   };
 
   // ── bet steppers ────────────────────────────────────────────────────────────
   $<HTMLButtonElement>('#bfm-minus').addEventListener('click', () => ui.betStepper.dec());
   $<HTMLButtonElement>('#bfm-plus').addEventListener('click', () => ui.betStepper.inc());
-  ui.bet.value.subscribe(() => renderCards()); // prices follow the bet
+  disposers.push(ui.bet.value.subscribe(() => renderCards())); // prices follow the bet
 
   // ── open / close ────────────────────────────────────────────────────────────
   const open = (): void => { renderCards(); host.classList.add('open'); };
   const close = (): void => host.classList.remove('open');
   host.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', close));
-  ui.on('buttonActivated', ({ id }) => { if (id === 'bonus') open(); });
-  window.addEventListener('resize', () => { if (host.classList.contains('open')) layout(); });
+  disposers.push(ui.on('buttonActivated', ({ id }) => { if (id === 'bonus') open(); }));
+  const onResize = (): void => { if (host.classList.contains('open')) layout(); };
+  window.addEventListener('resize', onResize);
 
   // ── locale ──────────────────────────────────────────────────────────────────
-  ui.locale.subscribe(() => {
-    host.querySelectorAll<HTMLElement>('[data-t]').forEach((n) => (n.textContent = tr(n.dataset.t!)));
-    renderCards();
-  });
+  disposers.push(
+    ui.locale.subscribe(() => {
+      host.querySelectorAll<HTMLElement>('[data-t]').forEach((n) => (n.textContent = tr(n.dataset.t!)));
+      renderCards();
+    }),
+  );
 
   renderCards();
+
+  return () => {
+    window.removeEventListener('resize', onResize);
+    for (const d of disposers.splice(0)) d();
+    host.remove();
+  };
 }
 
 const BFM_CSS = `
 .bfm-root { position: fixed; inset: 0; z-index: 11000; display: grid; place-items: center; font-family: var(--font); opacity: 0; pointer-events: none; transition: opacity .18s ease; }
 .bfm-root.open { opacity: 1; pointer-events: auto; }
-/* Backdrop blur ANIMATES in (the filter radius ramps up), instead of snapping on. */
 .bfm-backdrop { position: absolute; inset: 0; background: rgba(8,6,4,0); backdrop-filter: blur(0px) saturate(1); -webkit-backdrop-filter: blur(0px) saturate(1); transition: background .4s ease, backdrop-filter .4s ease, -webkit-backdrop-filter .4s ease; }
 .bfm-root.open .bfm-backdrop { background: rgba(8,6,4,.5); backdrop-filter: blur(10px) saturate(1.1); -webkit-backdrop-filter: blur(10px) saturate(1.1); }
 .bfm-x { position: absolute; top: 18px; right: 22px; width: 46px; height: 46px; border-radius: 999px; border: 0; background: rgba(18,14,10,.82); color: #fff; font-size: 18px; cursor: pointer; display: grid; place-items: center; box-shadow: 0 6px 18px rgba(0,0,0,.45); z-index: 2; transition: transform .12s, background .12s; }
@@ -206,7 +250,6 @@ const BFM_CSS = `
 .bfm-root *, .bfm-root *::before, .bfm-root *::after { box-sizing: border-box; }
 .bfm-panel { position: relative; transform: translateY(8px) scale(.985); transition: transform .18s ease; }
 .bfm-root.open .bfm-panel { transform: none; }
-/* one block, scaled UNIFORMLY to fit by JS (proportional — never squished) */
 .bfm-fit { position: absolute; top: 0; left: 50%; transform: translateX(-50%); transform-origin: top center; }
 .bfm-title { margin: 0 0 14px; text-align: center; color: #fff; font-size: 30px; font-weight: 800; letter-spacing: 1px; text-shadow: 0 2px 12px rgba(0,0,0,.6); }
 .bfm-bet { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 0 0 24px; }
@@ -219,7 +262,7 @@ const BFM_CSS = `
 .bfm-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; align-items: start; }
 .bfm-cell { display: flex; flex-direction: column; min-width: 0; }
 .bfm-card { background: var(--surface); border: 4px solid #000; border-radius: 14px; overflow: hidden; box-shadow: 0 14px 34px rgba(0,0,0,.45); }
-.bfm-cardimg { width: 100%; aspect-ratio: 16 / 10; background-size: cover; background-position: center; }
+.bfm-cardimg { width: 100%; aspect-ratio: 16 / 10; background-size: cover; background-position: center; background-color: var(--surface-alt); background-image: linear-gradient(135deg, #e7ebf2, #cfd6e2); }
 .bfm-strip { height: 8px; background: linear-gradient(90deg, #f0a500, #ffd166, #f0a500); }
 .bfm-cardbody { padding: 12px 14px 16px; text-align: center; }
 .bfm-name { display: block; font-size: 15px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -230,4 +273,15 @@ const BFM_CSS = `
 .bfm-action.is-active { background: var(--accent); color: var(--accent-text); border-color: #000; }
 .bfm-action.is-blocked, .bfm-action:disabled { opacity: .38; cursor: not-allowed; box-shadow: none; }
 .bfm-action.is-blocked:hover, .bfm-action:disabled:hover { background: var(--surface); }
+.bfm-confirm { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
+.bfm-confirm.show { opacity: 1; pointer-events: auto; }
+.bfm-confirm::before { content: ""; position: absolute; inset: 0; background: rgba(8,6,4,.6); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.bfm-confirm-card { position: relative; width: min(90%, 420px); background: var(--surface); color: var(--text); border: 3px solid #000; border-radius: 14px; padding: 26px 24px 22px; box-shadow: 0 24px 60px rgba(0,0,0,.55); text-align: center; }
+.bfm-confirm-msg { margin: 0 0 22px; font-size: 19px; font-weight: 700; line-height: 1.4; color: var(--text); }
+.bfm-confirm-row { display: flex; gap: 14px; }
+.bfm-confirm-btn { flex: 1; padding: 14px 10px; border-radius: 12px; border: 3px solid #000; font-size: 15px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; cursor: pointer; transition: transform .1s, background .12s; }
+.bfm-confirm-btn:active { transform: scale(.96); }
+.bfm-confirm-no { background: var(--surface); color: var(--text); }
+.bfm-confirm-no:hover { background: var(--surface-alt); }
+.bfm-confirm-yes { background: var(--accent); color: var(--accent-text); }
 `;

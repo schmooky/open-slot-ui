@@ -1,11 +1,10 @@
 import { Application, Assets, Container, Graphics, Rectangle, Texture } from 'pixi.js';
-import { mountHud, svgSpinSkin } from '@open-slot-ui/pixi';
+import { mountHud, svgSpinSkin, mountBuyFeatureModal } from '@open-slot-ui/pixi';
 import { loadBuiltinArt } from '@open-slot-ui/pixi/art';
 import type { UISpec, CurrencySpec, ThemePreset, JurisdictionConfig } from '@open-slot-ui/core';
 import { MESSAGES } from './locales';
 import { RULES_BLOCKS, FEATURES } from './content';
 import { mountHtmlMenu } from './htmlMenu';
-import { mountBuyFeatureModal } from './buyFeatureModal';
 import { mountHarness } from './harness';
 import { gsap } from 'gsap';
 
