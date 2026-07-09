@@ -63,7 +63,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@open-slot-ui/core": "0.8.1"
+    "@open-slot-ui/core": "workspace:*"
   },
   "peerDependencies": {
     "pixi.js": "^8"
