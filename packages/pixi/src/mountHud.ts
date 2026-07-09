@@ -22,6 +22,7 @@ import {
 import { OpenUIPixi, type OpenUIPixiOptions } from './OpenUIPixi';
 import { PanelBodyView } from './views/PanelBodyView';
 import { mountInfoMenu } from './infoMenu';
+import { showConfirm } from './confirmModal';
 
 /** Shared BLOCKING replay modal — the round's facts + one button, non-dismissible
  *  (no ✕, no backdrop close; only the button advances). Used for both the start ("Play")
@@ -270,22 +271,21 @@ export function mountHud(app: Application, spec: UISpec = {}, opts: HudOptions =
         o.onConfirm(); // cost at/under the threshold → one click is allowed
         return;
       }
-      // Pre-resolve the message (block text can't interpolate); social/locale at open time.
+      // The ONE universal HTML confirm — the same white-card dialog the buy-feature modal
+      // uses (social/locale-aware), so every confirm across the HUD looks identical.
       const message =
         o.message ??
         (o.name
           ? ui.t('openui.buyFeature.confirm', { name: ui.t(o.name), price: o.price ?? '' })
-          : 'openui.buyFeature.message');
-      ui.showNotice(
-        [
-          { kind: 'heading', id: 'buy-title', text: o.title ?? 'openui.buyFeature.title' },
-          { kind: 'text', id: 'buy-body', text: message },
-        ],
-        [
-          { label: o.cancelLabel ?? 'openui.cancel', variant: 'secondary' },
-          { label: o.confirmLabel ?? 'openui.confirm', variant: 'primary', onSelect: o.onConfirm },
-        ],
-      );
+          : ui.t('openui.buyFeature.message'));
+      void showConfirm(ui, {
+        title: o.title ?? 'openui.buyFeature.title',
+        message,
+        confirmLabel: o.confirmLabel,
+        cancelLabel: o.cancelLabel,
+      }).then((ok) => {
+        if (ok) o.onConfirm();
+      });
     },
     showControls: () => pixi.setControlsVisible(true),
     hideControls: () => pixi.setControlsVisible(false),

@@ -10,6 +10,7 @@
 
 import type { Application } from 'pixi.js';
 import type { BootedHud } from './mountHud';
+import { showConfirm } from './confirmModal';
 import { formatAmount } from '@open-slot-ui/core';
 import type { CurrencySpec } from '@open-slot-ui/core';
 
@@ -87,15 +88,6 @@ export function mountBuyFeatureModal(
         </div>
         <div class="bfm-cards" id="bfm-cards"></div>
       </div>
-    </div>
-    <div class="bfm-confirm" id="bfm-confirm">
-      <div class="bfm-confirm-card">
-        <p class="bfm-confirm-msg" id="bfm-confirm-msg"></p>
-        <div class="bfm-confirm-row">
-          <button class="bfm-confirm-btn bfm-confirm-no" id="bfm-confirm-no" data-t="openui.cancel">${esc(tr('openui.cancel'))}</button>
-          <button class="bfm-confirm-btn bfm-confirm-yes" id="bfm-confirm-yes" data-t="openui.confirm">${esc(tr('openui.confirm'))}</button>
-        </div>
-      </div>
     </div>`;
 
   const style = document.createElement('style');
@@ -109,26 +101,16 @@ export function mountBuyFeatureModal(
   const cardsEl = $<HTMLElement>('#bfm-cards');
   const betValEl = $<HTMLElement>('#bfm-betval');
 
-  // ── confirm sub-dialog (Stake: no one-click activation above 2× the bet) ──────
-  // The LIBRARY owns the threshold + rule (`hud.shouldConfirmBuy`, fed by
-  // `spec.buyFeature.confirmAboveCost` / jurisdiction); we render the confirm as HTML
-  // so it layers over this HTML buy modal (the lib's own popup draws in the canvas
-  // BEHIND it). Message + labels come from the library's i18n (social-aware).
-  const confirmEl = $<HTMLElement>('#bfm-confirm');
-  const confirmMsg = $<HTMLElement>('#bfm-confirm-msg');
-  const confirmYes = $<HTMLButtonElement>('#bfm-confirm-yes');
-  const confirmNo = $<HTMLButtonElement>('#bfm-confirm-no');
-  let pendingConfirm: (() => void) | null = null;
-  const hideConfirm = (): void => { confirmEl.classList.remove('show'); pendingConfirm = null; };
-  confirmNo.addEventListener('click', hideConfirm);
-  confirmYes.addEventListener('click', () => { const fn = pendingConfirm; hideConfirm(); fn?.(); });
-  /** Run `onYes` immediately, or gate it behind a confirm popup when the play's total
-   *  cost (× base bet) exceeds the library's `confirmBuyAboveCost` threshold. */
-  const askConfirm = (totalCost: number, name: string, price: string, onYes: () => void): void => {
-    if (!hud.shouldConfirmBuy(totalCost)) { onYes(); return; }
-    confirmMsg.textContent = ui.t('openui.buyFeature.confirm', { name: ui.t(name), price });
-    pendingConfirm = onYes;
-    confirmEl.classList.add('show');
+  // ── confirm ───────────────────────────────────────────────────────────────
+  // EVERY purchase and boost activation is confirmed through the ONE universal confirm
+  // dialog (`showConfirm` — the same white-card popup `hud.requestBuyFeature` uses), so
+  // buying and activating are consistent and a play never commits on a single click.
+  // Message + labels come from the library's i18n (social-aware).
+  const askConfirm = (name: string, price: string, onYes: () => void): void => {
+    const message = ui.t('openui.buyFeature.confirm', { name: ui.t(name), price });
+    void showConfirm(ui, { title: 'Buy Feature', message }).then((ok) => {
+      if (ok) onYes();
+    });
   };
 
   // Fit the modal to the viewport by UNIFORM scale (proportional — never squished).
@@ -196,13 +178,13 @@ export function mountBuyFeatureModal(
         opts.onActivate?.([...boosts], id, boosts.has(id));
       };
       if (wasActive) { commit(); return; } // turning a boost OFF never needs confirming
-      // A boost raises the per-spin cost to (1 + surcharge)× — confirm above 2×.
+      // Turning a boost ON raises the per-spin cost to (1 + surcharge)× — confirm it.
       const total = 1 + (f?.cost ?? 0);
-      askConfirm(total, f?.name ?? id, money(total * bet, cur), commit);
+      askConfirm(f?.name ?? id, money(total * bet, cur), commit);
     } else {
       if (blocksBuy && boosts.size > 0) return; // blocked while a boost is active
       const cost = (f?.cost ?? 0) * bet;
-      askConfirm(f?.cost ?? 0, f?.name ?? id, money(cost, cur), () => {
+      askConfirm(f?.name ?? id, money(cost, cur), () => {
         ui.bus.emit('cardActivated', { id });
         close();
         opts.onBuy?.(id, cost);
@@ -273,15 +255,4 @@ const BFM_CSS = `
 .bfm-action.is-active { background: var(--accent); color: var(--accent-text); border-color: #000; }
 .bfm-action.is-blocked, .bfm-action:disabled { opacity: .38; cursor: not-allowed; box-shadow: none; }
 .bfm-action.is-blocked:hover, .bfm-action:disabled:hover { background: var(--surface); }
-.bfm-confirm { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
-.bfm-confirm.show { opacity: 1; pointer-events: auto; }
-.bfm-confirm::before { content: ""; position: absolute; inset: 0; background: rgba(8,6,4,.6); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
-.bfm-confirm-card { position: relative; width: min(90%, 420px); background: var(--surface); color: var(--text); border: 3px solid #000; border-radius: 14px; padding: 26px 24px 22px; box-shadow: 0 24px 60px rgba(0,0,0,.55); text-align: center; }
-.bfm-confirm-msg { margin: 0 0 22px; font-size: 19px; font-weight: 700; line-height: 1.4; color: var(--text); }
-.bfm-confirm-row { display: flex; gap: 14px; }
-.bfm-confirm-btn { flex: 1; padding: 14px 10px; border-radius: 12px; border: 3px solid #000; font-size: 15px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; cursor: pointer; transition: transform .1s, background .12s; }
-.bfm-confirm-btn:active { transform: scale(.96); }
-.bfm-confirm-no { background: var(--surface); color: var(--text); }
-.bfm-confirm-no:hover { background: var(--surface-alt); }
-.bfm-confirm-yes { background: var(--accent); color: var(--accent-text); }
 `;
