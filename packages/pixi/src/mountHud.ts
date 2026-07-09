@@ -21,6 +21,7 @@ import {
 } from '@open-slot-ui/core';
 import { OpenUIPixi, type OpenUIPixiOptions } from './OpenUIPixi';
 import { PanelBodyView } from './views/PanelBodyView';
+import { mountInfoMenu } from './infoMenu';
 
 /** Shared BLOCKING replay modal — the round's facts + one button, non-dismissible
  *  (no ✕, no backdrop close; only the button advances). Used for both the start ("Play")
@@ -63,6 +64,13 @@ export interface ReplayInfo {
 
 export interface HudOptions extends OpenUIPixiOptions {
   hooks?: HostHooks;
+  /**
+   * Render the library's white HTML **info menu** (Settings · Paytable · Rules) — the Figma
+   * design, driven by `spec.menu`, label-left / control-right, fully modular + localized —
+   * instead of the in-canvas Pixi menu. Default `true`. `menu: false` opts out of BOTH (the
+   * host supplies its own menu). Set `infoMenu: false` to keep the old Pixi menu.
+   */
+  infoMenu?: boolean;
 }
 
 /**
@@ -155,20 +163,23 @@ export interface BootedHud {
  * art/skins. Pure assembly over `createUI` + `OpenUIPixi` (Charter B9).
  */
 export function mountHud(app: Application, spec: UISpec = {}, opts: HudOptions = {}): BootedHud {
-  const { hooks, ...pixiOpts } = opts;
+  const { hooks, infoMenu, ...pixiOpts } = opts;
   const ui = createUI(spec, hooks);
-  // Compose the unified menu (Settings → Paytable → Rules). A Language switch is
-  // added automatically when 2+ locales are configured; `spec.rules` is folded in
-  // for back-compat. The built-in Music/Sound reuse the real volume controls.
+  // The white HTML info menu (the Figma design) is the default; `menu:false` opts out of any
+  // library menu; `infoMenu:false` falls back to the in-canvas Pixi menu.
+  const useInfoMenu = infoMenu !== false && pixiOpts.menu !== false;
+  // Compose the unified Pixi menu (Settings → Paytable → Rules) only when NOT using the HTML
+  // menu. A Language switch is added when 2+ locales are configured; `spec.rules` folds in.
   const locales = spec.locale ? Array.from(new Set([spec.locale.locale, ...Object.keys(spec.locale.messages)])) : [];
-  // `menu: false` (e.g. when the host supplies its own HTML menu) skips the Pixi menu.
-  const menu = pixiOpts.menu === false ? false : composeMenu(spec.menu, { locales, localeSelectId: spec.localeSelectId, rulesFallback: spec.rules });
-  // Game name + version footer (support / certification) — appended to the menu.
+  const menu = pixiOpts.menu === false || useInfoMenu ? false : composeMenu(spec.menu, { locales, localeSelectId: spec.localeSelectId, rulesFallback: spec.rules });
+  // Game name + version footer (support / certification) — appended to the Pixi menu.
   if (menu && spec.game && (spec.game.name || spec.game.version)) {
     menu.push({ kind: 'legal', id: 'openui-game-info', text: [spec.game.name, spec.game.version ? `v${spec.game.version}` : ''].filter(Boolean).join('  ·  ') });
   }
   const pixi = new OpenUIPixi(ui, { ...pixiOpts, menu });
   pixi.mount(app);
+  // Mount the white HTML info menu overlay (opens/closes off the canvas ☰).
+  const disposeInfoMenu = useInfoMenu ? mountInfoMenu(app, ui) : undefined;
 
   // The reality-check reminder (RTS 13) is now wired in `createUI` (core), so it runs
   // on a wall-clock timer regardless of renderer — nothing to schedule here.
@@ -195,6 +206,7 @@ export function mountHud(app: Application, spec: UISpec = {}, opts: HudOptions =
 
   const teardown = (): void => {
     offRelayout();
+    disposeInfoMenu?.();
     for (const v of extra) v.dispose();
     extra.length = 0;
     pixi.unmount();

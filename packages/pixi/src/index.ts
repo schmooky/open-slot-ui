@@ -19,6 +19,7 @@ export * from './views/MenuView';
 export * from './views/ReadoutView';
 export * from './views/DialogView';
 export * from './mountHud';
+export * from './infoMenu';
 export * from './bootError';
 export * from './renderers/TextCellRenderer';
 export * from './skin/SpinSkin';
