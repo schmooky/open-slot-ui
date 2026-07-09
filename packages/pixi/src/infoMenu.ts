@@ -152,13 +152,14 @@ export function mountInfoMenu(app: Application, ui: OpenUI): () => void {
 
   // Sound config: a toggle only, + a master Volume slider, or + Music & Effects sliders.
   const soundMode = menu.sound ?? 'sliders';
-  const volRow = (id: string, label: string, val: number): string =>
-    `<div class="ohm-setting"><label class="ohm-row"><span>${esc(tr(label))}</span><input class="ohm-slider" data-vol="${id}" type="range" min="0" max="1" step="0.01" value="${val}"></label></div>`;
+  const volRow = (id: string, label: string, hint: string, val: number): string =>
+    `<div class="ohm-setting"><label class="ohm-row"><span>${esc(tr(label))}</span><input class="ohm-slider" data-vol="${id}" type="range" min="0" max="1" step="0.01" value="${val}"></label><div class="ohm-hint">${esc(tr(hint))}</div></div>`;
   const soundSliders =
     soundMode === 'master'
-      ? volRow('master', 'Volume', ui.sfxSlider.value.get())
+      ? volRow('master', 'Volume', 'Adjust the overall game volume.', ui.sfxSlider.value.get())
       : soundMode === 'sliders'
-        ? volRow('music', 'Music', ui.musicSlider.value.get()) + volRow('sfx', 'Effects', ui.sfxSlider.value.get())
+        ? volRow('music', 'Music', 'Adjust the background music volume.', ui.musicSlider.value.get()) +
+          volRow('sfx', 'Effects', 'Adjust the sound-effects volume.', ui.sfxSlider.value.get())
         : '';
 
   const paytableHtml = menu.paytable ? renderBlocks(menu.paytable, tr) : '';
