@@ -150,6 +150,17 @@ export function mountInfoMenu(app: Application, ui: OpenUI): () => void {
     : `<span class="ohm-ctl"><div class="ohm-segmented" id="ohm-turbo-seg">${turbo.modes.map((m, i) => `<button class="ohm-seg" data-i="${i}">${esc(tr(cap(m)))}</button>`).join('')}</div></span>`;
   const customSettings = (menu.settings ?? []).map((b) => renderSettingBlock(b, tr)).join('');
 
+  // Sound config: a toggle only, + a master Volume slider, or + Music & Effects sliders.
+  const soundMode = menu.sound ?? 'sliders';
+  const volRow = (id: string, label: string, val: number): string =>
+    `<div class="ohm-setting"><label class="ohm-row"><span>${esc(tr(label))}</span><input class="ohm-slider" data-vol="${id}" type="range" min="0" max="1" step="0.01" value="${val}"></label></div>`;
+  const soundSliders =
+    soundMode === 'master'
+      ? volRow('master', 'Volume', ui.sfxSlider.value.get())
+      : soundMode === 'sliders'
+        ? volRow('music', 'Music', ui.musicSlider.value.get()) + volRow('sfx', 'Effects', ui.sfxSlider.value.get())
+        : '';
+
   const paytableHtml = menu.paytable ? renderBlocks(menu.paytable, tr) : '';
   const rulesHtml = menu.rules ? renderBlocks(menu.rules, tr) : '';
   const banner = menu.banner
@@ -166,6 +177,7 @@ export function mountInfoMenu(app: Application, ui: OpenUI): () => void {
         ${banner}
         <div class="ohm-sec"><span>${tr('Settings')}</span></div>
         <div class="ohm-setting"><label class="ohm-row ohm-check"><span>${tr('Sound')}</span><span class="ohm-ctl"><input id="ohm-sound" type="checkbox" checked></span></label><div class="ohm-hint">${tr('Turn all game sound and music on or off.')}</div></div>
+        ${soundSliders}
         ${langRow}
         <div class="ohm-setting"><div class="ohm-row ohm-check"><span>${tr('Quick spin')}</span>${turboCtl}</div><div class="ohm-hint">${tr('Speed up rounds by shortening the animation. The result is identical.')}</div></div>
         ${customSettings}
@@ -187,6 +199,19 @@ export function mountInfoMenu(app: Application, ui: OpenUI): () => void {
     sound.addEventListener('change', () => ui.setMuted(!sound.checked));
     disposers.push(ui.muted.subscribe((m) => { sound.checked = !m; }));
   }
+  // Volume sliders → the music / sfx slider controls (which emit valueChanged for the host).
+  host.querySelectorAll<HTMLInputElement>('[data-vol]').forEach((el) => {
+    const which = el.dataset.vol!;
+    el.addEventListener('input', () => {
+      const v = Number(el.value);
+      if (which === 'music') ui.musicSlider.setNormalized(v);
+      else if (which === 'sfx') ui.sfxSlider.setNormalized(v);
+      else { ui.musicSlider.setNormalized(v); ui.sfxSlider.setNormalized(v); } // master
+    });
+    // reflect external changes (e.g. mute drops both to 0, unmute restores).
+    const src = which === 'music' ? ui.musicSlider : ui.sfxSlider;
+    disposers.push(src.value.subscribe((v) => { el.value = String(v); }));
+  });
   // Language.
   const lang = $<HTMLSelectElement>('#ohm-lang');
   if (lang) lang.addEventListener('change', () => ui.setLocale(lang.value));

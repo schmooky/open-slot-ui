@@ -7,9 +7,19 @@
  */
 import type { BlockSpec } from './types';
 
+/**
+ * How the Settings section exposes sound:
+ * - `'toggle'`  — a single Sound on/off switch (mute).
+ * - `'master'`  — the Sound switch + one Volume slider (music + effects together).
+ * - `'sliders'` — the Sound switch + separate **Music** and **Effects** sliders. (default)
+ */
+export type SoundControls = 'toggle' | 'master' | 'sliders';
+
 export interface MenuSpec {
   /** A banner image shown at the very top of the menu (e.g. a themed title art). */
   banner?: { src: string; width?: number; height?: number };
+  /** How sound is configured in Settings (toggle · master slider · music+effects). Default `'sliders'`. */
+  sound?: SoundControls;
   /** Extra settings, appended after the built-in Music/Sound (+ Language). */
   settings?: BlockSpec[];
   /** Paytable section content (omit → no Paytable section). */
