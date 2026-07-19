@@ -51,10 +51,14 @@ export const CURRENCY_TABLE: Readonly<Record<string, CurrencyInfo>> = Object.fre
   SGD: { symbol: 'SG$', decimals: 2 },
   MYR: { symbol: 'RM', decimals: 2 },
   CRC: { symbol: '₡', decimals: 2 },
-  // three-decimal dinars (1 unit = 1000 fils) — the >2-decimal path must format these
+  // three-decimal dinars/rials (1 unit = 1000 fils) — the >2-decimal path must format these
   KWD: { symbol: 'KD', decimals: 3 },
   JOD: { symbol: 'JD', decimals: 3 },
   BHD: { symbol: 'BD', decimals: 3 },
+  OMR: { symbol: 'OMR', decimals: 3 },
+  TND: { symbol: 'DT', decimals: 3 },
+  LYD: { symbol: 'LD', decimals: 3 },
+  IQD: { symbol: 'IQD', decimals: 3 },
   // ── fiat — symbol AFTER the amount ───────────────────────────────────────────
   DKK: { symbol: 'kr', decimals: 2, symbolAfter: true },
   NOK: { symbol: 'kr', decimals: 2, symbolAfter: true },
@@ -126,6 +130,40 @@ export function resolveCurrency(code: string, overrides: Partial<CurrencySpec> =
  * non-negative values (used by the net-position readout). Pure + total: a malformed
  * number renders as "0".
  */
+/**
+ * How many fraction digits a value ACTUALLY uses — never fewer than the currency's
+ * native `base` precision, never more than the 8-decimal ceiling. Snaps float noise
+ * (0.1+0.2) by measuring at 8 dp, then strips trailing zeros back down to `base`.
+ *
+ * Why: Stake requires a currency's FULL bet ladder verbatim from authenticate —
+ * including its true minimum (USD 0.01) — so a win (0.01 bet × a ×0.2 face = 0.002)
+ * or a running balance (999.982) can carry sub-unit precision the currency's fixed
+ * decimals would CROP to "0.00". This tells the display exactly how many digits that
+ * value needs; a clean value keeps the ordinary native look (5.00, 1,000.00).
+ */
+export function neededDecimals(value: number, base: number): number {
+  const b = clampDecimals(base);
+  if (!Number.isFinite(value) || value === 0) return b;
+  let scaled = Math.round(Math.abs(value) * 1e8); // integer minor units at 8 dp
+  let d = 8;
+  while (d > b && scaled % 10 === 0) {
+    scaled /= 10;
+    d--;
+  }
+  return d;
+}
+
+/**
+ * Format an amount at the precision it actually needs (see {@link neededDecimals}),
+ * so a sub-unit win renders in full ("$0.002") instead of rounding to "$0.00".
+ * Values within the currency's native precision format exactly like {@link formatAmount}.
+ */
+export function formatAmountPrecise(value: number, spec: CurrencySpec, opts: { signed?: boolean } = {}): string {
+  const base = clampDecimals(spec.decimals ?? 2);
+  const d = neededDecimals(value, base);
+  return d === base ? formatAmount(value, spec, opts) : formatAmount(value, { ...spec, decimals: d }, opts);
+}
+
 export function formatAmount(value: number, spec: CurrencySpec, opts: { signed?: boolean } = {}): string {
   const decimals = clampDecimals(spec.decimals);
   const sep = spec.separator ?? ',';

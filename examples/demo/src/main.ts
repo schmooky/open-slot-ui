@@ -1,10 +1,10 @@
 import { Application, Assets, Container, Graphics, Rectangle, Texture } from 'pixi.js';
 import { mountHud, svgSpinSkin, mountBuyFeatureModal } from '@open-slot-ui/pixi';
 import { loadBuiltinArt } from '@open-slot-ui/pixi/art';
+import { resolveBetLadder } from '@open-slot-ui/core';
 import type { UISpec, CurrencySpec, ThemePreset, JurisdictionConfig } from '@open-slot-ui/core';
 import { MESSAGES } from './locales';
-import { RULES_BLOCKS, FEATURES } from './content';
-import { mountHtmlMenu } from './htmlMenu';
+import { RULES_BLOCKS, FEATURES, FACTS } from './content';
 import { mountHarness } from './harness';
 import { gsap } from 'gsap';
 
@@ -23,16 +23,18 @@ if (q.get('bare') === '1') document.body.classList.add('bare');
 
 // Each entry exercises a different facet: symbol-vs-code display, the minimal-unit
 // precision (decimals after the .), and big numbers that make the counter auto-scale.
+// The `ladder` is what a real game gets from authenticate — used VERBATIM (Stake:
+// never filter the true minimum; USD floors at $0.01, so a ×0.2 win = $0.002).
 //   ?currency=USD|EUR|mBTC|SATS|BTC
-const CURRENCIES: Record<string, { spec: CurrencySpec; balance: number; bet: number }> = {
+const CURRENCIES: Record<string, { spec: CurrencySpec; balance: number; bet: number; ladder: number[] }> = {
   // symbol display ($ sits tight before the number) · 2-decimal minor unit
-  USD: { spec: { code: 'USD', symbol: '$', display: 'symbol', position: 'prefix', decimals: 2 }, balance: 12345.67, bet: 1 },
-  EUR: { spec: { code: 'EUR', symbol: '€', display: 'symbol', position: 'prefix', decimals: 2, decimalChar: ',', separator: '.' }, balance: 12345.67, bet: 1 },
+  USD: { spec: { code: 'USD', symbol: '$', display: 'symbol', position: 'prefix', decimals: 2 }, balance: 12345.67, bet: 1, ladder: [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20] },
+  EUR: { spec: { code: 'EUR', symbol: '€', display: 'symbol', position: 'prefix', decimals: 2, decimalChar: ',', separator: '.' }, balance: 12345.67, bet: 1, ladder: [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20] },
   // crypto CODES (no symbol) with different minimal units → different decimals,
   // and wide values that trigger the counter's auto-downscale.
-  mBTC: { spec: { code: 'mBTC', decimals: 5 }, balance: 1234.56789, bet: 0.01 },
-  SATS: { spec: { code: 'SATS', decimals: 0 }, balance: 123456789, bet: 100 },
-  BTC: { spec: { code: 'BTC', symbol: '₿', display: 'symbol', position: 'prefix', decimals: 8 }, balance: 1.23456789, bet: 0.0001 },
+  mBTC: { spec: { code: 'mBTC', decimals: 5 }, balance: 1234.56789, bet: 0.01, ladder: [0.001, 0.01, 0.1, 1, 10] },
+  SATS: { spec: { code: 'SATS', decimals: 0 }, balance: 123456789, bet: 100, ladder: [100, 500, 1000, 5000, 10000] },
+  BTC: { spec: { code: 'BTC', symbol: '₿', display: 'symbol', position: 'prefix', decimals: 8 }, balance: 1.23456789, bet: 0.0001, ladder: [0.0001, 0.0005, 0.001, 0.005, 0.01] },
 };
 
 const cfg = {
@@ -65,6 +67,10 @@ const cfg = {
   builtin: q.get('builtin') === '1',
   // ?totalwin=25.5 → seed a bonus total-win value (shown while in free-spins mode).
   totalWin: Number(q.get('totalwin')) || 0,
+  // ?forget=1 → "forget" declarations on purpose: the mode-stats grid + the feature
+  // prose are dropped and the free-spins facts go undeclared, so the rules audit's
+  // explicit warning card shows when the rules open.
+  forget: q.get('forget') === '1',
 };
 
 /** Parse `?juris=rtp,net,timer,noturbo,noslam,…` into a Stake Engine JurisdictionConfig
@@ -90,6 +96,10 @@ const JURISDICTION = parseJurisdiction(q.get('juris'));
 /** The whole HUD as one config object — the public surface a real slot would ship. */
 function buildSpec(): UISpec {
   const cur = CURRENCIES[cfg.currency]!;
+  // ?forget=1 drops the auto stats grid + the buy-feature prose, and undeclares the
+  // free-spins facts — the rules audit then lists exactly what was "forgotten".
+  const rules = cfg.forget ? RULES_BLOCKS.filter((b) => b.id !== 'r-stats' && b.id !== 'r-buys') : RULES_BLOCKS;
+  const facts = cfg.forget ? { ...FACTS, freeSpins: undefined } : FACTS;
   return {
     // The Figma "default" look is set in Montserrat (Black for the HUD figures). A bad
     // ?accent is sanitized away (the preset accent shows through) — never broken.
@@ -98,7 +108,9 @@ function buildSpec(): UISpec {
       overrides: { type: { family: '"Montserrat", system-ui, sans-serif' }, ...(cfg.accent ? { color: { accent: cfg.accent } } : {}) },
     },
     currency: cur.spec,
-    betLadder: { levels: [0.5, 1, 2, 5, 10, 20], index: 1 },
+    // The authenticate ladder VERBATIM (no sub-unit filtering; USD floors at $0.01),
+    // snapped to the currency's default bet — exactly what a real game does.
+    betLadder: resolveBetLadder(cur.ladder, cur.bet),
     // Turbo is a 2-mode (off/on) toggle — the only supported mode for now.
     turbo: { modes: cfg.turbo },
     // Autoplay is host-configurable: the spin-count options always show; the two RG
@@ -110,6 +122,9 @@ function buildSpec(): UISpec {
     rtp: 96,
     jurisdiction: JURISDICTION,
     game: { name: 'Scrolls of Fate', version: '1.0.0' },
+    // What the game HAS, as data: modes + RTP/max win, free spins, volatility, cap.
+    // Drives the rules' auto mode-stats grid + the completeness audit.
+    facts,
     realityCheck: cfg.reality > 0 ? { everyMinutes: cfg.reality } : undefined,
     // Layout is the LIBRARY default (the Figma "Desk DEF" desktop bar + the
     // "Mobile DEF" portrait reflow ship as built-ins since v0.3.0) — the demo
@@ -124,11 +139,12 @@ function buildSpec(): UISpec {
     // placehold.co so the desired dimensions/resolutions show even offline.
     menu: {
       banner: { src: 'https://placehold.co/1000x120/1f2430/ffd166?text=Scrolls+of+Fate', width: 1000, height: 120 },
+      // The lib's info menu already ships Sound + volume sliders + Language + Quick
+      // spin (turbo) — only truly custom settings go here.
       settings: [
-        { kind: 'toggle', id: 'quick', label: 'Quick spin' },
         { kind: 'select', id: 'gfx', label: 'Graphics', index: 2, options: [
           { value: 'low', label: 'Low' }, { value: 'med', label: 'Medium' }, { value: 'high', label: 'High' },
-        ] },
+        ], hint: 'Rendering quality. Lower it on older devices.' },
       ],
       // A 3-column multiplier grid with symbol icons (placehold.co → real dimensions).
       paytable: [
@@ -142,9 +158,8 @@ function buildSpec(): UISpec {
         ] },
       ],
       // A rich rules section showing off the whole block palette — defined once in
-      // content.ts and shared with the HTML menu, so both render identical, fully
-      // localized content (the English text doubles as the i18n key).
-      rules: RULES_BLOCKS,
+      // content.ts, fully localized (the English text doubles as the i18n key).
+      rules,
     },
     // 10-locale dictionary + starting locale; a Language switch appears in Settings.
     locale: { messages: MESSAGES, locale: cfg.locale },
@@ -177,6 +192,10 @@ async function main(): Promise<void> {
   const reels = buildReels();
   app.stage.addChild(reels.container);
 
+  // Money math snaps float noise at 8 dp — NEVER to the display decimals: a $0.01 bet
+  // × a ×0.2 face is a real $0.002 win, and the HUD's auto-precision shows it in full.
+  const snap = (x: number): number => Math.round(x * 1e8) / 1e8;
+
   // ---- load the bundled SVG art ----
   const load = async (src: string): Promise<Texture> => {
     const t = await Assets.load<Texture>({ src, data: { resolution: 3 } });
@@ -204,10 +223,11 @@ async function main(): Promise<void> {
   const builtin = cfg.builtin ? await loadBuiltinArt() : undefined;
 
   // ---- mount the whole HUD in ONE call (Charter B9) ----
+  // The library's white HTML info menu (Settings · Paytable · Rules + the rules
+  // audit) mounts by default — no host menu code at all.
   const hud = mountHud(app, buildSpec(), {
     expose: true,
     gsap, // enables the value counter's auto-downscale for wide currencies
-    menu: false, // the one biased menu design is the HTML one, mounted below
 
     intro: cfg.intro, // ?intro=shown|hidden|slide-in
 
@@ -230,7 +250,6 @@ async function main(): Promise<void> {
         },
   });
   const ui = hud.ui;
-  mountHtmlMenu(app, hud);
   // Buy-feature modal (opened by the bonus coin). Buying CLOSES it and the host
   // deducts the cost + would start the feature; activating a bet boost keeps it
   // open. Activation is configurable (single/multi, blocks-buy) via the URL.
@@ -238,8 +257,7 @@ async function main(): Promise<void> {
     activation: cfg.activation,
     activationBlocksBuy: cfg.blockBuy,
     onBuy: (id, cost) => {
-      const p = 10 ** dec();
-      ui.balance.set(Math.max(0, Math.round((ui.balance.get() - cost) * p) / p)); // deduct
+      ui.balance.set(Math.max(0, snap(ui.balance.get() - cost))); // deduct
       // a real game runs the bought feature — here the "buy" variants start free spins.
       if (id === 'free-spins') enterBonus(10);
       else if (id === 'super-spins') enterBonus(15);
@@ -260,13 +278,8 @@ async function main(): Promise<void> {
   if (cfg.fatal) hud.showFatal('Your session has expired. Reload the game to continue.', { title: 'openui.err.session.title' });
 
   // ---- talk to it from the outside: events out, façade in ----
-  const round = (x: number, d: number): number => {
-    const p = 10 ** d;
-    return Math.round(x * p) / p;
-  };
   const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
   const turboEngaged = (): boolean => ui.turbo.isOn;
-  const dec = (): number => ui.balance.currency.get().decimals;
 
   // ---- bet BOOSTS (buy-feature "Activate" toggles) ----
   // A boost is a per-spin surcharge (`cost × bet`): while any is active the EFFECTIVE
@@ -275,7 +288,7 @@ async function main(): Promise<void> {
   const activeBoosts = new Map<string, number>(); // id → surcharge fraction
   const boostSurcharge = (): number => [...activeBoosts.values()].reduce((a, b) => a + b, 0);
   const baseBet = (): number => ui.betStepper.value;
-  const effectiveBet = (): number => round(baseBet() * (1 + boostSurcharge()), dec());
+  const effectiveBet = (): number => snap(baseBet() * (1 + boostSurcharge()));
   function refreshBoost(): void {
     const on = boostSurcharge() > 0;
     ui.bet.set(on ? effectiveBet() : baseBet()); // show the modified stake
@@ -311,16 +324,18 @@ async function main(): Promise<void> {
   /** One round, driven by the host. `turbo` shortens the reel spin. In a bonus the
    *  spin is FREE (stake 0), tallies into the total-win, and steps the FS count down. */
   async function playSpin(turbo = turboEngaged()): Promise<void> {
-    const d = dec();
     const inBonus = ui.spin.freeSpins.get() > 0;
     const stake = inBonus ? 0 : effectiveBet(); // free spins cost nothing; base spins stake the boosted bet
     ui.spin.busy();
-    if (stake > 0) ui.balance.set(round(ui.balance.get() - stake, d));
+    if (stake > 0) ui.balance.set(snap(ui.balance.get() - stake));
     await reels.spin(app, turbo);
-    const win = Math.random() < 0.45 ? round(effectiveBet() * (1 + Math.random() * 24), d) : 0;
-    if (win > 0) ui.balance.set(round(ui.balance.get() + win, d));
+    // A dice-cascade-style multiplier table INCLUDING the sub-unit ×0.2 face — at the
+    // $0.01 minimum bet that's a true $0.002 win, shown in full by auto-precision.
+    const MULTS = [0.2, 0.5, 1, 2, 5, 12, 25];
+    const win = Math.random() < 0.45 ? snap(effectiveBet() * MULTS[Math.floor(Math.random() * MULTS.length)]!) : 0;
+    if (win > 0) ui.balance.set(snap(ui.balance.get() + win));
     if (inBonus) {
-      hud.setTotalWin(round(ui.totalWin.get() + win, d)); // running bonus tally
+      hud.setTotalWin(snap(ui.totalWin.get() + win)); // running bonus tally
       hud.setFreeSpins(ui.spin.freeSpins.get() - 1); // decrement → auto-exits at 0
     }
     // feed the settled round to the HUD → net-position readout + autoplay RG limits

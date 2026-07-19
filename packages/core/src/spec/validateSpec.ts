@@ -151,6 +151,9 @@ export function validateSpec(spec: UISpec): { ok: boolean; issues: SpecIssue[] }
         if (b.kind === 'stat-grid' && (!b.items || b.items.length === 0)) {
           add('warn', `${p}.items`, 'empty-grid', 'a stat-grid block has no items');
         }
+        if (b.kind === 'mode-stats' && !spec.facts?.modes?.length) {
+          add('warn', `${p}`, 'mode-stats-no-facts', 'a mode-stats block renders from spec.facts.modes, but no modes are declared');
+        }
         if (b.kind === 'steps' && (!b.items || b.items.length === 0)) {
           add('warn', `${p}.items`, 'empty-steps', 'a steps block has no items');
         }

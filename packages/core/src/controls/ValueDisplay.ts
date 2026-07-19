@@ -1,6 +1,7 @@
 import { Control, type StateMap } from '../control/Control';
 import { Signal } from '../signal';
 import { safeAmount, clampDecimals, clampMinDigits } from '../safe';
+import { neededDecimals } from '../format/currency';
 import type { LayoutSpec } from '../layout/anchor';
 
 /** Currency / crypto descriptor — the code/symbol + how to format it. */
@@ -50,6 +51,16 @@ export class ValueDisplay extends Control {
   readonly value = new Signal<number>(0);
   readonly currency: Signal<CurrencySpec>;
   readonly label?: string;
+  /**
+   * Show a value at the precision it ACTUALLY carries (default on): when the value has
+   * more fraction digits than the currency's native precision — a sub-unit win like a
+   * USD 0.01 bet × a ×0.2 face = 0.002, or the 999.982 balance it leaves behind — the
+   * display decimals bump just enough to reveal them ($0.002), and drop back to the
+   * native look (5.00) once the value is clean again. Set `false` for hard-fixed decimals.
+   */
+  autoPrecision = true;
+  /** The currency's NATIVE precision — what `autoPrecision` returns to on clean values. */
+  private baseDecimals: number;
   /** Minimum odometer column width (0 = auto: sized tightly to the value, grows as it
    *  does). Read by the renderer at build time, so set it before mount (or declaratively
    *  via `controls.{id}.digits`). */
@@ -63,9 +74,11 @@ export class ValueDisplay extends Control {
     this.currency = new Signal<CurrencySpec>(
       c && typeof c.code === 'string' ? { ...c, decimals: clampDecimals(c.decimals) } : { code: 'USD', decimals: 2 },
     );
+    this.baseDecimals = this.currency.get().decimals;
     this.label = opts.label;
     this.digits = clampMinDigits(opts.digits ?? 0);
     if (opts.initial != null) this.value.set(opts.initial);
+    this.applyPrecision();
   }
 
   /** Set the minimum odometer column width (clamped 0..18; 0 = auto). Read by the
@@ -78,16 +91,30 @@ export class ValueDisplay extends Control {
    *  good value — malformed host data never throws into the render loop (P11). */
   set(amount: number): void {
     this.value.set(safeAmount(amount, this.value.get()));
+    this.applyPrecision();
   }
 
   get(): number {
     return this.value.get();
   }
 
-  /** Keep the prior spec on malformed input; clamp decimals to 0..8 (P11). */
+  /** Keep the prior spec on malformed input; clamp decimals to 0..8 (P11). The given
+   *  decimals become the NATIVE precision (`autoPrecision` bumps above it as needed). */
   setCurrency(spec: CurrencySpec): void {
     if (!spec || typeof spec.code !== 'string') return;
-    this.currency.set({ ...spec, decimals: clampDecimals(spec.decimals) });
+    this.baseDecimals = clampDecimals(spec.decimals);
+    this.currency.set({ ...spec, decimals: this.baseDecimals });
+    this.applyPrecision();
+  }
+
+  /** Bump the display decimals to what the current value needs — never below the
+   *  currency's native precision — and drop back once the value is clean again.
+   *  No-op (and no signal churn) when the shown precision is already right. */
+  private applyPrecision(): void {
+    if (!this.autoPrecision) return;
+    const want = neededDecimals(this.value.get(), this.baseDecimals);
+    const cur = this.currency.get();
+    if (cur.decimals !== want) this.currency.set({ ...cur, decimals: want });
   }
 
   /** Accent emphasis: the renderer tints the value in the theme accent while on.

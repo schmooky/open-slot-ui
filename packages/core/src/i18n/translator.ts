@@ -63,6 +63,10 @@ export const openuiDefaults: Record<string, string> = {
   // reality check (RTS 13) — {{minutes}} is interpolated by open-ui's scheduler
   'openui.realityCheck.title': 'Reality check',
   'openui.realityCheck.message': "You've been playing for {{minutes}} minutes. Take a moment before continuing.",
+  // Rules-completeness audit (the info menu's "forgotten declarations" card)
+  'openui.rulesAudit.title': 'Rules incomplete',
+  'openui.rulesAudit.required': 'Missing required information:',
+  'openui.rulesAudit.recommended': 'Highly recommended:',
   // RGS error defaults (override via your messages dict or per-call)
   'openui.err.generic.title': 'Something went wrong',
   'openui.err.generic.message': 'Sorry, something went wrong. Please try again.',
@@ -108,6 +112,8 @@ export const openuiSocialDefaults: Record<string, string> = {
   'openui.replay.payoutMultiplier': 'Final Multiplier',
   'openui.err.insufficient.message': "You don't have enough balance for this play.",
   'openui.err.limit.message': 'A play limit has been reached. Please try again later.',
+  // The auto mode-stats grid's label words (used as their own keys at render time).
+  'Max win': 'Max prize',
 };
 
 function interpolate(template: string, vars?: Record<string, string | number>): string {

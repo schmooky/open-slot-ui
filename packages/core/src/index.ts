@@ -31,6 +31,7 @@ export * from './spec/socialPhrases';
 export * from './spec/responsive';
 export * from './spec/menu';
 export * from './spec/jurisdiction';
+export * from './spec/facts';
 export * from './spec/defaultHudSpec';
 export * from './EventLog';
 export * from './i18n/translator';

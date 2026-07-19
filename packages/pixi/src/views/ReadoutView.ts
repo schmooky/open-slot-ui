@@ -1,5 +1,5 @@
 import { Text, type Ticker } from 'pixi.js';
-import { type ReadoutControl, type OpenUI, formatAmount } from '@open-slot-ui/core';
+import { type ReadoutControl, type OpenUI, formatAmountPrecise } from '@open-slot-ui/core';
 import { ControlView } from './ControlView';
 
 const CAP_DY = -20;
@@ -136,7 +136,7 @@ export class ReadoutView extends ControlView {
     let text: string;
     switch (this.ro.kind) {
       case 'currency':
-        text = this.ro.currency ? formatAmount(v, this.ro.currency.get(), { signed: this.ro.signed }) : String(v);
+        text = this.ro.currency ? formatAmountPrecise(v, this.ro.currency.get(), { signed: this.ro.signed }) : String(v);
         break;
       case 'percent':
         text = `${v.toFixed(this.ro.decimals)}%`;

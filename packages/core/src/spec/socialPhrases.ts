@@ -124,6 +124,14 @@ function walkBlock(b: BlockSpec, src: string, out: Entry[]): void {
         add(it.value);
       });
       break;
+    case 'mode-stats':
+      // generated labels ("RTP · <name>" / "Max win · <name>") resolve through the
+      // social dictionary at render; only host-supplied extras carry static copy.
+      (b.extras ?? []).forEach((it) => {
+        add(it.label);
+        add(it.value);
+      });
+      break;
     case 'group':
       add(b.title);
       b.children.forEach((c, i) => walkBlock(c, `${src}.children[${i}]`, out));

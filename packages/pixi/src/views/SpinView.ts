@@ -99,6 +99,9 @@ export class SpinView extends ControlView {
       }),
       // re-dim if slam-stop is toggled at runtime (e.g. applyJurisdiction)
       this.spin.allowSlamStop.subscribe(() => this.updateInteractive()),
+      // the ref-counted HUD lock (menu / buy modal / blocking notice) gates
+      // `spin.interactable` — refresh eventMode/cursor when it flips
+      this.ui.locked.subscribe(() => this.updateInteractive()),
       this.spin.onTransition((t) => this.play(t)),
       // free-spins face: switch between the normal skin and the "N FS" counter
       this.spin.freeSpins.subscribe(() => this.updateFaces()),

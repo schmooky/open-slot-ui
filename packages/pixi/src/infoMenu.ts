@@ -7,14 +7,21 @@
 // supply your own instead. The look matches the Open-UI Figma reference.
 
 import type { Application } from 'pixi.js';
-import { LOCALE_LABELS, type BlockSpec, type MenuSpec, type OpenUI } from '@open-slot-ui/core';
+import { LOCALE_LABELS, auditRules, modeStatsItems, type BlockSpec, type GameFacts, type MenuSpec, type OpenUI } from '@open-slot-ui/core';
 
 const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 /** Escape, then turn `**bold**` runs into `<b>` — the same inline syntax the Pixi renderer uses. */
 const rich = (s: string): string => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 
-/** Render a declarative rules `BlockSpec[]` to HTML — the full modular palette. */
-function renderBlocks(blocks: BlockSpec[], tr: (s: string) => string): string {
+/** The stat-grid `<dl>` markup shared by `stat-grid` and the auto `mode-stats` block. */
+function statGridHtml(items: ReadonlyArray<{ label: string; value: string }>, tr: (s: string) => string): string {
+  const rows = items.map((it) => `<div><dt>${esc(tr(it.label))}</dt><dd>${esc(tr(it.value))}</dd></div>`).join('');
+  return `<dl class="ohm-stats">${rows}</dl>`;
+}
+
+/** Render a declarative rules `BlockSpec[]` to HTML — the full modular palette.
+ *  `facts` feeds the auto `mode-stats` block (per-mode RTP / Max win from the config). */
+function renderBlocks(blocks: BlockSpec[], tr: (s: string) => string, facts?: GameFacts): string {
   const out: string[] = [];
   for (const b of blocks) {
     switch (b.kind) {
@@ -58,9 +65,16 @@ function renderBlocks(blocks: BlockSpec[], tr: (s: string) => string): string {
         out.push(`<table class="ohm-table">${head}<tbody>${body}</tbody></table>`);
         break;
       }
-      case 'stat-grid': {
-        const rows = b.items.map((it) => `<div><dt>${esc(tr(it.label))}</dt><dd>${esc(tr(it.value))}</dd></div>`).join('');
-        out.push(`<dl class="ohm-stats">${rows}</dl>`);
+      case 'stat-grid':
+        out.push(statGridHtml(b.items, tr));
+        break;
+      // The AUTO per-mode RTP / Max-win grid — rendered straight from the declared
+      // game facts (+ any host extras), so the table can never drift from the config.
+      // `modeStatsItems` localizes the label PARTS itself ("Max win" · the mode name),
+      // so the grid renderer gets identity-tr — no double translation.
+      case 'mode-stats': {
+        const extras = (b.extras ?? []).map((e) => ({ label: tr(e.label), value: tr(e.value) }));
+        out.push(statGridHtml([...modeStatsItems(facts, tr), ...extras], (s) => s));
         break;
       }
       case 'steps': {
@@ -162,8 +176,30 @@ export function mountInfoMenu(app: Application, ui: OpenUI): () => void {
           volRow('sfx', 'Effects', 'Adjust the sound-effects volume.', ui.sfxSlider.value.get())
         : '';
 
-  const paytableHtml = menu.paytable ? renderBlocks(menu.paytable, tr) : '';
-  const rulesHtml = menu.rules ? renderBlocks(menu.rules, tr) : '';
+  // ── rules-completeness audit ("forgotten declarations") ─────────────────────
+  // The declared game facts (spec.facts + runtime declareFacts — the buy-feature
+  // modal auto-declares its features) are audited against the rules blocks. Every
+  // missing REQUIRED declaration (a mode's RTP / max win, an undescribed feature)
+  // and each HIGHLY RECOMMENDED one (free-spins count + retrigger, legal, controls)
+  // renders as an explicit warning card at the top of the Rules section — a
+  // forgotten declaration is stated when the rules open, never silent.
+  const auditCardHtml = (): string => {
+    if (!menu.rules?.length) return '';
+    const issues = auditRules(ui.facts.get(), menu.rules);
+    if (!issues.length) return '';
+    const req = issues.filter((i) => i.level === 'required');
+    const rec = issues.filter((i) => i.level === 'recommended');
+    const list = (items: typeof issues): string => `<ul>${items.map((i) => `<li>${esc(tr(i.message))}</li>`).join('')}</ul>`;
+    return `<div class="ohm-audit" role="alert">
+      <div class="ohm-audit-title">⚠ ${esc(tr('openui.rulesAudit.title'))}</div>
+      ${req.length ? `<div class="ohm-audit-sub">${esc(tr('openui.rulesAudit.required'))}</div>${list(req)}` : ''}
+      ${rec.length ? `<div class="ohm-audit-sub ohm-audit-sub--rec">${esc(tr('openui.rulesAudit.recommended'))}</div><div class="ohm-audit-rec">${list(rec)}</div>` : ''}
+    </div>`;
+  };
+  const rulesInnerHtml = (): string => (menu.rules ? auditCardHtml() + renderBlocks(menu.rules, tr, ui.facts.get()) : '');
+
+  const paytableHtml = menu.paytable ? renderBlocks(menu.paytable, tr, ui.facts.get()) : '';
+  const rulesHtml = rulesInnerHtml();
   const banner = menu.banner
     ? `<img class="ohm-logo" alt="" src="${menu.banner.src}"${menu.banner.width ? ` width="${menu.banner.width}"` : ''}${menu.banner.height ? ` height="${menu.banner.height}"` : ''}>`
     : ui.gameInfo.name
@@ -241,24 +277,40 @@ export function mountInfoMenu(app: Application, ui: OpenUI): () => void {
 
   host.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => ui.settingsPanel.closePanel()));
 
-  // Re-translate the whole menu on locale change (labels + the rules body).
+  // Re-translate the whole menu on locale change (labels + the rules body), and
+  // re-audit + re-render the rules whenever the declared game facts change (e.g.
+  // the buy-feature modal declaring its features after this menu mounted).
+  const refreshRules = (): void => {
+    const rulesEl = host.querySelector('#ohm-rules');
+    if (rulesEl && menu.rules) rulesEl.innerHTML = rulesInnerHtml();
+  };
   disposers.push(
     ui.locale.subscribe(() => {
       const body = host.querySelector('.ohm-body');
       if (body) {
         // simplest robust path: rebuild the localized rules body
-        const rulesEl = host.querySelector('#ohm-rules');
-        if (rulesEl && menu.rules) rulesEl.innerHTML = renderBlocks(menu.rules, tr);
+        refreshRules();
         if (lang) lang.value = ui.locale.get();
       }
     }),
+    ui.facts.subscribe(refreshRules),
   );
 
-  // Open/close follows the settings panel state.
-  disposers.push(ui.settingsPanel.state.subscribe(() => host.classList.toggle('open', ui.settingsPanel.isOpen)));
+  // Open/close follows the settings panel state. While open, LOCK the HUD (ref-counted) so
+  // pointer/keyboard input can't fall through the menu overlay onto the controls underneath.
+  let menuLocked = false;
+  disposers.push(
+    ui.settingsPanel.state.subscribe(() => {
+      const isOpen = ui.settingsPanel.isOpen;
+      host.classList.toggle('open', isOpen);
+      if (isOpen && !menuLocked) { ui.lock(); menuLocked = true; }
+      else if (!isOpen && menuLocked) { ui.unlock(); menuLocked = false; }
+    }),
+  );
 
   return () => {
     for (const d of disposers.splice(0)) d();
+    if (menuLocked) { ui.unlock(); menuLocked = false; } // don't leak the lock on teardown
     host.remove();
   };
 }
@@ -313,6 +365,13 @@ const OHM_CSS = `
 .ohm-stats { margin: 12px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
 .ohm-stats > div { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid color-mix(in srgb, var(--text-dim) 20%, transparent); }
 .ohm-stats dt { color: var(--text-dim); margin: 0; } .ohm-stats dd { margin: 0; font-weight: 700; }
+.ohm-audit { margin: 12px 0 18px; padding: 14px 16px; border-radius: 12px; border: 2px solid #d03131; background: color-mix(in srgb, #d03131 8%, transparent); }
+.ohm-audit-title { font-weight: 900; letter-spacing: .5px; color: #b31d1d; }
+.ohm-audit-sub { margin-top: 8px; font-size: 13px; font-weight: 800; color: #b31d1d; }
+.ohm-audit-sub--rec { color: #b07d09; }
+.ohm-audit ul { margin: 6px 0 0; padding-left: 20px; color: var(--text); font-size: 13.5px; line-height: 1.55; }
+.ohm-audit li { margin: 3px 0; }
+.ohm-audit-rec ul { color: var(--text-dim); }
 .ohm-callout { margin: 16px 0 4px; padding: 14px 16px; border-radius: 12px; border-left: 4px solid var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
 .ohm-callout b { color: var(--accent); } .ohm-callout p { margin: 4px 0 0; color: var(--text); }
 .ohm-callout--warning { border-left-color: #e0a106; background: color-mix(in srgb, #e0a106 10%, transparent); }

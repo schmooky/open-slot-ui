@@ -39,6 +39,29 @@ export function buildBetLadder(cfg: RgsBetConfig, divisor = API_AMOUNT_DIVISOR):
   return { levels, index: found < 0 ? 0 : found };
 }
 
+/**
+ * Resolve the shown bet ladder from an authenticate response (MAJOR units): use EVERY
+ * level the RGS offers, VERBATIM, and snap the default bet to the matching level.
+ *
+ * Deliberately does NOT filter out low levels. Stake requires every currency's full
+ * ladder — including its true minimum (e.g. USD 0.01) — to come straight from
+ * authenticate. A consequence is that the smallest win can be below one minimal
+ * currency unit (USD 0.01 bet × a ×0.2 face = 0.002); the money displays render that
+ * true sub-unit amount (see `formatAmountPrecise` / `ValueDisplay.autoPrecision`)
+ * rather than hiding the level. Pure — share it between the UISpec builder and the
+ * game's balance store so both agree on the bet.
+ */
+export function resolveBetLadder(
+  availableBets: number[] | undefined,
+  defaultBet: number,
+  fallback: number[] = [0.2, 0.5, 1, 2, 5, 10],
+): { levels: number[]; index: number } {
+  const levels = availableBets?.length ? availableBets.slice() : fallback.slice();
+  const exact = levels.indexOf(defaultBet);
+  const index = exact >= 0 ? exact : Math.max(0, levels.findIndex((b) => b >= defaultBet));
+  return { levels, index };
+}
+
 /** Clamp a stake (major units) to the RGS min/max and snap to `stepBet`. Pure. */
 export function clampBet(amount: number, cfg: RgsBetConfig, divisor = API_AMOUNT_DIVISOR): number {
   const min = (cfg.minBet ?? 0) / divisor;

@@ -3,7 +3,7 @@ import {
   createUI,
   buildPanel,
   composeMenu,
-  formatAmount,
+  formatAmountPrecise,
   type OpenUI,
   type UISpec,
   type HostHooks,
@@ -29,7 +29,7 @@ import { showConfirm } from './confirmModal';
  *  and the end ("Replay") of a replay so it's a strict modal → round → modal loop. */
 function showReplayModal(ui: OpenUI, info: ReplayInfo, buttonKey: string, onSelect: () => void): void {
   const cur = info.currency ?? ui.balance.currency.get();
-  const money = (n: number): string => formatAmount(n, cur);
+  const money = (n: number): string => formatAmountPrecise(n, cur); // sub-unit replay amounts show in full
   ui.showNotice(
     [
       { kind: 'heading', id: 'openui-replay-h', text: 'openui.replay.title' },

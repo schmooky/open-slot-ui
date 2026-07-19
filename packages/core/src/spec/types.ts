@@ -15,6 +15,7 @@ import type { Control } from '../control/Control';
 import type { OpenUIEvents } from '../types';
 import type { MenuSpec } from './menu';
 import type { JurisdictionConfig } from './jurisdiction';
+import type { GameFacts } from './facts';
 
 /** The reference-HUD control ids — typed so a typo is a compile error. */
 export type KnownControlId =
@@ -101,8 +102,15 @@ export interface ResponsiveOverride {
  * A declarative menu/panel content block. Discriminated by `kind` so a "shown but
  * no payload" bug is uncompilable (Charter B10): a `select` cannot omit options,
  * a `slider` cannot carry them.
+ *
+ * Every block may carry `covers` — rules-audit topic tags (e.g. `'rtp:bonus'`,
+ * `'freespins'`) marking that this block's hand-written prose covers a declaration
+ * the audit's text heuristics can't see. See `auditRules` in `spec/facts`.
  */
-export type BlockSpec =
+export type BlockSpec = {
+  /** Rules-audit topics this block covers (see `auditRules`). */
+  covers?: string[];
+} & (
   // `hint` is a short description of what the control does, shown dim UNDER it — so
   // every interactive control in the Info/settings menu explains its own function.
   | { kind: 'slider'; id: string; label?: string; initial?: number; hint?: string }
@@ -117,6 +125,9 @@ export type BlockSpec =
   | { kind: 'subheading'; id: string; text: string }
   | { kind: 'callout'; id: string; tone?: 'info' | 'bonus' | 'warning'; title?: string; text: string }
   | { kind: 'stat-grid'; id: string; items: Array<{ label: string; value: string }> }
+  // AUTO-GENERATED per-mode RTP / Max-win grid, rendered straight from `UISpec.facts`
+  // (+ `ui.declareFacts`) — declared once, so the table can never drift from the config.
+  | { kind: 'mode-stats'; id: string; extras?: Array<{ label: string; value: string }> }
   | { kind: 'steps'; id: string; ordered?: boolean; items: string[] }
   | { kind: 'table'; id: string; columns?: string[]; rows: string[][] }
   | { kind: 'paytable'; id: string; columns?: number; rows: Array<{ symbol?: string; payouts: string; icon?: string }> }
@@ -125,7 +136,8 @@ export type BlockSpec =
   | { kind: 'cards'; id: string; items: Array<{ icon?: string; title: string; text?: string }> }
   | { kind: 'legal'; id: string; text: string }
   | { kind: 'divider'; id: string }
-  | { kind: 'group'; id: string; title?: string; children: BlockSpec[] };
+  | { kind: 'group'; id: string; title?: string; children: BlockSpec[] }
+);
 
 /** All block kinds, for runtime validation of untyped host data. */
 export const BLOCK_KINDS = [
@@ -140,6 +152,7 @@ export const BLOCK_KINDS = [
   'subheading',
   'callout',
   'stat-grid',
+  'mode-stats',
   'steps',
   'table',
   'paytable',
@@ -173,8 +186,11 @@ export interface UISpec {
    * optional responsible-gambling limit choices (multiples of bet; Infinity = none).
    * When `lossLimits`/`winLimits` are set, the picker offers them and the host must
    * feed each round to `hud.reportRound(win, bet)` so they're enforced.
+   * `insufficientFundsNotice` (default true): when autoplay stops with the balance
+   * unable to cover the next round, show the same insufficient-funds modal a manual
+   * spin shows (ERR_IPB) instead of ending silently.
    */
-  autoplay?: { options?: number[]; mode?: AutoplayMode; lossLimits?: number[]; winLimits?: number[] };
+  autoplay?: { options?: number[]; mode?: AutoplayMode; lossLimits?: number[]; winLimits?: number[]; insufficientFundsNotice?: boolean };
   /** Turbo switcher: 2-mode (off/on) or 3-mode (off/turbo/super). */
   turbo?: TurboSpec;
   /** Spin button behavior: single `'tap'` or `'hold-to-spin'` turbo. */
@@ -216,6 +232,15 @@ export interface UISpec {
   rtp?: number;
   /** Game name + version — shown in the menu footer (support / certification). */
   game?: { name?: string; version?: string };
+  /**
+   * Structured GAME FACTS — what the game HAS: its math modes (base / buy features /
+   * boosts) with RTP + max win, its free-spins behavior, volatility and cap. Drives
+   * the auto `mode-stats` rules block AND the rules-completeness audit: a configured
+   * mode whose RTP / max win / description is missing from the rules is called out
+   * explicitly in the info menu (see `auditRules`). The buy-feature modal declares
+   * its configured features into this automatically (`ui.declareFacts`).
+   */
+  facts?: GameFacts;
   /** Buy-feature / bet-mode confirmation. `confirmAboveCost` (× base bet) makes any
    *  play costing MORE than that require a confirm step before it commits — Stake
    *  requires bet modes above 2× to never activate on a single click, so set `2`.

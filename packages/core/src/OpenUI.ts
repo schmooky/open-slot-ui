@@ -32,6 +32,7 @@ import {
 } from './notice';
 import { DictionaryTranslator, type Translator } from './i18n/translator';
 import { resolveCurrency } from './format/currency';
+import { mergeFacts, type GameFacts } from './spec/facts';
 
 export interface OpenUIOptions {
   theme?: Theme;
@@ -100,6 +101,11 @@ export class OpenUI {
   readonly replay = new Signal<boolean>(false);
   /** Game name + version (shown in the menu footer; for support / certification). */
   gameInfo: { name?: string; version?: string } = {};
+  /** Declared GAME FACTS (modes + RTP/max win, free spins, volatility, cap) — seeded
+   *  from `spec.facts`, extended at runtime via {@link declareFacts} (the buy-feature
+   *  modal declares its configured features automatically). Drives the `mode-stats`
+   *  rules block + the rules-completeness audit in the info menu. */
+  readonly facts = new Signal<GameFacts>({});
   /** Minimum round duration (ms) from jurisdiction — stored for the GAME to enforce. */
   minimumRoundDuration = 0;
   /** Buy-feature confirm threshold, as a multiple of the base bet. A play (buy or
@@ -107,6 +113,13 @@ export class OpenUI {
    *  — Stake requires that bet modes above 2× never activate on a single click. `0`
    *  (the default) = off. Set via `spec.buyFeature.confirmAboveCost` or a jurisdiction. */
   confirmBuyAboveCost = 0;
+  /** When autoplay stops while the balance can no longer cover the next round —
+   *  whether the built-in RG enforcement stopped it, the game's own pre-check did, or
+   *  the player pressed Stop already broke — pop the SAME insufficient-funds modal a
+   *  manual spin shows (ERR_IPB) instead of ending silently. A normal stop with funds
+   *  in hand shows nothing. Default on; `spec.autoplay.insufficientFundsNotice: false`
+   *  opts out. */
+  autoplayInsufficientNotice = true;
   private sessionNet = 0;
   private prevVolumes: { music: number; sfx: number } | null = null;
 
@@ -279,6 +292,18 @@ export class OpenUI {
     this.bet.set(this.betStepper.value);
     syncStepperButtons();
 
+    // Autoplay that stops with the balance unable to cover the next round surfaces the
+    // SAME insufficient-funds modal a manual spin shows — never a silent end. Guarded
+    // against stomping a notice that is already open (e.g. `showRgsError` for another
+    // code stops autoplay first, then presents its own message — that one must win).
+    this.disposers.push(
+      this.bus.on('autoplayStopped', () => {
+        if (!this.autoplayInsufficientNotice || this.replay.get()) return;
+        if (this.noticePanel.isOpen) return;
+        if (this.balance.get() < this.bet.get()) this.showRgsError('ERR_IPB');
+      }),
+    );
+
     // When the notice/error modal closes, release a blocking lock + announce it.
     this.disposers.push(
       this.noticePanel.state.subscribe(() => {
@@ -381,6 +406,13 @@ export class OpenUI {
       // auto-stop autoplay when the next round is no longer affordable (RG)
       if (this.autoplay.isActive && this.balance.get() < this.bet.get()) this.autoplay.stop();
     }
+  }
+
+  /** Merge more game facts into {@link facts} (modes merge by id; defined incoming
+   *  fields win). The info menu re-audits + re-renders its rules automatically. */
+  declareFacts(add: GameFacts): void {
+    if (!add || typeof add !== 'object') return;
+    this.facts.set(mergeFacts(this.facts.get(), add));
   }
 
   /** Reset the running session net + aggregates + timer (e.g. on a fresh session). */

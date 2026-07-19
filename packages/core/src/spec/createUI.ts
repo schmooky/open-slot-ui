@@ -85,6 +85,7 @@ export function createUI(spec: UISpec = {}, hooks: HostHooks = {}): OpenUI {
 
   if (typeof spec.rtp === 'number') ui.rtp.set(spec.rtp);
   if (spec.game) ui.gameInfo = { name: spec.game.name, version: spec.game.version };
+  if (spec.facts) ui.declareFacts(spec.facts);
 
   if (spec.betLadder?.levels?.length) {
     ui.betStepper.setLevels(spec.betLadder.levels, spec.betLadder.index ?? 0);
@@ -99,6 +100,7 @@ export function createUI(spec: UISpec = {}, hooks: HostHooks = {}): OpenUI {
   }
   if (spec.autoplay?.lossLimits) ui.autoplay.setLossLimitOptions(spec.autoplay.lossLimits);
   if (spec.autoplay?.winLimits) ui.autoplay.setWinLimitOptions(spec.autoplay.winLimits);
+  if (spec.autoplay?.insufficientFundsNotice === false) ui.autoplayInsufficientNotice = false;
 
   // Turbo: 2-mode (off/on) or 3-mode (off/turbo/super), or an explicit ladder.
   if (spec.turbo) {

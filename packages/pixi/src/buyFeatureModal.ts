@@ -11,7 +11,7 @@
 import type { Application } from 'pixi.js';
 import type { BootedHud } from './mountHud';
 import { showConfirm } from './confirmModal';
-import { formatAmount } from '@open-slot-ui/core';
+import { formatAmountPrecise } from '@open-slot-ui/core';
 import type { CurrencySpec } from '@open-slot-ui/core';
 
 /** A buy-feature card. */
@@ -27,9 +27,10 @@ export interface FeatureSpec {
 
 // Format via the library's Stake currency formatter so the modal matches the HUD exactly:
 // correct symbol + side (CNY → CN¥1,000.00, PLN → 1,000.00 zł), thousands separators, right
-// decimals (JPY 0, BTC 8) and social coins (XGC → GC).
+// decimals (JPY 0, BTC 8) and social coins (XGC → GC). Precise: a sub-unit price (a
+// USD 0.01 bet × a 6.5× boost = $0.065) shows in full instead of rounding.
 function money(amount: number, cur: CurrencySpec): string {
-  return formatAmount(amount, cur);
+  return formatAmountPrecise(amount, cur);
 }
 
 const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -59,6 +60,10 @@ export function mountBuyFeatureModal(
   const ui = hud.ui;
   const tr = (k: string): string => ui.t(k);
   const list = features.slice(0, 4); // up to 4
+  // Declare the configured features as GAME FACTS: what's buyable/activatable here is
+  // what the rules must describe — the rules-completeness audit calls out any feature
+  // configured in this modal but missing from the rules (see `auditRules`).
+  ui.declareFacts({ modes: list.map((f) => ({ id: f.id, name: f.name, kind: f.variant, cost: f.cost })) });
   const boosts = new Set<string>(); // active bet-boost ids
   const activation = opts.activation ?? 'multi';
   const blocksBuy = opts.activationBlocksBuy ?? false;
@@ -198,8 +203,19 @@ export function mountBuyFeatureModal(
   disposers.push(ui.bet.value.subscribe(() => renderCards())); // prices follow the bet
 
   // ── open / close ────────────────────────────────────────────────────────────
-  const open = (): void => { renderCards(); host.classList.add('open'); };
-  const close = (): void => host.classList.remove('open');
+  // While the modal is open, LOCK the HUD (ref-counted) so pointer/keyboard input can't fall
+  // through the overlay onto the spin/bet controls underneath; unlock on close.
+  const open = (): void => {
+    if (host.classList.contains('open')) return;
+    renderCards();
+    host.classList.add('open');
+    ui.lock();
+  };
+  const close = (): void => {
+    if (!host.classList.contains('open')) return;
+    host.classList.remove('open');
+    ui.unlock();
+  };
   host.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', close));
   disposers.push(ui.on('buttonActivated', ({ id }) => { if (id === 'bonus') open(); }));
   const onResize = (): void => { if (host.classList.contains('open')) layout(); };
@@ -217,6 +233,7 @@ export function mountBuyFeatureModal(
 
   return () => {
     window.removeEventListener('resize', onResize);
+    if (host.classList.contains('open')) ui.unlock(); // don't leak the lock on teardown-while-open
     for (const d of disposers.splice(0)) d();
     host.remove();
   };
