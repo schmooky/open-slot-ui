@@ -33,6 +33,7 @@ export * from './spec/menu';
 export * from './spec/jurisdiction';
 export * from './spec/facts';
 export * from './spec/rulesDoc';
+export * from './spec/rulesHtml';
 export * from './spec/defaultHudSpec';
 export * from './EventLog';
 export * from './i18n/translator';
