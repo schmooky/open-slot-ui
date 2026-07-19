@@ -96,9 +96,11 @@ const JURISDICTION = parseJurisdiction(q.get('juris'));
 /** The whole HUD as one config object — the public surface a real slot would ship. */
 function buildSpec(): UISpec {
   const cur = CURRENCIES[cfg.currency]!;
-  // ?forget=1 drops the auto stats grid + the buy-feature prose, and undeclares the
-  // free-spins facts — the rules audit then lists exactly what was "forgotten".
-  const rules = cfg.forget ? RULES_BLOCKS.filter((b) => b.id !== 'r-stats' && b.id !== 'r-buys') : RULES_BLOCKS;
+  // ?forget=1 drops the auto stats grid + two whole feature sections, and undeclares
+  // the free-spins facts — the rules audit then lists exactly what was "forgotten"
+  // (missing per-mode sections included).
+  const FORGOTTEN = new Set(['r-stats', 'r-f-ss-h', 'r-f-ss', 'r-f-ab-h', 'r-f-ab']);
+  const rules = cfg.forget ? RULES_BLOCKS.filter((b) => !FORGOTTEN.has(b.id)) : RULES_BLOCKS;
   const facts = cfg.forget ? { ...FACTS, freeSpins: undefined } : FACTS;
   return {
     // The Figma "default" look is set in Montserrat (Black for the HUD figures). A bad

@@ -110,6 +110,10 @@ export interface ResponsiveOverride {
 export type BlockSpec = {
   /** Rules-audit topics this block covers (see `auditRules`). */
   covers?: string[];
+  /** The declared mode id this block EXPLAINS (e.g. `'bonus'`). Every declared mode
+   *  must have its own rules section — a heading naming it, or blocks tagged with
+   *  `explains` — with real prose; the audit enforces it (see `auditRules`). */
+  explains?: string;
 } & (
   // `hint` is a short description of what the control does, shown dim UNDER it — so
   // every interactive control in the Info/settings menu explains its own function.

@@ -19,8 +19,12 @@ const DOC: RulesDoc = {
   version: 1,
   facts: FACTS,
   blocks: [
-    { kind: 'heading', id: 'h', text: 'rules.about' },
+    // the base game's own section (the heading is tagged so any wording qualifies)
+    { kind: 'heading', id: 'h', text: 'rules.about', explains: 'base' },
     { kind: 'text', id: 't1', text: 'rules.body' },
+    // the bonus mode's OWN section — its heading resolves through a TOKEN
+    { kind: 'heading', id: 'hb', text: 'rules.bonus.h' },
+    { kind: 'text', id: 'tb', text: 'rules.bonus' },
     { kind: 'text', id: 't2', text: 'rules.fs' },
     { kind: 'heading', id: 'hc', text: 'rules.controls' },
     { kind: 'legal', id: 'l', text: 'rules.legal' },
@@ -28,8 +32,9 @@ const DOC: RulesDoc = {
   messages: {
     en: {
       'rules.about': 'About {{game.name}}',
-      'rules.body':
-        'The Base game pays {{rtp.base}} up to {{maxWin.base}}. Buy {{name.bonus}} for {{cost.bonus}} your bet — RTP {{rtp.bonus}}, max win {{maxWin.bonus}}.',
+      'rules.body': 'The Base game pays {{rtp.base}} with wins up to {{maxWin.base}} on every line you land.',
+      'rules.bonus.h': '{{name.bonus}}',
+      'rules.bonus': 'Buy {{name.bonus}} for {{cost.bonus}} your bet — RTP {{rtp.bonus}}, max win {{maxWin.bonus}}.',
       'rules.fs': 'The bonus awards exactly {{freeSpins.count}} free spins; free spins {{freeSpins.retrigger}} be retriggered.',
       'rules.controls': 'Controls',
       'rules.legal': 'Malfunction voids all wins and plays.',

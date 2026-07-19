@@ -46,14 +46,33 @@ export const RULES_BLOCKS: BlockSpec[] = [
     ],
   },
 
-  // — every CONFIGURED buy/boost feature is described (the rules audit enforces
-  //   this: a feature card in the buy modal with no prose here is called out) —
+  // — every CONFIGURED buy/boost feature gets its OWN section (the audit enforces
+  //   this: a mode with no dedicated section — not just a passing mention — is
+  //   called out). Prices are {{cost.*}} TOKENS resolved from the live facts, so
+  //   the rules can never quote a price the buy modal doesn't charge. —
+  { kind: 'subheading', id: 'r-f-fs-h', text: 'Free Spins' },
   {
     kind: 'text',
-    id: 'r-buys',
-    // Prices are {{cost.*}} TOKENS resolved from the live facts (which the buy-feature
-    // modal declares) — the rules can never quote a price the modal doesn't charge.
-    text: 'From the bonus button you can buy **Free Spins** ({{cost.free-spins}} your bet) or **Super Spins** ({{cost.super-spins}} your bet) directly, activate **Ante Bet** (+25% per spin) to double the bonus trigger chance, or **Double Chance** (+50% per spin) for even better odds.',
+    id: 'r-f-fs',
+    text: 'Land 3 or more **Scatters** — or buy the feature outright for {{cost.free-spins}} your bet — to start {{freeSpins.count}} free spins with a rising multiplier. Free spins {{freeSpins.retrigger}} be retriggered.',
+  },
+  { kind: 'subheading', id: 'r-f-ss-h', text: 'Super Spins' },
+  {
+    kind: 'text',
+    id: 'r-f-ss',
+    text: 'The premium bonus: buy it for {{cost.super-spins}} your bet to start the free spins at a higher multiplier that climbs faster.',
+  },
+  { kind: 'subheading', id: 'r-f-ab-h', text: 'Ante Bet' },
+  {
+    kind: 'text',
+    id: 'r-f-ab',
+    text: 'An optional ante: every spin costs **+25%** more, and in return the chance of triggering the bonus naturally is doubled. Toggle it any time from the bonus button.',
+  },
+  { kind: 'subheading', id: 'r-f-dc-h', text: 'Double Chance' },
+  {
+    kind: 'text',
+    id: 'r-f-dc',
+    text: 'A stronger ante at **+50%** per spin for even better bonus odds. One boost can be active at a time.',
   },
 
   // — the controls guide (Info/Help must explain every interactive control) —

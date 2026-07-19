@@ -159,6 +159,19 @@ export interface RulesAuditIssue {
   message: string;
 }
 
+/** One RULES SECTION: a heading (or the pre-heading preamble) + everything under it
+ *  until the next heading. The unit of "this mode is explained HERE". */
+interface RulesSection {
+  /** The resolved heading text ('' for the preamble before the first heading). */
+  heading: string;
+  /** Resolved prose under the heading (the heading itself excluded). */
+  text: string;
+  /** `explains` tags carried by any block in the section. */
+  explains: Set<string>;
+  /** `covers` tags carried by any block in the section. */
+  covers: Set<string>;
+}
+
 /** Everything the audit extracts from the rules blocks in one pass. */
 interface RulesScan {
   text: string;
@@ -166,16 +179,32 @@ interface RulesScan {
   covers: Set<string>;
   hasModeStats: boolean;
   hasLegal: boolean;
+  sections: RulesSection[];
 }
 
 function scanBlocks(blocks: BlockSpec[] | undefined, resolve: (s: string) => string = (s) => s): RulesScan {
-  const scan: RulesScan = { text: '', headings: '', covers: new Set(), hasModeStats: false, hasLegal: false };
+  const scan: RulesScan = { text: '', headings: '', covers: new Set(), hasModeStats: false, hasLegal: false, sections: [] };
+  let section: RulesSection = { heading: '', text: '', explains: new Set(), covers: new Set() };
+  scan.sections.push(section);
   const addText = (t: unknown): void => {
-    if (typeof t === 'string' && t) scan.text += `\n${resolve(t)}`;
+    if (typeof t === 'string' && t) {
+      const r = resolve(t);
+      scan.text += `\n${r}`;
+      section.text += `\n${r}`;
+    }
   };
   const walk = (list: BlockSpec[] | undefined): void => {
     for (const b of list ?? []) {
-      for (const c of b.covers ?? []) scan.covers.add(c);
+      // A heading starts a NEW section (the unit a mode's explanation lives in).
+      if (b.kind === 'heading' || b.kind === 'subheading') {
+        section = { heading: resolve(b.text), text: '', explains: new Set(), covers: new Set() };
+        scan.sections.push(section);
+      }
+      for (const c of b.covers ?? []) {
+        scan.covers.add(c);
+        section.covers.add(c);
+      }
+      if (b.explains) section.explains.add(b.explains);
       const anyB = b as Record<string, unknown>;
       switch (b.kind) {
         case 'mode-stats':
@@ -190,10 +219,14 @@ function scanBlocks(blocks: BlockSpec[] | undefined, resolve: (s: string) => str
           addText(b.text);
           break;
         case 'heading':
-        case 'subheading':
-          scan.headings += `\n${resolve(b.text)}`;
-          addText(b.text);
+        case 'subheading': {
+          // Global text/headings only — a section's `text` is the prose UNDER its
+          // heading, so a bare heading can't pass for an explanation.
+          const r = resolve(b.text);
+          scan.headings += `\n${r}`;
+          scan.text += `\n${r}`;
           break;
+        }
         case 'text':
           addText(b.text);
           break;
@@ -269,6 +302,31 @@ function mentionsTimes(text: string, x: number): boolean {
 
 const mentionsName = (text: string, name: string): boolean => text.toLowerCase().includes(name.toLowerCase());
 
+/** Does a mode's OWN section state its cost? Accepts the surcharge as `0.5×`, the
+ *  total as `1.5×` (games phrase antes either way), or a `+50%` percentage form. */
+function mentionsCost(text: string, cost: number): boolean {
+  if (mentionsTimes(text, cost) || mentionsTimes(text, cost + 1)) return true;
+  if (cost > 0 && cost < 1) return new RegExp(`\\b${Math.round(cost * 100)}\\s*%`).test(text);
+  return false;
+}
+
+/** A section counts as EXPLAINING a mode when a block in it is tagged
+ *  `explains: <id>` / `covers: ['feature:<id>']`, or its heading names the mode —
+ *  and, for the base game, a "How to play" / "About the game" heading qualifies. */
+function findModeSection(sections: RulesSection[], m: GameModeFact): RulesSection | undefined {
+  return sections.find(
+    (s) =>
+      s.explains.has(m.id) ||
+      s.covers.has(`feature:${m.id}`) ||
+      (s.heading !== '' && m.name !== '' && mentionsName(s.heading, m.name)) ||
+      ((m.kind === 'base' || !m.kind) && /how to play|about the game/i.test(s.heading)),
+  );
+}
+
+/** The minimum resolved prose (chars) a mode's section must carry to count as an
+ *  actual explanation — a heading with a one-liner underneath is not "explained". */
+const MIN_SECTION_PROSE = 40;
+
 /**
  * Audit the rules blocks against the declared game facts. Pure + never-throw.
  * Findings come back most severe first (`required`, then `recommended`); an empty
@@ -306,9 +364,22 @@ export function auditRules(
       } else if (!(scan.hasModeStats || covered(`maxwin:${m.id}`) || (nameIn && mentionsTimes(scan.text, m.maxWinX)))) {
         add('required', 'rules-missing-maxwin', `maxwin:${m.id}`, `The max win of “${m.name}” (${formatTimes(m.maxWinX)}) is not stated in the rules.`);
       }
-      // Every configured feature (anything that isn't the base game) must be described.
-      if (m.kind && m.kind !== 'base' && !(covered(`feature:${m.id}`) || nameIn)) {
-        add('required', 'rules-missing-feature', `feature:${m.id}`, `The configured feature “${m.name}” is not described in the rules.`);
+      // EVERY declared mode — the base game and each bonus/buy/boost — must be
+      // explained EXPLICITLY in its OWN rules section: a heading naming the mode
+      // (or blocks tagged `explains`) followed by real prose. A passing mention in
+      // some shared paragraph does not count.
+      if (!m.id) continue; // garbage-tolerant: an id-less mode can't be tracked
+      const sec = findModeSection(scan.sections, m);
+      if (!sec) {
+        add('required', 'rules-missing-mode-section', `section:${m.id}`, `“${m.name}” has no rules section of its own — add a heading naming it (or tag its blocks with explains: "${m.id}") and explain how the mode plays.`);
+      } else {
+        if (sec.text.trim().length < MIN_SECTION_PROSE) {
+          add('required', 'rules-mode-section-empty', `section:${m.id}`, `The “${m.name}” section has a heading but no real explanation — describe how the mode actually plays.`);
+        }
+        // A costed feature must state its price INSIDE its own section.
+        if (m.kind && m.kind !== 'base' && m.cost != null && !(sec.covers.has(`cost:${m.id}`) || mentionsCost(sec.text, m.cost))) {
+          add('required', 'rules-mode-missing-cost', `cost:${m.id}`, `State what “${m.name}” costs (${formatTimes(m.cost)} the bet — e.g. via {{cost.${m.id}}}) inside its own section.`);
+        }
       }
     }
 

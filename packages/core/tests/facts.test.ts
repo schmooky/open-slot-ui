@@ -20,65 +20,116 @@ const FACTS: GameFacts = {
 const codes = (facts: GameFacts | undefined, rules: BlockSpec[] | undefined): string[] =>
   auditRules(facts, rules).map((i) => `${i.level}:${i.code}:${i.topic}`);
 
+// A COMPLETE rules document under the strict model: every declared mode has its
+// OWN section (a heading naming it + real prose, costs stated inside), the free
+// spins are fully specified, and mode-stats covers all RTP / max-win figures.
+const GOOD: BlockSpec[] = [
+  { kind: 'heading', id: 'h-how', text: 'How to play' },
+  { kind: 'text', id: 't-how', text: 'Press SPIN to play a round at the current bet; matching faces pay their value.' },
+  { kind: 'heading', id: 'h-lucky', text: 'Lucky Bet' },
+  { kind: 'text', id: 't-lucky', text: 'Lucky Bet is an optional ante: every spin costs 2× your bet and boosts the bonus chance.' },
+  { kind: 'heading', id: 'h-bonus', text: 'Golden Rush bonus' },
+  { kind: 'text', id: 't-bonus', text: 'Buy Golden Rush for 185× your bet: exactly 3 free spins, and free spins cannot be retriggered.' },
+  { kind: 'mode-stats', id: 'ms' },
+  { kind: 'heading', id: 'hc', text: 'Controls' },
+  { kind: 'text', id: 'tc', text: 'SPIN plays a round; − / + change your bet; the menu opens these rules.' },
+  { kind: 'legal', id: 'l', text: 'Malfunction voids all wins and plays.' },
+];
+
 describe('auditRules — the "can\'t forget" rules audit', () => {
-  it('a mode-stats block satisfies every per-mode RTP/max-win requirement at once', () => {
+  it('per-mode sections + mode-stats + full free-spins info = clean', () => {
+    expect(auditRules(FACTS, GOOD)).toEqual([]);
+  });
+
+  it('EVERY declared mode needs its OWN section — a passing mention does not count', () => {
+    // Lucky Bet + Golden Rush are both named in a shared paragraph, but have no
+    // sections of their own → both are REQUIRED findings.
     const rules: BlockSpec[] = [
-      { kind: 'text', id: 't', text: 'Lucky Bet doubles your stake. Golden Rush is the bonus: exactly 3 free spins, and free spins cannot be retriggered.' },
-      { kind: 'mode-stats', id: 'ms' },
-      { kind: 'legal', id: 'l', text: 'Malfunction voids all wins and plays.' },
-      { kind: 'heading', id: 'hc', text: 'Controls' },
+      ...GOOD.filter((b) => !['h-lucky', 't-lucky', 'h-bonus', 't-bonus'].includes(b.id)),
+      { kind: 'text', id: 't-mention', text: 'Lucky Bet doubles your stake. Golden Rush is the bonus: exactly 3 free spins, and free spins cannot be retriggered.' },
     ];
-    expect(auditRules(FACTS, rules)).toEqual([]);
+    const found = codes(FACTS, rules);
+    expect(found).toContain('required:rules-missing-mode-section:section:lucky');
+    expect(found).toContain('required:rules-missing-mode-section:section:bonus');
+    expect(found).not.toContain('required:rules-missing-mode-section:section:base'); // "How to play" explains the base game
+  });
+
+  it('a section heading with no real prose underneath is called out', () => {
+    const rules = GOOD.map((b) => (b.id === 't-bonus' ? { ...b, text: 'Fun!' } : b));
+    expect(codes(FACTS, rules)).toContain('required:rules-mode-section-empty:section:bonus');
+  });
+
+  it('a costed feature must state its price INSIDE its own section', () => {
+    const rules = GOOD.map((b) =>
+      b.id === 't-bonus' ? { ...b, text: 'Golden Rush plays exactly 3 free spins on richer reels; free spins cannot be retriggered.' } : b,
+    );
+    expect(codes(FACTS, rules)).toContain('required:rules-mode-missing-cost:cost:bonus');
+    // the ante states its cost as the TOTAL (2× = 1 + surcharge 1) — accepted
+    expect(codes(FACTS, GOOD)).not.toContain('required:rules-mode-missing-cost:cost:lucky');
+    // percentage phrasing for a fractional surcharge is accepted too (+50%)
+    const pct: GameFacts = { modes: [{ id: 'dc', name: 'Double Chance', kind: 'boost', cost: 0.5, rtp: 96, maxWinX: 100 }], freeSpins: false };
+    const pctRules: BlockSpec[] = [
+      { kind: 'heading', id: 'h', text: 'Double Chance' },
+      { kind: 'text', id: 't', text: 'A stronger ante at +50% per spin for better bonus odds, toggled from the bonus button.' },
+      { kind: 'mode-stats', id: 'ms' },
+      { kind: 'heading', id: 'hc', text: 'Controls' },
+      { kind: 'legal', id: 'l', text: 'Malfunction voids.' },
+    ];
+    expect(codes(pct, pctRules)).not.toContain('required:rules-mode-missing-cost:cost:dc');
+  });
+
+  it('blocks tagged explains: "<modeId>" form a section without needing a matching heading', () => {
+    const rules: BlockSpec[] = [
+      ...GOOD.filter((b) => !['h-bonus', 't-bonus'].includes(b.id)),
+      { kind: 'text', id: 't-tagged', explains: 'bonus', text: 'The bonus buy costs 185× your bet and plays exactly 3 free spins; free spins cannot be retriggered.' },
+    ];
+    // the tagged block lives inside the LAST section but explains the bonus mode
+    expect(codes(FACTS, rules)).not.toContain('required:rules-missing-mode-section:section:bonus');
   });
 
   it('forgetting a mode\'s RTP / max win in the rules is a REQUIRED finding', () => {
-    const rules: BlockSpec[] = [
-      { kind: 'text', id: 't', text: 'Golden Rush: 3 free spins, no retrigger. Lucky Bet is an ante. Base game RTP 95.50% up to 2,208×.' },
-      { kind: 'heading', id: 'hc', text: 'Controls' },
-      { kind: 'legal', id: 'l', text: 'Malfunction voids all plays.' },
-    ];
+    // sections are all present, but the mode-stats grid is gone and only the base
+    // figures are stated in prose → the other modes\' maxwins are caught.
+    const rules = GOOD.filter((b) => b.id !== 'ms').map((b) =>
+      b.id === 't-how' ? { ...b, text: 'The Base game pays to an RTP of 95.50% with wins up to 2,208× your stake per round.' } : b,
+    );
     const found = codes(FACTS, rules);
-    // base is fully covered by the prose (name + 95.50% + 2,208×). The shared RTP figure
-    // also covers the other modes (they're named + the value is stated — the heuristic is
-    // deliberately global, so "every mode keeps the same 95.50% RTP" never false-flags)…
     expect(found).not.toContain('required:rules-missing-rtp:rtp:base');
     expect(found).not.toContain('required:rules-missing-maxwin:maxwin:base');
+    // the shared 95.50% figure + the mode names cover RTP globally (deliberate:
+    // "every mode keeps the same 95.50% RTP" must never false-flag)…
     expect(found).not.toContain('required:rules-missing-rtp:rtp:lucky');
-    // …but the FORGOTTEN 5,000× max wins of Lucky Bet + Golden Rush are still caught.
+    // …but the FORGOTTEN 5,000× max wins of Lucky Bet + Golden Rush are caught.
     expect(found).toContain('required:rules-missing-maxwin:maxwin:lucky');
     expect(found).toContain('required:rules-missing-maxwin:maxwin:bonus');
   });
 
   it('text heuristics accept the natural forms: "95.5%" ≡ "95.50%", "5,000×" ≡ "5000x"', () => {
     const mk = (text: string): BlockSpec[] => [
+      { kind: 'heading', id: 'h', text: 'About the game' },
       { kind: 'text', id: 't', text },
       { kind: 'heading', id: 'hc', text: 'Controls' },
       { kind: 'legal', id: 'l', text: 'Malfunction voids.' },
     ];
     const facts: GameFacts = { modes: [{ id: 'base', name: 'Base', kind: 'base', rtp: 95.5, maxWinX: 5000 }], freeSpins: false };
-    expect(codes(facts, mk('Base pays to 95.5% RTP, capped at 5000x.'))).toEqual([]);
-    expect(codes(facts, mk('Base pays to 95.50 % RTP, capped at 5,000×.'))).toEqual([]);
-    expect(codes(facts, mk('Base is great.'))).toContain('required:rules-missing-rtp:rtp:base');
-  });
-
-  it('a feature configured in the buy modal but never described is a REQUIRED finding', () => {
-    const rules: BlockSpec[] = [{ kind: 'mode-stats', id: 'ms' }, { kind: 'heading', id: 'hc', text: 'Controls' }, { kind: 'legal', id: 'l', text: 'Malfunction voids.' }];
-    const found = codes(FACTS, rules);
-    // mode-stats covers RTP/max-win — but the FEATURES still need prose (their NAME).
-    expect(found).toContain('required:rules-missing-feature:feature:lucky');
-    expect(found).toContain('required:rules-missing-feature:feature:bonus');
+    expect(codes(facts, mk('The Base game pays to a 95.5% RTP overall, capped at 5000x per single round.'))).toEqual([]);
+    expect(codes(facts, mk('The Base game pays to a 95.50 % RTP overall, capped at 5,000× per single round.'))).toEqual([]);
+    expect(codes(facts, mk('Base is great and plenty of prose lives here to fill its section out.'))).toContain('required:rules-missing-rtp:rtp:base');
   });
 
   it('covers tags mark hand-written prose as covering a topic the heuristics miss', () => {
     const rules: BlockSpec[] = [
-      { kind: 'text', id: 't', text: 'The golden bonus round and the double-stake option are described here at length.', covers: ['feature:bonus', 'feature:lucky', 'rtp:base', 'maxwin:base', 'rtp:lucky', 'maxwin:lucky', 'rtp:bonus', 'maxwin:bonus', 'freespins', 'freespins:count', 'freespins:retrigger', 'controls'] },
+      { kind: 'text', id: 't', text: 'The golden bonus round and the double-stake option are described here at length.', covers: ['feature:base', 'feature:bonus', 'feature:lucky', 'cost:lucky', 'cost:bonus', 'rtp:base', 'maxwin:base', 'rtp:lucky', 'maxwin:lucky', 'rtp:bonus', 'maxwin:bonus', 'freespins', 'freespins:count', 'freespins:retrigger', 'controls'] },
       { kind: 'legal', id: 'l', text: 'Malfunction voids.' },
     ];
     expect(auditRules(FACTS, rules)).toEqual([]);
   });
 
   it('free-spins info is HIGHLY RECOMMENDED: undeclared facts, missing count, missing retrigger', () => {
-    const base: BlockSpec[] = [{ kind: 'mode-stats', id: 'ms' }, { kind: 'text', id: 't', text: 'Lucky Bet & Golden Rush.' }, { kind: 'heading', id: 'hc', text: 'Controls' }, { kind: 'legal', id: 'l', text: 'Malfunction voids.' }];
+    // sections all present, but the bonus section says nothing about free spins.
+    const base = GOOD.map((b) =>
+      b.id === 't-bonus' ? { ...b, text: 'Buy Golden Rush for 185× your bet — a bonus round played on richer reels.' } : b,
+    );
     // facts don't declare freeSpins at all → recommend declaring them (or false).
     expect(codes({ ...FACTS, freeSpins: undefined }, base)).toContain('recommended:facts-missing-freespins:freespins');
     // declared but the rules never mention free spins.

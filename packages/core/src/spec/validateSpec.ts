@@ -139,6 +139,9 @@ export function validateSpec(spec: UISpec): { ok: boolean; issues: SpecIssue[] }
           return;
         }
         seeId(b.id, `${p}.id`);
+        if (b.explains && b.explains !== 'freeSpins' && spec.facts?.modes?.length && !spec.facts.modes.some((m) => m.id === b.explains)) {
+          add('warn', `${p}.explains`, 'explains-unknown-mode', `explains "${b.explains}" matches no declared mode id (facts.modes)`);
+        }
         if (b.kind === 'select' && (!b.options || b.options.length === 0)) {
           add('error', `${p}.options`, 'select-empty', 'a select block needs at least one option');
         }
