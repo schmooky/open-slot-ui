@@ -1,6 +1,6 @@
 {
   "name": "@open-slot-ui/pixi",
-  "version": "0.4.2",
+  "version": "0.9.0",
   "description": "PixiJS v8 view + controller binding for open-ui — mount a themeable, responsive, fully-tested slot-game HUD onto your Pixi scene in one call.",
   "keywords": [
     "pixijs",
@@ -38,6 +38,13 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs",
       "default": "./dist/index.js"
+    },
+    "./art": {
+      "source": "./src/art/index.ts",
+      "types": "./dist/art.d.ts",
+      "import": "./dist/art.js",
+      "require": "./dist/art.cjs",
+      "default": "./dist/art.js"
     }
   },
   "files": [

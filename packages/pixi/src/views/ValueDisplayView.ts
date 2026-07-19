@@ -80,7 +80,6 @@ export class ValueDisplayView extends ControlView {
 
   private build(): void {
     const theme = this.ui.theme;
-    const side = this.side();
 
     if (this.vd.label) {
       // Figma "default" look: the caption is a bold white word on a solid black pill
@@ -91,21 +90,38 @@ export class ValueDisplayView extends ControlView {
         style: { fontFamily: theme.type.family, fontSize: 28, fill: 0xffffff, fontWeight: '900', letterSpacing: 0 },
       });
       this.caption.anchor.set(0.5, 0.5);
-
-      const padX = 24;
-      const padY = 8;
-      const pillW = Math.ceil(this.caption.width) + padX * 2;
-      const pillH = Math.ceil(this.caption.height) + padY * 2;
-      // Anchor the pill to the value's side so it lines up with the number below it.
-      const pillX = side === 'left' ? 0 : side === 'right' ? -pillW : -pillW / 2;
-      const pillY = -DIGIT_H / 2 - pillH - 14; // ~24px gap above the value (Figma)
-      this.captionPill = new Graphics().roundRect(pillX, pillY, pillW, pillH, 12).fill({ color: 0x000000 });
-      this.caption.position.set(pillX + pillW / 2, pillY + pillH / 2);
+      this.captionPill = new Graphics();
       this.addChild(this.captionPill, this.caption);
+      this.sizeCaptionPill();
+      // Re-measure once web fonts settle: on first mount Pixi may size the pill from
+      // FALLBACK metrics (before the real font is active), so a non-Latin caption
+      // (e.g. "Общий выигрыш") would clip and never correct itself. Fits the pill to
+      // the true glyph width the moment the font is ready — no counter rebuild.
+      if (typeof document !== 'undefined' && document.fonts?.ready) {
+        void document.fonts.ready.then(() => {
+          if (!this.destroyed && this.caption) this.sizeCaptionPill();
+        });
+      }
     }
 
     const cur = this.vd.currency.get();
     this.buildCounter(displayDigits(this.vd.get(), this.vd.digits, cur.decimals), this.vd.minorUnits);
+  }
+
+  /** Size the caption pill to the caption's current measured width + padding and centre
+   *  the text in it, anchored to the value's side. Re-runnable (fonts-ready / relayout). */
+  private sizeCaptionPill(): void {
+    if (!this.caption || !this.captionPill) return;
+    const side = this.side();
+    const padX = 24;
+    const padY = 8;
+    const pillW = Math.ceil(this.caption.width) + padX * 2;
+    const pillH = Math.ceil(this.caption.height) + padY * 2;
+    // Anchor the pill to the value's side so it lines up with the number below it.
+    const pillX = side === 'left' ? 0 : side === 'right' ? -pillW : -pillW / 2;
+    const pillY = -DIGIT_H / 2 - pillH - 14; // ~24px gap above the value (Figma)
+    this.captionPill.clear().roundRect(pillX, pillY, pillW, pillH, 12).fill({ color: 0x000000 });
+    this.caption.position.set(pillX + pillW / 2, pillY + pillH / 2);
   }
 
   /** (Re)create the rolling counter sized to `total` columns, starting at `fromMinor`. */
@@ -152,8 +168,10 @@ export class ValueDisplayView extends ControlView {
     // sizing keeps it adjacent to the number: "$1,234.50" / "1,234.50€" / "100,000 SATS".
     const symbolMode = cur.display === 'symbol' && !!cur.symbol;
     const affix = symbolMode ? (cur.symbol as string) : cur.code;
+    // Stake placement: a PREFIX symbol hugs the number ("$1,234.50"); a SUFFIX symbol
+    // (zł, kr, …) OR the ISO code is spaced ("1.234,50 zł" / "1,234.50 USD").
     if ((cur.position ?? 'suffix') === 'prefix') opts.prefix = symbolMode ? affix : `${affix} `;
-    else opts.suffix = symbolMode ? affix : ` ${affix}`;
+    else opts.suffix = ` ${affix}`;
 
     // A very large value (whale crypto, big SATS counts) is scaled down to a fixed
     // budget so it never spills into its neighbours; normal magnitudes render full size.
@@ -174,7 +192,17 @@ export class ValueDisplayView extends ControlView {
     if (this.fitGsap) {
       this.counter.x = 0;
     } else {
-      this.counter.x = side === 'left' ? 0 : side === 'right' ? -this.counter.width : -this.counter.width / 2;
+      // No host gsap → clamp the width STATICALLY so a large value can never overflow
+      // its box and drift onto a neighbouring button (the gsap path animates this same
+      // clamp; here it just snaps). Scale down to the fit budget, floored at 0.5 (which
+      // covers up to 18 columns), and re-anchor to the scaled width.
+      const budget = valueFitMaxWidth(Math.max(this.vd.digits, FIT_BUDGET_COLS), DIGIT_W);
+      const natural = this.counter.width;
+      const k = natural > budget ? Math.max(0.5, budget / natural) : 1;
+      this.counter.scale.set(k);
+      this.counter.y = -DIGIT_H * k / 2; // keep it vertically centred at the shrunk size
+      const w = natural * k;
+      this.counter.x = side === 'left' ? 0 : side === 'right' ? -w : -w / 2;
     }
     this.addChild(this.counter);
   }

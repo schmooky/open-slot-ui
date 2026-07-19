@@ -12,6 +12,7 @@ import { validateSpec } from './validateSpec';
 import { installResponsive } from './responsive';
 import { resolveCurrency } from '../format/currency';
 import { portraitDefaultLayouts } from '../layout/defaultLayouts';
+import { checkSocialPhrases } from './socialPhrases';
 import type { UISpec, HostHooks, TurboSpec, ResponsiveOverride } from './types';
 import type { OpenUIEvents } from '../types';
 
@@ -54,6 +55,7 @@ export function createUI(spec: UISpec = {}, hooks: HostHooks = {}): OpenUI {
     const cur = typeof spec.currency === 'string' ? resolveCurrency(spec.currency) : spec.currency;
     ui.balance.setCurrency(cur);
     ui.bet.setCurrency(cur);
+    ui.totalWin.setCurrency(cur); // bonus total-win formats like the money displays
     ui.netPosition.setCurrency(cur);
   }
 
@@ -63,8 +65,27 @@ export function createUI(spec: UISpec = {}, hooks: HostHooks = {}): OpenUI {
     else ui.setSocial(true);
   }
 
+  // In social mode, LINT the game's English copy for restricted gambling wording
+  // (pay*/bet/funds/cash/…) and report each finding with a compliant replacement — so a
+  // stray "paytable" can't ship. Never blocks boot; forwarded to onDataIssue + console.
+  if (spec.social || spec.jurisdiction?.socialCasino) {
+    const found = checkSocialPhrases(spec);
+    for (const issue of found) {
+      hooks.onDataIssue?.({
+        level: 'warn',
+        path: issue.source,
+        code: 'social-forbidden-phrase',
+        message: `Social mode restricted wording in "${issue.text}": ${issue.matches.map((m) => `“${m.term}” → ${m.replacement}`).join('; ')}`,
+      });
+    }
+    if (found.length && typeof console !== 'undefined') {
+      console.warn(`[open-ui] social mode: ${found.length} string(s) contain restricted phrases (see onDataIssue). First: ${found[0]!.source} → "${found[0]!.text}"`);
+    }
+  }
+
   if (typeof spec.rtp === 'number') ui.rtp.set(spec.rtp);
   if (spec.game) ui.gameInfo = { name: spec.game.name, version: spec.game.version };
+  if (spec.facts) ui.declareFacts(spec.facts);
 
   if (spec.betLadder?.levels?.length) {
     ui.betStepper.setLevels(spec.betLadder.levels, spec.betLadder.index ?? 0);
@@ -79,6 +100,7 @@ export function createUI(spec: UISpec = {}, hooks: HostHooks = {}): OpenUI {
   }
   if (spec.autoplay?.lossLimits) ui.autoplay.setLossLimitOptions(spec.autoplay.lossLimits);
   if (spec.autoplay?.winLimits) ui.autoplay.setWinLimitOptions(spec.autoplay.winLimits);
+  if (spec.autoplay?.insufficientFundsNotice === false) ui.autoplayInsufficientNotice = false;
 
   // Turbo: 2-mode (off/on) or 3-mode (off/turbo/super), or an explicit ladder.
   if (spec.turbo) {
@@ -106,6 +128,12 @@ export function createUI(spec: UISpec = {}, hooks: HostHooks = {}): OpenUI {
         if (ov.digits != null) c.setDigits(ov.digits);
       }
     }
+  }
+
+  // Buy-feature confirm threshold (explicit config) — set before jurisdiction so a
+  // platform jurisdiction can tighten it, but the game's own value is the default.
+  if (spec.buyFeature?.confirmAboveCost != null && Number.isFinite(spec.buyFeature.confirmAboveCost)) {
+    ui.confirmBuyAboveCost = Math.max(0, spec.buyFeature.confirmAboveCost);
   }
 
   // Jurisdiction (the Stake Engine compliance switchboard) is applied BEFORE the

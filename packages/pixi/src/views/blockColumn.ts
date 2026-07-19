@@ -127,6 +127,18 @@ export function buildBlockColumn(
     wrap.addChild(txt);
     return wrap;
   };
+  // A control's HINT: a small dim, centered, wrapped description shown UNDER the
+  // control so its function is self-explanatory (e.g. "Shorter spin animation").
+  const hintNode = (s: string): Container => {
+    const wrap = new Container();
+    const txt = new Text({
+      text: s,
+      style: { fontFamily: t.type.family, fontSize: 12.5, fill: t.color.textDim, align: 'center', wordWrap: true, wordWrapWidth: innerW * 0.86, lineHeight: 17 },
+    });
+    txt.anchor.set(0.5);
+    wrap.addChild(txt);
+    return wrap;
+  };
 
   const makeView = (b: BlockSpec, control: Control): ControlView | null => {
     const skin = opts.controlSkins?.[b.id];
@@ -213,6 +225,9 @@ export function buildBlockColumn(
           if (b.kind === 'slider') view.position.set(-130, -27); // SliderView is left-origin
           wrap.addChild(view);
           placeFixed(wrap, ROW_H);
+          // A `hint` explains the control's function, shown dim just below it.
+          const hint = (b as { hint?: string }).hint;
+          if (hint) placeAuto(hintNode(tr(hint)), 12);
         }
       }
     }

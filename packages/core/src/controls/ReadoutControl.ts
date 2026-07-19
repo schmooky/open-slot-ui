@@ -41,6 +41,10 @@ export class ReadoutControl extends Control {
   readonly value = new Signal<number>(0);
   /** Whether a `'duration'` readout is currently advancing. */
   readonly running = new Signal<boolean>(false);
+  /** Accent emphasis: the renderer tints the value in the theme accent while on — for
+   *  a MODIFIED readout (e.g. net position while a bet boost is active). Mirrors
+   *  {@link ValueDisplay.emphasized}. */
+  readonly emphasized = new Signal<boolean>(false);
   readonly kind: ReadoutKind;
   readonly label?: string;
   readonly decimals: number;
@@ -61,6 +65,10 @@ export class ReadoutControl extends Control {
   /** Never-reject: malformed input keeps the last good value (P11). */
   set(v: number): void {
     this.value.set(safeAmount(v, this.value.get()));
+  }
+  /** Accent-tint the value ("this readout is modified"). Strict boolean. */
+  setEmphasis(on: boolean): void {
+    this.emphasized.set(on === true);
   }
   get(): number {
     return this.value.get();

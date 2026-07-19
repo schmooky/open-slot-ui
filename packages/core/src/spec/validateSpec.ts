@@ -114,6 +114,9 @@ export function validateSpec(spec: UISpec): { ok: boolean; issues: SpecIssue[] }
     if (spec.realityCheck != null && !(typeof spec.realityCheck.everyMinutes === 'number' && spec.realityCheck.everyMinutes > 0)) {
       add('error', 'realityCheck.everyMinutes', 'bad-interval', 'realityCheck.everyMinutes must be a number > 0');
     }
+    if (spec.buyFeature?.confirmAboveCost != null && !(typeof spec.buyFeature.confirmAboveCost === 'number' && Number.isFinite(spec.buyFeature.confirmAboveCost) && spec.buyFeature.confirmAboveCost >= 0)) {
+      add('error', 'buyFeature.confirmAboveCost', 'bad-threshold', 'buyFeature.confirmAboveCost must be a finite number >= 0');
+    }
 
     if (spec.controls) {
       for (const [id, ov] of Object.entries(spec.controls)) {
@@ -147,6 +150,9 @@ export function validateSpec(spec: UISpec): { ok: boolean; issues: SpecIssue[] }
         }
         if (b.kind === 'stat-grid' && (!b.items || b.items.length === 0)) {
           add('warn', `${p}.items`, 'empty-grid', 'a stat-grid block has no items');
+        }
+        if (b.kind === 'mode-stats' && !spec.facts?.modes?.length) {
+          add('warn', `${p}`, 'mode-stats-no-facts', 'a mode-stats block renders from spec.facts.modes, but no modes are declared');
         }
         if (b.kind === 'steps' && (!b.items || b.items.length === 0)) {
           add('warn', `${p}.items`, 'empty-steps', 'a steps block has no items');

@@ -1,0 +1,58 @@
+import { type Texture } from 'pixi.js';
+import { svgToTexture, sliceRows } from './raster';
+
+/**
+ * Turbo button art — a 2-frame vertical sheet: OFF (white coin, black » bolt) over
+ * ON (gold coin, black » bolt). The sheet is a clean 120×240 so slicing it into two
+ * 120px rows centres the circle IDENTICALLY in both frames (off cy=60, on cy=180) —
+ * the button never jumps vertically when it toggles off↔on. Edit this string, never
+ * redraw by hand.
+ */
+export const turboSvg = `<svg width="120" height="240" viewBox="0 0 120 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g filter="url(#turbo_off_shadow)">
+<circle cx="60" cy="60" r="38.5" fill="white"/>
+<circle cx="60" cy="60" r="37" stroke="black" stroke-width="6"/>
+</g>
+<g clip-path="url(#turbo_off_clip)">
+<path d="M44.2619 60.2005L67.8115 40.1768C68.3388 39.7284 69.1329 40.1954 69.0052 40.8789L66.0165 56.8784C65.9326 57.3274 66.2687 57.7449 66.7219 57.7546L75.2806 57.9357C75.9717 57.9503 76.2609 58.8324 75.7146 59.2595L49.3755 79.8417C48.814 80.2805 48.0235 79.7387 48.2218 79.051L52.9604 62.6106C53.095 62.1437 52.7536 61.6752 52.2714 61.665L44.7195 61.5052C44.0433 61.4909 43.745 60.6402 44.2619 60.2005Z" fill="black"/>
+</g>
+<g filter="url(#turbo_on_shadow)">
+<circle cx="60" cy="180" r="38.5" fill="#FFC935"/>
+<circle cx="60" cy="180" r="37" stroke="black" stroke-width="6"/>
+</g>
+<g clip-path="url(#turbo_on_clip)">
+<path d="M44.2619 180.2005L67.8115 160.1768C68.3388 159.7284 69.1329 160.1954 69.0052 160.8789L66.0165 176.8784C65.9326 177.3274 66.2687 177.7449 66.7219 177.7546L75.2806 177.9357C75.9717 177.9503 76.2609 178.8324 75.7146 179.2595L49.3755 199.8417C48.814 200.2805 48.0235 199.7387 48.2218 199.051L52.9604 182.6106C53.095 182.1437 52.7536 181.6752 52.2714 181.665L44.7195 181.5052C44.0433 181.4909 43.745 180.6402 44.2619 180.2005Z" fill="black"/>
+</g>
+<defs>
+<filter id="turbo_off_shadow" x="20" y="20" width="82" height="89" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset dx="1" dy="8"/>
+<feGaussianBlur stdDeviation="0.5"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0"/>
+<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/>
+<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
+</filter>
+<filter id="turbo_on_shadow" x="20" y="140" width="82" height="89" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset dx="1" dy="8"/>
+<feGaussianBlur stdDeviation="0.5"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0"/>
+<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/>
+<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
+</filter>
+<clipPath id="turbo_off_clip"><rect width="32" height="40" fill="white" transform="translate(44 40)"/></clipPath>
+<clipPath id="turbo_on_clip"><rect width="32" height="40" fill="white" transform="translate(44 160)"/></clipPath>
+</defs>
+</svg>`;
+
+/** Rasterize the turbo sheet and slice it into the off + on frame textures. */
+export async function loadTurboArt(): Promise<{ off: Texture; on: Texture } | undefined> {
+  const tex = await svgToTexture(turboSvg);
+  if (!tex) return undefined;
+  const [off, on] = sliceRows(tex, 2) as [Texture, Texture];
+  return { off, on };
+}

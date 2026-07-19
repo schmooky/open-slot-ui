@@ -11,7 +11,12 @@ const ROOT = fileURLToPath(new URL('../screenshots/matrix/', import.meta.url));
 const CONTACT = ROOT + '_contact/';
 mkdirSync(CONTACT, { recursive: true });
 
-const CATS = ['phones', 'tablets', 'desktops'];
+// Stake dimension-matrix bands, in reading order; fall back to whatever dirs exist.
+const KNOWN = ['stake-player', 'landscape', 'square', 'portrait', 'phones', 'tablets', 'desktops'];
+const present = readdirSync(ROOT, { withFileTypes: true })
+  .filter((d) => d.isDirectory() && d.name !== '_contact')
+  .map((d) => d.name);
+const CATS = [...KNOWN.filter((c) => present.includes(c)), ...present.filter((c) => !KNOWN.includes(c))];
 const STATES = [
   ['1 hud', 'HUD', 300, 380],
   ['2 menu', 'Menu', 300, 380],
@@ -49,7 +54,7 @@ for (const [suffix, label, thumbW, thumbH] of STATES) {
     figcaption{font-size:12px;color:#99a0ab;max-width:300px;text-align:center}
   </style></head><body>
     <h1>open-ui — ${label} across devices</h1>
-    <p class="sub">Popular 2026 phones (portrait + landscape), tablets (both), and desktop resolutions · Playwright Chromium device emulation</p>
+    <p class="sub">Stake Engine dimension matrix — 16:9 iframe players + every ratio × size band (landscape / almost-square / portrait) from the web-sdk createLayout</p>
     ${sections}
   </body></html>`;
 

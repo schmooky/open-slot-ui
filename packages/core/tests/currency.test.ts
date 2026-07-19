@@ -3,6 +3,8 @@ import { ValueDisplay, type CurrencySpec } from '../src/controls/ValueDisplay';
 import { displayDigits, integerDigits, clampMinDigits, clampDigits, valueFitMaxWidth } from '../src/safe';
 import { createUI } from '../src/spec/createUI';
 import { validateSpec } from '../src/spec/validateSpec';
+import { resolveCurrency, formatAmount, formatAmountPrecise, neededDecimals } from '../src/format/currency';
+import { resolveBetLadder } from '../src/bet';
 
 const layout = { anchor: 'center' } as const;
 const vd = (currency: CurrencySpec, initial = 0): ValueDisplay =>
@@ -18,7 +20,15 @@ describe('currency display / minimal unit', () => {
 
   it('rounds to the minimal unit without float drift', () => {
     expect(vd({ code: 'USD', decimals: 2 }, 0.1 + 0.2).minorUnits).toBe(30); // 0.30, not 0.30000000004
-    expect(vd({ code: 'JPY', decimals: 0 }, 1999.9).minorUnits).toBe(2000);
+    // auto-precision (default): a value with real sub-unit digits shows them —
+    // JPY 1999.9 renders 1,999.9, never a silently-rounded 2,000.
+    expect(vd({ code: 'JPY', decimals: 0 }, 1999.9).minorUnits).toBe(19999);
+    expect(vd({ code: 'JPY', decimals: 0 }, 1999.9).currency.get().decimals).toBe(1);
+    // opt out → the old hard-fixed decimals (and the old rounding) return.
+    const fixed = new ValueDisplay({ id: 'balance', layout, currency: { code: 'JPY', decimals: 0 } });
+    fixed.autoPrecision = false;
+    fixed.set(1999.9);
+    expect(fixed.minorUnits).toBe(2000);
   });
 
   it('setCurrency preserves symbol + display and clamps decimals to 0..8', () => {
@@ -180,5 +190,134 @@ describe('digits override — optional minimum width (auto by default)', () => {
     const bad = validateSpec({ controls: { balance: { digits: 'x' as unknown as number } } });
     expect(bad.ok).toBe(false); // non-number is an error
     expect(bad.issues.some((i) => i.code === 'bad-digits' && i.level === 'error')).toBe(true);
+  });
+});
+
+describe('Stake currency formatter (symbol · decimals · placement)', () => {
+  it('resolves a code to the Stake symbol, side and decimals', () => {
+    expect(resolveCurrency('CNY')).toMatchObject({ code: 'CNY', symbol: 'CN¥', display: 'symbol', position: 'prefix', decimals: 2 });
+    expect(resolveCurrency('USD')).toMatchObject({ symbol: '$', position: 'prefix', decimals: 2 });
+    expect(resolveCurrency('JPY')).toMatchObject({ symbol: '¥', position: 'prefix', decimals: 0 });
+    expect(resolveCurrency('CAD')).toMatchObject({ symbol: 'CA$', position: 'prefix', decimals: 2 });
+    expect(resolveCurrency('PLN')).toMatchObject({ symbol: 'zł', position: 'suffix', decimals: 2 });
+    expect(resolveCurrency('VND')).toMatchObject({ symbol: '₫', position: 'suffix', decimals: 0 });
+    expect(resolveCurrency('BTC')).toMatchObject({ symbol: '₿', decimals: 8 });
+    expect(resolveCurrency('XGC')).toMatchObject({ code: 'GC', symbol: 'GC', decimals: 2 });
+    expect(resolveCurrency('ZZZ')).toMatchObject({ code: 'ZZZ', position: 'suffix', decimals: 2 }); // unknown → safe code-suffix
+  });
+
+  it('lets a game override (e.g. force more decimals for sub-cent payouts)', () => {
+    expect(resolveCurrency('CNY', { decimals: 4 }).decimals).toBe(4);
+    expect(resolveCurrency('USD', { position: 'suffix' }).position).toBe('suffix');
+    expect(resolveCurrency('EUR', { decimals: 99 }).decimals).toBe(8); // clamped
+  });
+
+  it('formatAmount: prefix symbol tight, suffix symbol spaced, ISO code spaced', () => {
+    expect(formatAmount(1000, resolveCurrency('CNY'))).toBe('CN¥1,000.00');
+    expect(formatAmount(10, resolveCurrency('USD'))).toBe('$10.00');
+    expect(formatAmount(10, resolveCurrency('JPY'))).toBe('¥10');
+    expect(formatAmount(10, resolveCurrency('IDR'))).toBe('Rp10');
+    expect(formatAmount(1234.5, resolveCurrency('PLN'))).toBe('1,234.50 zł');
+    expect(formatAmount(1234.5, { code: 'USD', decimals: 2 })).toBe('1,234.50 USD');
+  });
+
+  it('newly-added Stake currencies: symbols, sides + dinar (3-dp) decimals', () => {
+    // prefix fiat
+    expect(resolveCurrency('NGN')).toMatchObject({ symbol: '₦', position: 'prefix', decimals: 2 });
+    expect(resolveCurrency('TWD')).toMatchObject({ symbol: 'NT$', position: 'prefix', decimals: 2 });
+    expect(resolveCurrency('SGD')).toMatchObject({ symbol: 'SG$', position: 'prefix', decimals: 2 });
+    expect(resolveCurrency('MYR')).toMatchObject({ symbol: 'RM', position: 'prefix', decimals: 2 });
+    expect(resolveCurrency('CRC')).toMatchObject({ symbol: '₡', position: 'prefix', decimals: 2 });
+    // Kuwaiti / Jordanian / Bahraini dinars — 3 decimals (1000 fils)
+    expect(resolveCurrency('KWD')).toMatchObject({ symbol: 'KD', position: 'prefix', decimals: 3 });
+    expect(resolveCurrency('JOD')).toMatchObject({ symbol: 'JD', position: 'prefix', decimals: 3 });
+    expect(resolveCurrency('BHD')).toMatchObject({ symbol: 'BD', position: 'prefix', decimals: 3 });
+    // suffix "kr" krone (both Danish + Norwegian)
+    expect(resolveCurrency('DKK')).toMatchObject({ symbol: 'kr', position: 'suffix', decimals: 2 });
+    expect(resolveCurrency('NOK')).toMatchObject({ symbol: 'kr', position: 'suffix', decimals: 2 });
+    // formatting: prefix tight, suffix spaced, dinar to 3 dp
+    expect(formatAmount(1234.5, resolveCurrency('TWD'))).toBe('NT$1,234.50');
+    expect(formatAmount(10, resolveCurrency('NGN'))).toBe('₦10.00');
+    expect(formatAmount(1234.5, resolveCurrency('NOK'))).toBe('1,234.50 kr');
+    expect(formatAmount(1.5, resolveCurrency('KWD'))).toBe('KD1.500');
+    expect(formatAmount(2.345, resolveCurrency('BHD'))).toBe('BD2.345');
+  });
+
+  it('displays sub-cent payouts when the currency has >2 decimals', () => {
+    // a win of 0.0025 must render exactly, not round to 0.00 — needs >2 decimals.
+    expect(formatAmount(0.0025, resolveCurrency('BTC', { decimals: 4 }))).toBe('₿0.0025');
+    expect(formatAmount(0.002, resolveCurrency('CNY', { decimals: 3 }))).toBe('CN¥0.002');
+    // and the odometer sizes to it (integer digit + fraction columns).
+    expect(displayDigits(0.0025, 0, 4)).toBe(5);
+    expect(new ValueDisplay({ id: 'balance', layout, currency: resolveCurrency('CNY', { decimals: 4 }), initial: 0.0025 }).minorUnits).toBe(25);
+  });
+
+  it('three-decimal Arab dinars/rials: OMR · TND · LYD · IQD', () => {
+    expect(resolveCurrency('OMR')).toMatchObject({ symbol: 'OMR', position: 'prefix', decimals: 3 });
+    expect(resolveCurrency('TND')).toMatchObject({ symbol: 'DT', position: 'prefix', decimals: 3 });
+    expect(resolveCurrency('LYD')).toMatchObject({ symbol: 'LD', position: 'prefix', decimals: 3 });
+    expect(resolveCurrency('IQD')).toMatchObject({ symbol: 'IQD', position: 'prefix', decimals: 3 });
+    // OMR min bet 0.01 × a ×0.2 face = 0.002 — renders at the native 3 dp, no bump needed.
+    expect(formatAmount(0.002, resolveCurrency('OMR'))).toBe('OMR0.002');
+  });
+});
+
+describe('sub-unit precision (Stake: the full ladder shows, so wins can be sub-cent)', () => {
+  it('neededDecimals: only as many digits as the value truly carries, never below native', () => {
+    expect(neededDecimals(0.002, 2)).toBe(3); // USD 0.01 bet × ×0.2 face
+    expect(neededDecimals(999.982, 2)).toBe(3); // the balance that win leaves behind
+    expect(neededDecimals(5, 2)).toBe(2); // clean values keep the native look
+    expect(neededDecimals(1.5, 2)).toBe(2);
+    expect(neededDecimals(0.1 + 0.2, 2)).toBe(2); // float noise snapped, not shown
+    expect(neededDecimals(1999.9, 0)).toBe(1);
+    expect(neededDecimals(0, 2)).toBe(2);
+    expect(neededDecimals(NaN, 2)).toBe(2);
+    expect(neededDecimals(0.00000001, 2)).toBe(8); // capped at the 8-dp ceiling
+  });
+
+  it('formatAmountPrecise: the dice-cascade rule — USD 0.01 × x0.2 shows $0.002, not $0.00', () => {
+    const usd = resolveCurrency('USD');
+    expect(formatAmountPrecise(0.002, usd)).toBe('$0.002');
+    expect(formatAmountPrecise(999.982, usd)).toBe('$999.982');
+    expect(formatAmountPrecise(5, usd)).toBe('$5.00'); // clean → identical to formatAmount
+    expect(formatAmountPrecise(1234.5, usd)).toBe('$1,234.50');
+    expect(formatAmountPrecise(0.002, usd)).not.toBe(formatAmount(0.002, usd)); // the old crop
+  });
+
+  it('ValueDisplay auto-precision: the balance readout bumps and drops back by itself', () => {
+    const v = new ValueDisplay({ id: 'balance', layout, currency: resolveCurrency('USD'), initial: 1000 });
+    expect(v.currency.get().decimals).toBe(2);
+    v.set(999.982); // a sub-cent win landed
+    expect(v.currency.get().decimals).toBe(3);
+    expect(v.minorUnits).toBe(999982);
+    v.set(1000.5); // clean again → native 2 dp
+    expect(v.currency.get().decimals).toBe(2);
+    expect(v.minorUnits).toBe(100050);
+  });
+
+  it('setCurrency resets the native precision the auto-bump returns to', () => {
+    const v = new ValueDisplay({ id: 'balance', layout, currency: resolveCurrency('USD'), initial: 999.982 });
+    expect(v.currency.get().decimals).toBe(3);
+    v.setCurrency(resolveCurrency('OMR')); // 3-dp native — 999.982 needs no bump
+    expect(v.currency.get().decimals).toBe(3);
+    v.set(1.2345); // beyond OMR's 3 dp → bumps to 4
+    expect(v.currency.get().decimals).toBe(4);
+  });
+});
+
+describe('resolveBetLadder — the authenticate ladder VERBATIM (no sub-unit filtering)', () => {
+  it('keeps every level including the true minimum (USD 0.01) and snaps the default', () => {
+    const { levels, index } = resolveBetLadder([0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1], 0.1);
+    expect(levels[0]).toBe(0.01); // NOT filtered out
+    expect(levels).toHaveLength(7);
+    expect(index).toBe(3);
+  });
+  it('snaps a default that is not an exact level to the first level ≥ it', () => {
+    expect(resolveBetLadder([0.2, 0.5, 1, 2], 0.6).index).toBe(2); // → 1
+    expect(resolveBetLadder([0.2, 0.5, 1, 2], 99).index).toBe(0); // none ≥ → clamped to 0
+  });
+  it('falls back when authenticate offers nothing', () => {
+    expect(resolveBetLadder([], 1).levels).toEqual([0.2, 0.5, 1, 2, 5, 10]);
+    expect(resolveBetLadder(undefined, 1, [1, 2]).levels).toEqual([1, 2]);
   });
 });

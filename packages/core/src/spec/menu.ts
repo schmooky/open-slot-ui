@@ -7,9 +7,19 @@
  */
 import type { BlockSpec } from './types';
 
+/**
+ * How the Settings section exposes sound:
+ * - `'toggle'`  — a single Sound on/off switch (mute).
+ * - `'master'`  — the Sound switch + one Volume slider (music + effects together).
+ * - `'sliders'` — the Sound switch + separate **Music** and **Effects** sliders. (default)
+ */
+export type SoundControls = 'toggle' | 'master' | 'sliders';
+
 export interface MenuSpec {
   /** A banner image shown at the very top of the menu (e.g. a themed title art). */
   banner?: { src: string; width?: number; height?: number };
+  /** How sound is configured in Settings (toggle · master slider · music+effects). Default `'sliders'`. */
+  sound?: SoundControls;
   /** Extra settings, appended after the built-in Music/Sound (+ Language). */
   settings?: BlockSpec[];
   /** Paytable section content (omit → no Paytable section). */
@@ -20,6 +30,9 @@ export interface MenuSpec {
   titles?: { settings?: string; paytable?: string; rules?: string };
 }
 
+// The English section titles double as their i18n keys (a game's dict localizes them).
+// "Paytable" is social-restricted → the social dictionary swaps it to "Prizes" (see
+// openuiSocialDefaults), so the heading is compliant in social mode without extra config.
 export const DEFAULT_MENU_TITLES = { settings: 'Settings', paytable: 'Paytable', rules: 'Rules' } as const;
 
 /** Native names for the language switch; falls back to the upper-cased code.

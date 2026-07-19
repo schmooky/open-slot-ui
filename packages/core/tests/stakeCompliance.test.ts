@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createUI } from '../src/spec/createUI';
+import { validateSpec } from '../src/spec/validateSpec';
 import { AutoplayControl } from '../src/controls/AutoplayControl';
 import { ReadoutControl } from '../src/controls/ReadoutControl';
 import { SpinControl } from '../src/controls/SpinControl';
@@ -53,6 +54,41 @@ describe('jurisdiction switchboard', () => {
     ui.applyJurisdiction({ displayRTP: true, disabledAutoplay: true });
     expect(ui.hidden.has('rtp')).toBe(false);
     expect(ui.forceHidden.has('autoplay')).toBe(true);
+  });
+});
+
+describe('buy-feature confirm threshold (Stake: no one-click above 2×)', () => {
+  it('spec.buyFeature.confirmAboveCost sets the threshold + gates strictly above it', () => {
+    const ui = createUI({ buyFeature: { confirmAboveCost: 2 } });
+    expect(ui.confirmBuyAboveCost).toBe(2);
+    expect(ui.shouldConfirmBuy(2)).toBe(false); // exactly 2× → one click allowed
+    expect(ui.shouldConfirmBuy(2.5)).toBe(true);
+    expect(ui.shouldConfirmBuy(6.5)).toBe(true);
+    expect(ui.shouldConfirmBuy(185)).toBe(true);
+  });
+
+  it('off by default — threshold 0 never confirms', () => {
+    const ui = createUI({});
+    expect(ui.confirmBuyAboveCost).toBe(0);
+    expect(ui.shouldConfirmBuy(1000)).toBe(false);
+  });
+
+  it('a jurisdiction can require it, and overrides an explicit spec threshold', () => {
+    expect(createUI({ jurisdiction: { confirmBuyAboveCost: 2 } }).shouldConfirmBuy(3)).toBe(true);
+    // platform jurisdiction wins over the game's own default
+    expect(createUI({ buyFeature: { confirmAboveCost: 5 }, jurisdiction: { confirmBuyAboveCost: 2 } }).confirmBuyAboveCost).toBe(2);
+  });
+
+  it('never confirms on a non-finite cost; a negative threshold clamps to off', () => {
+    const ui = createUI({ buyFeature: { confirmAboveCost: 2 } });
+    expect(ui.shouldConfirmBuy(NaN)).toBe(false);
+    expect(ui.shouldConfirmBuy(Infinity)).toBe(false);
+    expect(createUI({ buyFeature: { confirmAboveCost: -5 } }).confirmBuyAboveCost).toBe(0);
+  });
+
+  it('validateSpec rejects a bad confirmAboveCost', () => {
+    const issues = validateSpec({ buyFeature: { confirmAboveCost: 'x' as unknown as number } }).issues;
+    expect(issues.some((i) => i.code === 'bad-threshold')).toBe(true);
   });
 });
 

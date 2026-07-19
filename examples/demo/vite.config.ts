@@ -14,6 +14,8 @@ export default defineConfig({
   resolve: {
     alias: [
       { find: /^@open-slot-ui\/core$/, replacement: fromRoot('packages/core/src/index.ts') },
+      // `/art` must come before the bare `pixi` alias so the subpath resolves to source.
+      { find: /^@open-slot-ui\/pixi\/art$/, replacement: fromRoot('packages/pixi/src/art/index.ts') },
       { find: /^@open-slot-ui\/pixi$/, replacement: fromRoot('packages/pixi/src/index.ts') },
       { find: /^pixi-text-counter$/, replacement: fromRoot('packages/pixi-text-counter/src/index.ts') },
     ],

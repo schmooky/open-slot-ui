@@ -3,6 +3,7 @@ import {
   createUI,
   buildPanel,
   composeMenu,
+  formatAmountPrecise,
   type OpenUI,
   type UISpec,
   type HostHooks,
@@ -20,9 +21,57 @@ import {
 } from '@open-slot-ui/core';
 import { OpenUIPixi, type OpenUIPixiOptions } from './OpenUIPixi';
 import { PanelBodyView } from './views/PanelBodyView';
+import { mountInfoMenu } from './infoMenu';
+import { showConfirm } from './confirmModal';
+
+/** Shared BLOCKING replay modal — the round's facts + one button, non-dismissible
+ *  (no ✕, no backdrop close; only the button advances). Used for both the start ("Play")
+ *  and the end ("Replay") of a replay so it's a strict modal → round → modal loop. */
+function showReplayModal(ui: OpenUI, info: ReplayInfo, buttonKey: string, onSelect: () => void): void {
+  const cur = info.currency ?? ui.balance.currency.get();
+  const money = (n: number): string => formatAmountPrecise(n, cur); // sub-unit replay amounts show in full
+  ui.showNotice(
+    [
+      { kind: 'heading', id: 'openui-replay-h', text: 'openui.replay.title' },
+      {
+        kind: 'stat-grid',
+        id: 'openui-replay-g',
+        items: [
+          { label: 'openui.replay.baseBet', value: money(info.baseBet) },
+          { label: 'openui.replay.costMultiplier', value: `${info.costMultiplier}×` },
+          { label: 'openui.replay.payoutMultiplier', value: `${info.payoutMultiplier}×` },
+          { label: 'openui.replay.amount', value: money(info.amount) },
+        ],
+      },
+    ],
+    [{ label: buttonKey, variant: 'primary', onSelect: () => { ui.hideNotice(); onSelect(); } }],
+    { blocking: true },
+  );
+}
+
+/** The round facts shown at the start of a replay (Stake "Replay Support"). */
+export interface ReplayInfo {
+  /** The base bet (before the mode's cost multiplier). */
+  baseBet: number;
+  /** The mode's cost multiplier (×), e.g. a 185× bonus buy. */
+  costMultiplier: number;
+  /** The round's payout multiplier (× the base bet). */
+  payoutMultiplier: number;
+  /** The final amount the round paid. */
+  amount: number;
+  /** Currency for the money values (defaults to the balance currency). */
+  currency?: CurrencySpec;
+}
 
 export interface HudOptions extends OpenUIPixiOptions {
   hooks?: HostHooks;
+  /**
+   * Render the library's white HTML **info menu** (Settings · Paytable · Rules) — the Figma
+   * design, driven by `spec.menu`, label-left / control-right, fully modular + localized —
+   * instead of the in-canvas Pixi menu. Default `true`. `menu: false` opts out of BOTH (the
+   * host supplies its own menu). Set `infoMenu: false` to keep the old Pixi menu.
+   */
+  infoMenu?: boolean;
 }
 
 /**
@@ -36,6 +85,9 @@ export interface BootedHud {
   on<K extends keyof OpenUIEvents>(type: K, fn: (p: OpenUIEvents[K]) => void): Dispose;
   setBalance(major: number): void;
   setBet(major: number): void;
+  /** Set the bonus total-win amount (major units). Shown in the buy-feature slot while
+   *  the spin button is in free-spins mode (`setFreeSpins(n > 0)`). */
+  setTotalWin(major: number): void;
   setCurrency(spec: CurrencySpec): void;
   /** Apply a Stake Engine jurisdiction config (the compliance switchboard) at runtime. */
   applyJurisdiction(jur: JurisdictionConfig): void;
@@ -64,8 +116,34 @@ export interface BootedHud {
   setFreeSpins(n: number): void;
   /** Enter/leave replay mode (Stake `replay=true`) — locks the HUD + shows a REPLAY badge. */
   setReplay(on: boolean): void;
+  /** Replay support (Stake "Replay Support"): at the START of a replay show the round's
+   *  Base Bet, its Cost + Payout multipliers and the final amount in an open-ui panel;
+   *  `onPlay` begins the playback. Labels are social-aware (Base Bet → Base Play, etc.);
+   *  amounts format with `info.currency` (defaults to the balance currency). Also flips
+   *  the HUD into replay mode (badge + lock). */
+  replayStart(info: ReplayInfo, onPlay?: () => void): void;
+  /** At the END of a replay, show the SAME facts + a "Replay" button that re-runs it.
+   *  Non-dismissible (no ✕ / backdrop close) — it's a strict modal → round → modal loop. */
+  replayEnd(info: ReplayInfo, onReplay: () => void): void;
   /** Show a buy-feature confirm modal (Cancel / Confirm). Texts are literal-or-key. */
   confirmBuy(opts: { title?: string; message?: string; onConfirm: () => void; confirmLabel?: string; cancelLabel?: string }): void;
+  /** Confirm-GATE a buy / bet-mode activation: when its `cost` (× base bet) exceeds
+   *  the configured `confirmBuyAboveCost` threshold, show a confirm popup naming the
+   *  feature + `price` and run `onConfirm` only on confirm; otherwise run `onConfirm`
+   *  straight away. This is how a game honors Stake's "no one-click activation above
+   *  2×" rule — the library owns the threshold + popup, the game just calls this. */
+  requestBuyFeature(opts: {
+    cost: number;
+    name?: string;
+    price?: string;
+    onConfirm: () => void;
+    title?: string;
+    message?: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
+  }): void;
+  /** Read-back: would a play of this `cost` (× base bet) require confirmation? */
+  shouldConfirmBuy(cost: number): boolean;
   /** Slide the whole interactive HUD in / out — bottom controls go down, top ones up
    *  (behind the status-bar plaque). Non-interactive while moving. */
   showControls(): void;
@@ -86,20 +164,23 @@ export interface BootedHud {
  * art/skins. Pure assembly over `createUI` + `OpenUIPixi` (Charter B9).
  */
 export function mountHud(app: Application, spec: UISpec = {}, opts: HudOptions = {}): BootedHud {
-  const { hooks, ...pixiOpts } = opts;
+  const { hooks, infoMenu, ...pixiOpts } = opts;
   const ui = createUI(spec, hooks);
-  // Compose the unified menu (Settings → Paytable → Rules). A Language switch is
-  // added automatically when 2+ locales are configured; `spec.rules` is folded in
-  // for back-compat. The built-in Music/Sound reuse the real volume controls.
+  // The white HTML info menu (the Figma design) is the default; `menu:false` opts out of any
+  // library menu; `infoMenu:false` falls back to the in-canvas Pixi menu.
+  const useInfoMenu = infoMenu !== false && pixiOpts.menu !== false;
+  // Compose the unified Pixi menu (Settings → Paytable → Rules) only when NOT using the HTML
+  // menu. A Language switch is added when 2+ locales are configured; `spec.rules` folds in.
   const locales = spec.locale ? Array.from(new Set([spec.locale.locale, ...Object.keys(spec.locale.messages)])) : [];
-  // `menu: false` (e.g. when the host supplies its own HTML menu) skips the Pixi menu.
-  const menu = pixiOpts.menu === false ? false : composeMenu(spec.menu, { locales, localeSelectId: spec.localeSelectId, rulesFallback: spec.rules });
-  // Game name + version footer (support / certification) — appended to the menu.
+  const menu = pixiOpts.menu === false || useInfoMenu ? false : composeMenu(spec.menu, { locales, localeSelectId: spec.localeSelectId, rulesFallback: spec.rules });
+  // Game name + version footer (support / certification) — appended to the Pixi menu.
   if (menu && spec.game && (spec.game.name || spec.game.version)) {
     menu.push({ kind: 'legal', id: 'openui-game-info', text: [spec.game.name, spec.game.version ? `v${spec.game.version}` : ''].filter(Boolean).join('  ·  ') });
   }
   const pixi = new OpenUIPixi(ui, { ...pixiOpts, menu });
   pixi.mount(app);
+  // Mount the white HTML info menu overlay (opens/closes off the canvas ☰).
+  const disposeInfoMenu = useInfoMenu ? mountInfoMenu(app, ui) : undefined;
 
   // The reality-check reminder (RTS 13) is now wired in `createUI` (core), so it runs
   // on a wall-clock timer regardless of renderer — nothing to schedule here.
@@ -126,6 +207,7 @@ export function mountHud(app: Application, spec: UISpec = {}, opts: HudOptions =
 
   const teardown = (): void => {
     offRelayout();
+    disposeInfoMenu?.();
     for (const v of extra) v.dispose();
     extra.length = 0;
     pixi.unmount();
@@ -142,9 +224,11 @@ export function mountHud(app: Application, spec: UISpec = {}, opts: HudOptions =
     on,
     setBalance: (n) => ui.balance.set(n),
     setBet: (n) => ui.bet.set(n),
+    setTotalWin: (n) => ui.totalWin.set(n),
     setCurrency: (c) => {
       ui.balance.setCurrency(c);
       ui.bet.setCurrency(c);
+      ui.totalWin.setCurrency(c);
       ui.netPosition.setCurrency(c);
     },
     applyJurisdiction: (j) => ui.applyJurisdiction(j),
@@ -159,6 +243,13 @@ export function mountHud(app: Application, spec: UISpec = {}, opts: HudOptions =
     setSocial: (on, coin) => ui.setSocial(on, coin),
     setFreeSpins: (n) => ui.spin.setFreeSpins(n),
     setReplay: (on) => ui.setReplay(on),
+    replayStart: (info, onPlay) => {
+      ui.setReplay(true); // REPLAY badge + locked HUD
+      showReplayModal(ui, info, 'openui.replay.play', () => onPlay?.());
+    },
+    replayEnd: (info, onReplay) => {
+      showReplayModal(ui, info, 'openui.replay.again', onReplay);
+    },
     confirmBuy: (o) => {
       // Real guard: a jurisdiction that disabled buy-feature makes this a no-op.
       if (ui.isDisabled('buyFeature')) return;
@@ -172,6 +263,29 @@ export function mountHud(app: Application, spec: UISpec = {}, opts: HudOptions =
           { label: o.confirmLabel ?? 'openui.confirm', variant: 'primary', onSelect: o.onConfirm },
         ],
       );
+    },
+    shouldConfirmBuy: (cost) => ui.shouldConfirmBuy(cost),
+    requestBuyFeature: (o) => {
+      if (ui.isDisabled('buyFeature')) return; // jurisdiction fully disabled the feature
+      if (!ui.shouldConfirmBuy(o.cost)) {
+        o.onConfirm(); // cost at/under the threshold → one click is allowed
+        return;
+      }
+      // The ONE universal HTML confirm — the same white-card dialog the buy-feature modal
+      // uses (social/locale-aware), so every confirm across the HUD looks identical.
+      const message =
+        o.message ??
+        (o.name
+          ? ui.t('openui.buyFeature.confirm', { name: ui.t(o.name), price: o.price ?? '' })
+          : ui.t('openui.buyFeature.message'));
+      void showConfirm(ui, {
+        title: o.title ?? 'openui.buyFeature.title',
+        message,
+        confirmLabel: o.confirmLabel,
+        cancelLabel: o.cancelLabel,
+      }).then((ok) => {
+        if (ok) o.onConfirm();
+      });
     },
     showControls: () => pixi.setControlsVisible(true),
     hideControls: () => pixi.setControlsVisible(false),

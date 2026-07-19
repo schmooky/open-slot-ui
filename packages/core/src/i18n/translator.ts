@@ -24,6 +24,7 @@ export const openuiDefaults: Record<string, string> = {
   'openui.bet': 'Bet',
   'openui.balance': 'Balance',
   'openui.win': 'Win',
+  'openui.totalWin': 'Total Win',
   'openui.menu': 'Menu',
   'openui.rules': 'Rules',
   'openui.paytable': 'Paytable',
@@ -45,12 +46,27 @@ export const openuiDefaults: Record<string, string> = {
   'openui.error': 'Error',
   'openui.notice': 'Notice',
   'openui.replay': 'Replay',
+  // Replay panel (Stake "Replay Support"): the round's cost + worth is shown at the
+  // start; a Replay button re-runs it at the end.
+  'openui.replay.title': 'Replay',
+  'openui.replay.baseBet': 'Base Bet',
+  'openui.replay.costMultiplier': 'Cost Multiplier',
+  'openui.replay.payoutMultiplier': 'Payout Multiplier',
+  'openui.replay.amount': 'Final amount',
+  'openui.replay.play': 'Play',
+  'openui.replay.again': 'Replay',
   'openui.buyFeature.title': 'Buy feature',
   'openui.buyFeature.message': 'Buy this feature now?',
+  // Confirm step for a higher-cost play — {{name}} / {{price}} are interpolated.
+  'openui.buyFeature.confirm': 'Buy {{name}} for {{price}}?',
   'openui.freeSpins': 'FS',
   // reality check (RTS 13) — {{minutes}} is interpolated by open-ui's scheduler
   'openui.realityCheck.title': 'Reality check',
   'openui.realityCheck.message': "You've been playing for {{minutes}} minutes. Take a moment before continuing.",
+  // Rules-completeness audit (the info menu's "forgotten declarations" card)
+  'openui.rulesAudit.title': 'Rules incomplete',
+  'openui.rulesAudit.required': 'Missing required information:',
+  'openui.rulesAudit.recommended': 'Highly recommended:',
   // RGS error defaults (override via your messages dict or per-call)
   'openui.err.generic.title': 'Something went wrong',
   'openui.err.generic.message': 'Sorry, something went wrong. Please try again.',
@@ -79,15 +95,32 @@ export const openuiSocialDefaults: Record<string, string> = {
   'openui.bet': 'Play',
   'openui.balance': 'Balance',
   'openui.win': 'Prize',
+  'openui.totalWin': 'Total Prize',
+  // "Paytable" (contains "pay") and "Insufficient funds" ("funds") are restricted in
+  // social mode → their compliant equivalents. The literal "Paytable" is overridden too
+  // because the menu SECTION heading uses it as its key (DEFAULT_MENU_TITLES).
+  'openui.paytable': 'Prizes',
+  Paytable: 'Prizes',
+  'openui.err.insufficient.title': 'Insufficient balance',
   'openui.buyFeature.title': 'Play bonus',
   'openui.buyFeature.message': 'Play this bonus now?',
+  'openui.buyFeature.confirm': 'Play {{name}} for {{price}}?',
+  // Stake.us replay terms: Base Bet → Base Play, Cost Multiplier → Feature Multiplier,
+  // Payout Multiplier → Final Multiplier.
+  'openui.replay.baseBet': 'Base Play',
+  'openui.replay.costMultiplier': 'Feature Multiplier',
+  'openui.replay.payoutMultiplier': 'Final Multiplier',
   'openui.err.insufficient.message': "You don't have enough balance for this play.",
   'openui.err.limit.message': 'A play limit has been reached. Please try again later.',
+  // The auto mode-stats grid's label words (used as their own keys at render time).
+  'Max win': 'Max prize',
 };
 
 function interpolate(template: string, vars?: Record<string, string | number>): string {
   if (!vars) return template;
-  return template.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => String(vars[k] ?? `{{${k}}}`));
+  // i18next-style {{token}}; dotted tokens ({{rtp.base}}, {{cost.free-spins}}) are the
+  // facts-vars namespace (see `factsVars`) — flat lookup, same as i18next keySeparator:false.
+  return template.replace(/\{\{([\w.-]+)\}\}/g, (_m, k: string) => String(vars[k] ?? `{{${k}}}`));
 }
 
 /**

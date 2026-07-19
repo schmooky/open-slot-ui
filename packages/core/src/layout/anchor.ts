@@ -36,13 +36,23 @@ function anchorFactors(anchor: Anchor): [number, number] {
   return [ax, ay];
 }
 
-/** Resolve a control's layout against the current screen. Pure math. */
+/**
+ * Resolve a control's layout against the current screen. Pure math.
+ *
+ * Anchors to the uniformly-scaled `screen.stage` frame — NOT the raw screen — so the
+ * whole HUD scales as one homogeneous unit: the gap between two controls is always a
+ * fixed fraction of the (uniformly-scaled) frame, never a function of the viewport's
+ * aspect ratio. That's what stops a growing value or a narrow window from letting
+ * controls drift into each other. At the reference resolution `stage` equals the
+ * screen, so authored offsets land pixel-identically.
+ */
 export function resolvePlacement(spec: LayoutSpec, screen: ScreenState): Placement {
   const [ax, ay] = anchorFactors(spec.anchor);
   const [ox, oy] = spec.offset ?? [0, 0];
+  const st = screen.stage;
   return {
-    x: ax * screen.width + ox * screen.scale,
-    y: ay * screen.height + oy * screen.scale,
+    x: st.x + ax * st.width + ox * screen.scale,
+    y: st.y + ay * st.height + oy * screen.scale,
     scale: screen.scale * (spec.scale ?? 1),
     rotation: ((spec.rotation ?? 0) * Math.PI) / 180,
   };
