@@ -17,3 +17,4 @@ examples/demo/screenshots
 *.log
 .DS_Store
 Archive.zip
+*.tgz
