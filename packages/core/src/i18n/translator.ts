@@ -118,7 +118,9 @@ export const openuiSocialDefaults: Record<string, string> = {
 
 function interpolate(template: string, vars?: Record<string, string | number>): string {
   if (!vars) return template;
-  return template.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => String(vars[k] ?? `{{${k}}}`));
+  // i18next-style {{token}}; dotted tokens ({{rtp.base}}, {{cost.free-spins}}) are the
+  // facts-vars namespace (see `factsVars`) — flat lookup, same as i18next keySeparator:false.
+  return template.replace(/\{\{([\w.-]+)\}\}/g, (_m, k: string) => String(vars[k] ?? `{{${k}}}`));
 }
 
 /**

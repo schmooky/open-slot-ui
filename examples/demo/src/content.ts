@@ -29,7 +29,9 @@ export const RULES_BLOCKS: BlockSpec[] = [
     src: 'https://placehold.co/320x200/2a2f3a/ffd166?text=BONUS',
     alt: 'Free Spins',
     title: 'Free Spins',
-    text: 'Land 3 or more **Scatters** to trigger 10 free spins with a rising multiplier. Free spins cannot be retriggered.',
+    // {{freeSpins.count}} / {{freeSpins.retrigger}} interpolate from the declared
+    // FACTS below — the stated count can never drift from the config.
+    text: 'Land 3 or more **Scatters** to trigger {{freeSpins.count}} free spins with a rising multiplier. Free spins {{freeSpins.retrigger}} be retriggered.',
   },
 
   // — a sub-section title + a row of feature cards (icon + title + text) —
@@ -49,7 +51,9 @@ export const RULES_BLOCKS: BlockSpec[] = [
   {
     kind: 'text',
     id: 'r-buys',
-    text: 'From the bonus button you can buy **Free Spins** (100× your bet) or **Super Spins** (300× your bet) directly, activate **Ante Bet** (+25% per spin) to double the bonus trigger chance, or **Double Chance** (+50% per spin) for even better odds.',
+    // Prices are {{cost.*}} TOKENS resolved from the live facts (which the buy-feature
+    // modal declares) — the rules can never quote a price the modal doesn't charge.
+    text: 'From the bonus button you can buy **Free Spins** ({{cost.free-spins}} your bet) or **Super Spins** ({{cost.super-spins}} your bet) directly, activate **Ante Bet** (+25% per spin) to double the bonus trigger chance, or **Double Chance** (+50% per spin) for even better odds.',
   },
 
   // — the controls guide (Info/Help must explain every interactive control) —

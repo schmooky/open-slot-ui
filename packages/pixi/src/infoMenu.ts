@@ -7,7 +7,7 @@
 // supply your own instead. The look matches the Open-UI Figma reference.
 
 import type { Application } from 'pixi.js';
-import { LOCALE_LABELS, auditRules, modeStatsItems, type BlockSpec, type GameFacts, type MenuSpec, type OpenUI } from '@open-slot-ui/core';
+import { LOCALE_LABELS, auditRules, factsVars, modeStatsItems, type BlockSpec, type GameFacts, type MenuSpec, type OpenUI } from '@open-slot-ui/core';
 
 const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 /** Escape, then turn `**bold**` runs into `<b>` — the same inline syntax the Pixi renderer uses. */
@@ -183,9 +183,17 @@ export function mountInfoMenu(app: Application, ui: OpenUI): () => void {
   // and each HIGHLY RECOMMENDED one (free-spins count + retrigger, legal, controls)
   // renders as an explicit warning card at the top of the Rules section — a
   // forgotten declaration is stated when the rules open, never silent.
-  const auditCardHtml = (): string => {
+  // Rules copy translates WITH the facts interpolation vars: `{{rtp.base}}`-style
+  // tokens (see `factsVars`) resolve from the LIVE declared facts + the game info,
+  // so a stated RTP / max win / price can never drift from the configuration. The
+  // audit resolves through the exact same function — copy is audited AS RENDERED.
+  const rulesTr = (): ((s: string) => string) => {
+    const vars = factsVars(ui.facts.get(), { 'game.name': ui.gameInfo.name ?? '', 'game.version': ui.gameInfo.version ?? '' });
+    return (s: string): string => ui.t(s, vars);
+  };
+  const auditCardHtml = (trr: (s: string) => string): string => {
     if (!menu.rules?.length) return '';
-    const issues = auditRules(ui.facts.get(), menu.rules);
+    const issues = auditRules(ui.facts.get(), menu.rules, { resolve: trr });
     if (!issues.length) return '';
     const req = issues.filter((i) => i.level === 'required');
     const rec = issues.filter((i) => i.level === 'recommended');
@@ -196,7 +204,11 @@ export function mountInfoMenu(app: Application, ui: OpenUI): () => void {
       ${rec.length ? `<div class="ohm-audit-sub ohm-audit-sub--rec">${esc(tr('openui.rulesAudit.recommended'))}</div><div class="ohm-audit-rec">${list(rec)}</div>` : ''}
     </div>`;
   };
-  const rulesInnerHtml = (): string => (menu.rules ? auditCardHtml() + renderBlocks(menu.rules, tr, ui.facts.get()) : '');
+  const rulesInnerHtml = (): string => {
+    if (!menu.rules) return '';
+    const trr = rulesTr();
+    return auditCardHtml(trr) + renderBlocks(menu.rules, trr, ui.facts.get());
+  };
 
   const paytableHtml = menu.paytable ? renderBlocks(menu.paytable, tr, ui.facts.get()) : '';
   const rulesHtml = rulesInnerHtml();

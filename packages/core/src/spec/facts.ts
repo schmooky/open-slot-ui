@@ -111,6 +111,41 @@ export function modeStatsItems(
   return out;
 }
 
+/**
+ * The INTERPOLATION VARIABLES the declared facts expose to rules copy — the
+ * "universal interpolatable rules" contract. Any rules text (inline blocks or a
+ * {@link RulesDoc}) may use i18next-style tokens; the info menu resolves them from
+ * the LIVE facts, so a stated RTP / max win / price can never drift from config:
+ *
+ *   `{{rtp.<modeId>}}`     → "95.50%"        `{{maxWin.<modeId>}}` → "5,000×"
+ *   `{{cost.<modeId>}}`    → "185×"          `{{name.<modeId>}}`   → the mode name
+ *   `{{freeSpins.count}}`  → 3               `{{freeSpins.retrigger}}` → "can"/"cannot"
+ *   `{{volatility}}`       → "Very high"     `{{maxWinCap}}`       → "5,000×"
+ *
+ * `extra` merges additional host vars (e.g. `game.name`) on top.
+ */
+export function factsVars(
+  facts: GameFacts | undefined,
+  extra?: Record<string, string | number>,
+): Record<string, string | number> {
+  const vars: Record<string, string | number> = {};
+  for (const m of facts?.modes ?? []) {
+    if (!m.id) continue;
+    vars[`name.${m.id}`] = m.name;
+    if (m.rtp != null) vars[`rtp.${m.id}`] = formatRtp(m.rtp);
+    if (m.maxWinX != null) vars[`maxWin.${m.id}`] = formatTimes(m.maxWinX);
+    if (m.cost != null) vars[`cost.${m.id}`] = formatTimes(m.cost);
+  }
+  const fs = facts?.freeSpins;
+  if (fs) {
+    if (fs.count != null) vars['freeSpins.count'] = fs.count;
+    if (fs.retrigger != null) vars['freeSpins.retrigger'] = fs.retrigger ? 'can' : 'cannot';
+  }
+  if (facts?.volatility) vars['volatility'] = facts.volatility;
+  if (facts?.maxWinCapX != null) vars['maxWinCap'] = formatTimes(facts.maxWinCapX);
+  return extra ? { ...vars, ...extra } : vars;
+}
+
 /** One finding from the rules audit. `required` findings are compliance gaps
  *  (RTP / max win / an undescribed configured feature); `recommended` are the
  *  strongly-advised ones (free-spins details, legal disclaimer, controls guide). */
@@ -133,10 +168,10 @@ interface RulesScan {
   hasLegal: boolean;
 }
 
-function scanBlocks(blocks: BlockSpec[] | undefined): RulesScan {
+function scanBlocks(blocks: BlockSpec[] | undefined, resolve: (s: string) => string = (s) => s): RulesScan {
   const scan: RulesScan = { text: '', headings: '', covers: new Set(), hasModeStats: false, hasLegal: false };
   const addText = (t: unknown): void => {
-    if (typeof t === 'string' && t) scan.text += `\n${t}`;
+    if (typeof t === 'string' && t) scan.text += `\n${resolve(t)}`;
   };
   const walk = (list: BlockSpec[] | undefined): void => {
     for (const b of list ?? []) {
@@ -156,7 +191,7 @@ function scanBlocks(blocks: BlockSpec[] | undefined): RulesScan {
           break;
         case 'heading':
         case 'subheading':
-          scan.headings += `\n${b.text}`;
+          scan.headings += `\n${resolve(b.text)}`;
           addText(b.text);
           break;
         case 'text':
@@ -238,11 +273,20 @@ const mentionsName = (text: string, name: string): boolean => text.toLowerCase()
  * Audit the rules blocks against the declared game facts. Pure + never-throw.
  * Findings come back most severe first (`required`, then `recommended`); an empty
  * array means the rules declare everything the game's configuration demands.
+ *
+ * `opts.resolve` maps each collected string BEFORE the text heuristics run — pass
+ * the same translate-and-interpolate the renderer uses (`(s) => ui.t(s, factsVars(...))`)
+ * so localized copy and `{{rtp.base}}`-style tokens are audited AS RENDERED: a rules
+ * text that states its RTP via the token is, by construction, always correct.
  */
-export function auditRules(facts: GameFacts | undefined, rules: BlockSpec[] | undefined): RulesAuditIssue[] {
+export function auditRules(
+  facts: GameFacts | undefined,
+  rules: BlockSpec[] | undefined,
+  opts: { resolve?: (s: string) => string } = {},
+): RulesAuditIssue[] {
   const out: RulesAuditIssue[] = [];
   try {
-    const scan = scanBlocks(rules);
+    const scan = scanBlocks(rules, opts.resolve);
     const add = (level: RulesAuditIssue['level'], code: string, topic: string, message: string): void => {
       out.push({ level, code, topic, message });
     };
