@@ -19,7 +19,9 @@ export interface FeatureSpec {
   id: string;
   name: string;
   variant: 'buy' | 'boost';
-  /** Price as a multiple of the current bet (× bet). */
+  /** Cost as a multiple of the base bet. For `buy` this is the FULL stake multiple
+   *  (deducted = cost × bet); for `boost` it is the SURCHARGE over the base bet, so the
+   *  full per-spin cost shown/deducted is (1 + cost) × bet. */
   cost: number;
   /** Card image URL (or data URI). Optional — a neutral gradient is used when absent. */
   image?: string;
@@ -122,7 +124,12 @@ export function mountBuyFeatureModal(
   const layout = (): void => {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const cols = vh <= 540 || vw >= 900 ? Math.min(4, list.length) : Math.min(2, list.length);
+    // Column count. A 4-across row needs real WIDTH: without a width floor a small,
+    // narrow-AND-short window (e.g. Stake's "pop-out S" → vh<=540) crammed all 4 cards
+    // into ~360px and clipped the names/buttons. Only go 4-wide when there's room (a wide
+    // viewport, or a short landscape one that is ALSO wide enough); otherwise 2 columns,
+    // which the uniform scale then fits to any size.
+    const cols = vw >= 720 && (vw >= 900 || vh <= 540) ? Math.min(4, list.length) : Math.min(2, list.length);
     cardsEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
     const fitW = Math.min(vw * 0.96, cols >= 4 ? 1180 : cols === 1 ? 380 : 760);
     fitEl.style.width = `${fitW}px`;
@@ -142,7 +149,12 @@ export function mountBuyFeatureModal(
       .map((f) => {
         const active = boosts.has(f.id);
         const buyBlocked = f.variant === 'buy' && blocksBuy && boosts.size > 0;
-        const price = f.variant === 'buy' ? money(f.cost * bet, cur) : `+${money(f.cost * bet, cur)}`;
+        // Show the FULL amount deducted per spin (what it actually costs to play this
+        // mode), no leading "+", in regular and social. A `buy` card's `cost` is the full
+        // stake multiple; a `boost` card's `cost` is the SURCHARGE over the base bet, so
+        // its real per-spin cost is (1 + surcharge) × bet. Matches the confirm dialog.
+        const perSpin = (f.variant === 'buy' ? f.cost : 1 + f.cost) * bet;
+        const price = money(perSpin, cur);
         const label = f.variant === 'buy' ? tr('Buy') : active ? tr('Activated') : tr('Activate');
         const cls = `bfm-action bfm-action--${f.variant}${active ? ' is-active' : ''}${buyBlocked ? ' is-blocked' : ''}`;
         const img = f.image ? ` style="background-image:url('${f.image}')"` : '';
