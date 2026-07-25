@@ -1,9 +1,10 @@
 // Standalone boot / fatal ERROR screen — a full-screen block shown when the game
 // cannot reach or authenticate with the RGS BEFORE the HUD mounts (so the HUD's own
-// `showFatal` isn't available yet). It uses the open-ui dark + yellow palette so it
-// looks like the HUD's own modals, and it PREVENTS PLAY (non-dismissible; the only way
-// out is Reload, which re-runs the whole handshake) — Stake requires that a failed
-// connection/auth never silently continues. Pure DOM, no pixi needed.
+// `showFatal` isn't available yet). It is deliberately MONOCHROME (a black-and-white
+// card — white surface, black border/mark/button, no theme accent) so it reads as a
+// neutral, out-of-game system notice over ANY game's art, and it PREVENTS PLAY
+// (non-dismissible; the only way out is Reload, which re-runs the whole handshake) —
+// Stake requires that a failed connection/auth never silently continues. Pure DOM.
 
 export interface BootErrorOptions {
   title?: string;
@@ -31,7 +32,7 @@ export function showBootError(opts: BootErrorOptions = {}): void {
   host.innerHTML = `
     <div class="openui-be-card">
       <div class="openui-be-icon" aria-hidden="true">
-        <svg viewBox="0 0 48 48" width="48" height="48"><path d="M24 4 3 42h42L24 4Z" fill="none" stroke="#ffc935" stroke-width="3" stroke-linejoin="round"/><rect x="22" y="18" width="4" height="12" rx="2" fill="#ffc935"/><circle cx="24" cy="35" r="2.4" fill="#ffc935"/></svg>
+        <svg viewBox="0 0 48 48" width="46" height="46"><path d="M24 5 4 41h40L24 5Z" fill="none" stroke="#000" stroke-width="4" stroke-linejoin="round"/><rect x="22" y="19" width="4" height="12" rx="2" fill="#000"/><circle cx="24" cy="35.5" r="2.5" fill="#000"/></svg>
       </div>
       <h1 class="openui-be-title">${esc(title)}</h1>
       <p class="openui-be-msg">${esc(message)}</p>
@@ -39,19 +40,23 @@ export function showBootError(opts: BootErrorOptions = {}): void {
       ${showReload ? `<button class="openui-be-reload" type="button">${esc(opts.reloadLabel ?? 'Reload')}</button>` : ''}
     </div>
     <style>
+      /* MONOCHROME by design — a neutral black-and-white system card, no theme accent. */
       .openui-boot-error { position: fixed; inset: 0; z-index: 2147483000; display: grid; place-items: center;
-        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #e9edf2;
-        background: rgba(6,8,11,.92); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
-      .openui-be-card { width: min(90%, 440px); text-align: center; padding: 38px 32px 34px;
-        background: #161b22; border: 1.5px solid #ffc935; border-radius: 16px; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
-      .openui-be-icon { margin-bottom: 14px; line-height: 0; }
-      .openui-be-title { margin: 0 0 12px; font-size: 24px; font-weight: 800; color: #ffc935; letter-spacing: .3px; }
-      .openui-be-msg { margin: 0 0 20px; font-size: 15px; line-height: 1.55; color: #c4ccd6; }
-      .openui-be-detail { margin: 0 0 20px; font-size: 12px; line-height: 1.4; color: #78828f; word-break: break-word; }
-      .openui-be-reload { appearance: none; border: 0; cursor: pointer; padding: 13px 42px; border-radius: 999px;
-        background: #ffc935; color: #161b22; font-weight: 800; font-size: 15px; letter-spacing: .3px;
-        box-shadow: 0 8px 22px rgba(255,201,53,.32); transition: transform .12s, filter .12s; }
-      .openui-be-reload:hover { filter: brightness(1.06); }
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #181b20;
+        background: rgba(8,8,8,.62); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+      .openui-be-card { width: min(90%, 440px); text-align: center; padding: 40px 36px 32px;
+        display: flex; flex-direction: column; align-items: center; gap: 14px;
+        background: #fff; border: 4px solid #000; border-radius: 24px; box-shadow: 0 24px 60px rgba(0,0,0,.55); }
+      .openui-be-icon { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 999px;
+        border: 4px solid #000; line-height: 0; }
+      .openui-be-title { margin: 0; font-size: 26px; font-weight: 800; color: #000; letter-spacing: .01em; }
+      .openui-be-msg { margin: 0; font-size: 16px; line-height: 1.5; font-weight: 600; color: #3a3f47; max-width: 34ch; }
+      .openui-be-detail { margin: 0; font-size: 12px; line-height: 1.4; color: #8a9099; word-break: break-word;
+        font-family: ui-monospace, "SF Mono", Menlo, monospace; max-width: 40ch; }
+      .openui-be-reload { appearance: none; cursor: pointer; margin-top: 8px; padding: 14px 42px; border-radius: 999px;
+        border: 4px solid #000; background: #000; color: #fff; font-weight: 800; font-size: 16px; letter-spacing: .03em;
+        transition: transform .1s ease, background .12s ease; }
+      .openui-be-reload:hover { background: #1c1c1c; }
       .openui-be-reload:active { transform: scale(.96); }
     </style>`;
   if (showReload) {
