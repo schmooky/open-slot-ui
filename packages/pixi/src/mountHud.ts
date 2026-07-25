@@ -22,7 +22,6 @@ import {
 import { OpenUIPixi, type OpenUIPixiOptions } from './OpenUIPixi';
 import { PanelBodyView } from './views/PanelBodyView';
 import { mountInfoMenu } from './infoMenu';
-import { showConfirm } from './confirmModal';
 
 /** Shared BLOCKING replay modal — the round's facts + one button, non-dismissible
  *  (no ✕, no backdrop close; only the button advances). Used for both the start ("Play")
@@ -66,10 +65,10 @@ export interface ReplayInfo {
 export interface HudOptions extends OpenUIPixiOptions {
   hooks?: HostHooks;
   /**
-   * Render the library's white HTML **info menu** (Settings · Paytable · Rules) — the Figma
-   * design, driven by `spec.menu`, label-left / control-right, fully modular + localized —
-   * instead of the in-canvas Pixi menu. Default `true`. `menu: false` opts out of BOTH (the
-   * host supplies its own menu). Set `infoMenu: false` to keep the old Pixi menu.
+   * Opt IN to the legacy white **HTML info menu** (a DOM overlay). By default the menu now
+   * renders as the in-canvas **Pixi `MenuView`** (Settings · Paytable · Rules, driven by
+   * `spec.menu`) so the whole HUD stays on the canvas — no DOM UI. Set `infoMenu: true` to
+   * use the old DOM overlay instead. `menu: false` opts out of BOTH (host supplies its own).
    */
   infoMenu?: boolean;
 }
@@ -166,9 +165,9 @@ export interface BootedHud {
 export function mountHud(app: Application, spec: UISpec = {}, opts: HudOptions = {}): BootedHud {
   const { hooks, infoMenu, ...pixiOpts } = opts;
   const ui = createUI(spec, hooks);
-  // The white HTML info menu (the Figma design) is the default; `menu:false` opts out of any
-  // library menu; `infoMenu:false` falls back to the in-canvas Pixi menu.
-  const useInfoMenu = infoMenu !== false && pixiOpts.menu !== false;
+  // The in-canvas Pixi menu (`MenuView`) is the default — keeps the whole HUD on the canvas.
+  // `infoMenu:true` opts into the legacy DOM overlay; `menu:false` opts out of any library menu.
+  const useInfoMenu = infoMenu === true && pixiOpts.menu !== false;
   // Compose the unified Pixi menu (Settings → Paytable → Rules) only when NOT using the HTML
   // menu. A Language switch is added when 2+ locales are configured; `spec.rules` folds in.
   const locales = spec.locale ? Array.from(new Set([spec.locale.locale, ...Object.keys(spec.locale.messages)])) : [];
@@ -181,6 +180,22 @@ export function mountHud(app: Application, spec: UISpec = {}, opts: HudOptions =
   pixi.mount(app);
   // Mount the white HTML info menu overlay (opens/closes off the canvas ☰).
   const disposeInfoMenu = useInfoMenu ? mountInfoMenu(app, ui) : undefined;
+
+  // Mobile robustness: Pixi v8 SWALLOWS native `pointercancel` — it dispatches no release to
+  // the pressed display object, so a button that got pointerdown (its press anim plays) but
+  // then a pointercancel stays stuck `pressed` and NEVER activates. A real finger sends a
+  // clean pointerup (production/iframe is fine), but touch-EMULATED taps trip it: DevTools
+  // device mode fires pointercancel from its scroll-gesture recogniser, as do some in-app
+  // webviews — the control "flashes but doesn't fire". Translate a cancel into a pointerup at
+  // the same point so Pixi's normal (tap-slop-aware) handling runs and the control resolves.
+  const canvas = app.canvas as HTMLCanvasElement | undefined;
+  const cancelToUp = (e: PointerEvent): void => {
+    canvas?.dispatchEvent(new PointerEvent('pointerup', {
+      pointerId: e.pointerId, pointerType: e.pointerType, isPrimary: e.isPrimary,
+      clientX: e.clientX, clientY: e.clientY, pressure: 0, bubbles: true, cancelable: true, composed: true,
+    }));
+  };
+  canvas?.addEventListener('pointercancel', cancelToUp, true);
 
   // The reality-check reminder (RTS 13) is now wired in `createUI` (core), so it runs
   // on a wall-clock timer regardless of renderer — nothing to schedule here.
@@ -207,6 +222,7 @@ export function mountHud(app: Application, spec: UISpec = {}, opts: HudOptions =
 
   const teardown = (): void => {
     offRelayout();
+    canvas?.removeEventListener('pointercancel', cancelToUp, true);
     disposeInfoMenu?.();
     for (const v of extra) v.dispose();
     extra.length = 0;
@@ -271,21 +287,24 @@ export function mountHud(app: Application, spec: UISpec = {}, opts: HudOptions =
         o.onConfirm(); // cost at/under the threshold → one click is allowed
         return;
       }
-      // The ONE universal HTML confirm — the same white-card dialog the buy-feature modal
-      // uses (social/locale-aware), so every confirm across the HUD looks identical.
+      // The ONE universal confirm — the in-canvas Pixi notice modal (`DialogView`, via
+      // `ui.showNotice`), same as `confirmBuy`, so every confirm across the HUD is on-canvas
+      // and looks identical (social/locale-aware).
       const message =
         o.message ??
         (o.name
           ? ui.t('openui.buyFeature.confirm', { name: ui.t(o.name), price: o.price ?? '' })
           : ui.t('openui.buyFeature.message'));
-      void showConfirm(ui, {
-        title: o.title ?? 'openui.buyFeature.title',
-        message,
-        confirmLabel: o.confirmLabel,
-        cancelLabel: o.cancelLabel,
-      }).then((ok) => {
-        if (ok) o.onConfirm();
-      });
+      ui.showNotice(
+        [
+          { kind: 'heading', id: 'buy-confirm-title', text: o.title ?? 'openui.buyFeature.title' },
+          { kind: 'text', id: 'buy-confirm-body', text: message },
+        ],
+        [
+          { label: o.cancelLabel ?? 'openui.cancel', variant: 'secondary' },
+          { label: o.confirmLabel ?? 'openui.confirm', variant: 'primary', onSelect: () => { ui.hideNotice(); o.onConfirm(); } },
+        ],
+      );
     },
     showControls: () => pixi.setControlsVisible(true),
     hideControls: () => pixi.setControlsVisible(false),
