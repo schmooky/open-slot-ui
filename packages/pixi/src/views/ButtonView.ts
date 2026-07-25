@@ -1,7 +1,16 @@
-import { Container, Graphics, Text, Sprite, Circle, Rectangle, type Texture, type Ticker } from 'pixi.js';
+import { Container, Graphics, Text, Sprite, Circle, Rectangle, type FederatedPointerEvent, type Texture, type Ticker } from 'pixi.js';
 import { type ButtonControl, type OpenUI, type Transition } from '@open-slot-ui/core';
 import { ControlView } from './ControlView';
 import { Tweener } from '../tween';
+
+/** Tap-slop: a press that lifts within this many SCREEN px of where it went down still
+ *  counts as a tap on that button — even if the finger drifts just outside the (often
+ *  small) hit area. Pixi only fires `pointertap`/`pointerup` when the release lands on
+ *  the SAME object as the press; without slop, normal finger wobble on a small touch
+ *  target fires `pointerupoutside` instead and the button reads as dead on mobile. The
+ *  check is bound to the press target and small enough that a real move onto a
+ *  neighbouring control (which sits well beyond this radius) never double-fires. */
+const TAP_SLOP = 24;
 
 /** Built-in placeholder glyphs the button can draw without art. */
 export type ButtonGlyph = 'menu' | 'close' | 'speaker' | 'speaker-mute' | 'fullscreen' | 'fullscreen-exit' | 'none';
@@ -151,17 +160,28 @@ export class ButtonView extends ControlView {
     this.sprite.scale.set(this.iconTarget / this.sprite.height);
   }
 
-  private readonly onDown = (): void => {
-    if (this.btn.interactable) this.btn.setState('pressed');
+  /** Screen position of the current press, for the tap-slop check on release. */
+  private downPt: { x: number; y: number } | null = null;
+
+  private readonly onDown = (e: FederatedPointerEvent): void => {
+    if (!this.btn.interactable) return;
+    this.btn.setState('pressed');
+    this.downPt = { x: e.global.x, y: e.global.y };
   };
   private readonly onUp = (): void => {
     if (this.btn.current === 'pressed') {
       this.btn.setState('idle');
       this.btn.activate();
     }
+    this.downPt = null;
   };
-  private readonly onUpOutside = (): void => {
-    if (this.btn.current === 'pressed') this.btn.setState('idle');
+  private readonly onUpOutside = (e: FederatedPointerEvent): void => {
+    const p = this.downPt;
+    this.downPt = null;
+    if (this.btn.current !== 'pressed') return;
+    this.btn.setState('idle');
+    // Tap-slop: a finger that lifts just outside a small button still activates it.
+    if (p && Math.hypot(e.global.x - p.x, e.global.y - p.y) <= TAP_SLOP) this.btn.activate();
   };
 
   private updateHit(): void {
