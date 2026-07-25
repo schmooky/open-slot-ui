@@ -7,13 +7,13 @@ export interface MenuViewOptions {
   controlSkins?: Partial<Record<string, ControlViewFactory>>;
   /** Header title (localizable). Default 'Menu'. */
   title?: string;
-  /** Max card width in px. Default 560. */
+  /** Max card width in px. Default 760 (the reference sheet width). */
   maxWidth?: number;
 }
 
 const MARGIN = 16;
-const HEADER_H = 60;
-const INSET = 22;
+const HEADER_H = 62;
+const INSET = 24;
 
 /** The menu ships in ONE look — the light/default card — independent of the game
  *  theme, so it can never be switched to a dark variant (matches the notice modal). */
@@ -71,7 +71,7 @@ export class MenuView extends ControlView {
     super(panel, ui);
     this.zIndex = 120;
     this.titleKey = opts.title ?? 'Menu';
-    this.maxWidth = opts.maxWidth ?? 1600;
+    this.maxWidth = opts.maxWidth ?? 760;
 
     // A light-themed view of `ui` (only `theme.color` swapped) so the shared block
     // renderer always paints the menu dark-on-white — the theme can't darken it.
@@ -81,8 +81,10 @@ export class MenuView extends ControlView {
     this.backdrop.eventMode = 'static';
     this.backdrop.on('pointertap', () => this.panel.closePanel());
 
-    this.title = new Text({ text: ui.t(this.titleKey), style: { fontFamily: ui.theme.type.family, fontSize: 24, fill: LIGHT.text, fontWeight: '800', letterSpacing: 1 } });
-    this.title.anchor.set(0, 0.5);
+    // The game title reads as a big centered logo over the sheet (no filled header band) —
+    // matching the reference menu, where the name headlines the top of the card.
+    this.title = new Text({ text: ui.t(this.titleKey), style: { fontFamily: ui.theme.type.family, fontSize: 28, fill: LIGHT.text, fontWeight: '900', letterSpacing: 1 } });
+    this.title.anchor.set(0.5, 0.5);
 
     this.buildClose();
 
@@ -144,24 +146,23 @@ export class MenuView extends ControlView {
     this.position.set(0, 0);
     this.scale.set(1);
 
-    this.backdrop.clear().rect(0, 0, W, H).fill({ color: 0x000000, alpha: 0.5 });
+    // A warm, dim scrim over the game (the reference backdrop tone).
+    this.backdrop.clear().rect(0, 0, W, H).fill({ color: 0x0a0806, alpha: 0.42 });
     this.backdrop.hitArea = new Rectangle(0, 0, W, H);
 
-    // The card takes ~90% of the width (like the reference), capped on huge screens.
-    const marginX = Math.max(MARGIN, Math.round(W * 0.05));
+    // The card takes ~92% of the width (like the reference), capped at maxWidth.
+    const marginX = Math.max(MARGIN, Math.round(W * 0.04));
     const cardW = Math.min(W - marginX * 2, this.maxWidth);
     const cardH = H - MARGIN * 2;
     const cx = (W - cardW) / 2;
     const cy = MARGIN;
-    // Always the light card with a black border (never themed dark).
-    this.card.clear().roundRect(cx, cy, cardW, cardH, 14).fill({ color: LIGHT.surface }).stroke({ width: 2.5, color: LIGHT.border });
+    // Always the light card with a thin black border, small radius (never themed dark).
+    this.card.clear().roundRect(cx, cy, cardW, cardH, 8).fill({ color: LIGHT.surface }).stroke({ width: 1.5, color: LIGHT.border });
 
-    this.headerBar.clear()
-      .roundRect(cx, cy, cardW, HEADER_H, 14)
-      .fill({ color: LIGHT.surfaceAlt })
-      .moveTo(cx + INSET, cy + HEADER_H).lineTo(cx + cardW - INSET, cy + HEADER_H).stroke({ width: 1, color: LIGHT.textDim, alpha: 0.4 });
-    this.title.position.set(cx + INSET, cy + HEADER_H / 2);
-    this.closeBtn.position.set(cx + cardW - INSET - 8, cy + HEADER_H / 2);
+    // No filled header band — the title floats centered as a logo; the close hugs the corner.
+    this.headerBar.clear();
+    this.title.position.set(cx + cardW / 2, cy + HEADER_H / 2);
+    this.closeBtn.position.set(cx + cardW - INSET, cy + INSET);
 
     const vpX = cx + INSET;
     const vpY = cy + HEADER_H + INSET;

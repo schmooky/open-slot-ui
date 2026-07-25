@@ -202,6 +202,9 @@ export function buildBlockColumn(
         case 'paytable':
           placeAuto(paytableNode(b, ui, innerW));
           break;
+        case 'paylines':
+          placeAuto(paylinesNode(b, ui, innerW));
+          break;
         case 'media':
           placeAuto(mediaNode(b, ui, innerW));
           break;
@@ -483,6 +486,47 @@ function imageBoxNode(src: string, w: number, h: number, ui: OpenUI): Container 
     img.src = src;
   }
   return box;
+}
+
+/** The 40-line paylines matrix: a wrapped flow of little REELS×ROWS masks, each with the
+ *  cell that line pays on lit. Plain black-and-white (lit #111 / unlit #e2e5ea), no outlines
+ *  or rounding, an index number under each — matches the reference design. */
+function paylinesNode(b: Extract<BlockSpec, { kind: 'paylines' }>, ui: OpenUI, innerW: number): Container {
+  const t = ui.theme;
+  const c = new Container();
+  const GAP_X = 12;
+  const ITEM_MIN = 76;
+  const cols = Math.max(1, Math.floor((innerW + GAP_X) / (ITEM_MIN + GAP_X)));
+  const itemW = (innerW - GAP_X * (cols - 1)) / cols;
+  const cellGap = 2;
+  const gridW = Math.min(72, itemW);
+  const cell = (gridW - cellGap * (b.reels - 1)) / b.reels;
+  const drawnW = cell * b.reels + cellGap * (b.reels - 1);
+  const drawnH = cell * b.rows + cellGap * (b.rows - 1);
+  const labelH = 16;
+  const itemH = drawnH + 5 + labelH;
+  const gridRows = Math.ceil(b.lines.length / cols);
+  const totalH = gridRows * itemH + (gridRows - 1) * GAP_X;
+
+  b.lines.forEach((line, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const itemCx = -innerW / 2 + col * (itemW + GAP_X) + itemW / 2;
+    const gy0 = -totalH / 2 + row * (itemH + GAP_X);
+    const gx0 = itemCx - drawnW / 2;
+    const g = new Graphics();
+    for (let r = 0; r < b.rows; r++) {
+      for (let re = 0; re < b.reels; re++) {
+        g.rect(gx0 + re * (cell + cellGap), gy0 + r * (cell + cellGap), cell, cell).fill({ color: line[re] === r ? 0x111111 : 0xe2e5ea });
+      }
+    }
+    const idx = new Text({ text: String(i + 1), style: { fontFamily: t.type.family, fontSize: 11, fill: t.color.textDim, fontWeight: '700' } });
+    idx.anchor.set(0.5, 0);
+    idx.position.set(itemCx, gy0 + drawnH + 5);
+    c.addChild(g, idx);
+  });
+  c.addChild(new Graphics().rect(-innerW / 2, -totalH / 2, 1, totalH).fill({ color: 0xffffff, alpha: 0 }));
+  return c;
 }
 
 type PaytableBlock = Extract<BlockSpec, { kind: 'paytable' }>;

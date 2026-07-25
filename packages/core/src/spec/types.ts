@@ -135,6 +135,9 @@ export type BlockSpec = {
   | { kind: 'steps'; id: string; ordered?: boolean; items: string[] }
   | { kind: 'table'; id: string; columns?: string[]; rows: string[][] }
   | { kind: 'paytable'; id: string; columns?: number; rows: Array<{ symbol?: string; payouts: string; icon?: string }> }
+  // A grid of little REELS×ROWS payline masks — one cell lit per reel (the row that line pays
+  // on). Black-and-white, no outlines/rounding. `lines[i][reel] = rowIndex` (0-based).
+  | { kind: 'paylines'; id: string; reels: number; rows: number; lines: number[][] }
   | { kind: 'image'; id: string; src: string; alt?: string; width?: number; height?: number }
   | { kind: 'media'; id: string; src: string; alt?: string; side?: 'left' | 'right'; title?: string; text: string; width?: number; height?: number }
   | { kind: 'cards'; id: string; items: Array<{ icon?: string; title: string; text?: string }> }
@@ -160,6 +163,7 @@ export const BLOCK_KINDS = [
   'steps',
   'table',
   'paytable',
+  'paylines',
   'image',
   'media',
   'cards',

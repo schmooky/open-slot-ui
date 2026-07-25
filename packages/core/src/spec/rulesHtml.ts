@@ -86,6 +86,15 @@ export function renderBlocksHtml(blocks: BlockSpec[], tr: (s: string) => string,
       case 'paytable':
         out.push(`<div class="ohm-grid">${renderPaytable(b.rows, tr)}</div>`);
         break;
+      case 'paylines': {
+        const masks = b.lines.map((line, i) => {
+          const cells: string[] = [];
+          for (let row = 0; row < b.rows; row++) for (let reel = 0; reel < b.reels; reel++) cells.push(`<i class="${line[reel] === row ? 'on' : ''}"></i>`);
+          return `<div class="ohm-line"><div class="ohm-linegrid" style="grid-template-columns:repeat(${b.reels},1fr)">${cells.join('')}</div><span>${i + 1}</span></div>`;
+        }).join('');
+        out.push(`<div class="ohm-lines">${masks}</div>`);
+        break;
+      }
       case 'table': {
         const head = b.columns?.length ? `<thead><tr>${b.columns.map((c) => `<th>${esc(tr(c))}</th>`).join('')}</tr></thead>` : '';
         const body = b.rows.map((r) => `<tr>${r.map((c) => `<td>${esc(tr(c))}</td>`).join('')}</tr>`).join('');

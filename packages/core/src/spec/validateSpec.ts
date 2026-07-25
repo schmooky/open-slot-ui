@@ -163,6 +163,10 @@ export function validateSpec(spec: UISpec): { ok: boolean; issues: SpecIssue[] }
         if (b.kind === 'paytable' && (!b.rows || b.rows.length === 0)) {
           add('warn', `${p}.rows`, 'empty-paytable', 'a paytable block has no rows');
         }
+        if (b.kind === 'paylines') {
+          if (!(b.reels > 0) || !(b.rows > 0)) add('error', `${p}.reels`, 'paylines-shape', 'a paylines block needs reels > 0 and rows > 0');
+          if (!b.lines || b.lines.length === 0) add('warn', `${p}.lines`, 'empty-paylines', 'a paylines block has no lines');
+        }
         if (b.kind === 'image' && (!b.src || !b.src.trim())) {
           add('error', `${p}.src`, 'image-src', 'an image block needs a src');
         }
