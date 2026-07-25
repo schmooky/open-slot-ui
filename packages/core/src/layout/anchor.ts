@@ -20,6 +20,15 @@ export interface LayoutSpec {
   scale?: number;
   /** Rotation in degrees, clockwise. Default 0. */
   rotation?: number;
+  /**
+   * Which rect the anchor resolves against. `'stage'` (default) = the uniformly-scaled
+   * design FRAME, so the HUD scales as one homogeneous unit and inter-control gaps never
+   * change with aspect ratio. `'screen'` = the RAW viewport, so a control hugs the true
+   * screen edge even when the frame is letterboxed off it — for the corner utility buttons
+   * (mute / fullscreen / RTP / timers), which must sit in the viewport corner at every
+   * aspect (otherwise a bottom-anchored letterboxed frame drops a "top" control mid-screen).
+   */
+  origin?: 'stage' | 'screen';
 }
 
 export interface Placement {
@@ -49,10 +58,13 @@ function anchorFactors(anchor: Anchor): [number, number] {
 export function resolvePlacement(spec: LayoutSpec, screen: ScreenState): Placement {
   const [ax, ay] = anchorFactors(spec.anchor);
   const [ox, oy] = spec.offset ?? [0, 0];
-  const st = screen.stage;
+  // `screen`-origin controls anchor to the raw viewport so they hug the true screen edge even
+  // when the design frame is letterboxed off it; the default anchors to the uniformly-scaled
+  // `stage` frame (at the reference aspect stage == screen, so both are identical there).
+  const rect = spec.origin === 'screen' ? { x: 0, y: 0, width: screen.width, height: screen.height } : screen.stage;
   return {
-    x: st.x + ax * st.width + ox * screen.scale,
-    y: st.y + ay * st.height + oy * screen.scale,
+    x: rect.x + ax * rect.width + ox * screen.scale,
+    y: rect.y + ay * rect.height + oy * screen.scale,
     scale: screen.scale * (spec.scale ?? 1),
     rotation: ((spec.rotation ?? 0) * Math.PI) / 180,
   };

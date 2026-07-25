@@ -36,11 +36,13 @@ export const landscapeDefaultLayouts: Readonly<Record<string, LayoutSpec>> = Obj
   // Right-anchored so a long localized caption grows LEFT and never clips the edge.
   'total-win': { anchor: 'bottom-right', offset: [-150, -300] },
   settings: { anchor: 'bottom-center', offset: [-740, -320], rotation: -5 },
-  mute: { anchor: 'top-right', offset: [-122, 46] },
-  fullscreen: { anchor: 'top-right', offset: [-46, 46] },
-  rtp: { anchor: 'top-left', offset: [20, 18] },
-  'session-timer': { anchor: 'top-left', offset: [20, 46] },
-  'net-position': { anchor: 'top-left', offset: [20, 74] },
+  // Corner utilities anchor to the SCREEN (not the letterboxed frame) so they hug the true
+  // viewport corners at every aspect — see `LayoutSpec.origin`.
+  mute: { anchor: 'top-right', offset: [-122, 46], origin: 'screen' },
+  fullscreen: { anchor: 'top-right', offset: [-46, 46], origin: 'screen' },
+  rtp: { anchor: 'top-left', offset: [20, 18], origin: 'screen' },
+  'session-timer': { anchor: 'top-left', offset: [20, 46], origin: 'screen' },
+  'net-position': { anchor: 'top-left', offset: [20, 74], origin: 'screen' },
 });
 
 export const portraitDefaultLayouts: Readonly<Record<string, LayoutSpec>> = Object.freeze({
@@ -56,12 +58,14 @@ export const portraitDefaultLayouts: Readonly<Record<string, LayoutSpec>> = Obje
   settings: { anchor: 'bottom-center', offset: [438, -480], scale: 1.5, rotation: -5 },
   'bet-minus': { anchor: 'bottom-center', offset: [-105, -267], scale: 1.5 },
   'bet-plus': { anchor: 'bottom-center', offset: [105, -267], scale: 1.5 },
-  mute: { anchor: 'top-right', offset: [-159, 57], scale: 1.5 },
-  fullscreen: { anchor: 'top-right', offset: [-57, 57], scale: 1.5 },
+  // Corner utilities anchor to the SCREEN (see `LayoutSpec.origin`) so they stay in the true
+  // viewport corner even when the portrait frame is letterboxed.
+  mute: { anchor: 'top-right', offset: [-159, 57], scale: 1.5, origin: 'screen' },
+  fullscreen: { anchor: 'top-right', offset: [-57, 57], scale: 1.5, origin: 'screen' },
   // Compliance readouts scale up ~2× on mobile with wider line spacing.
-  rtp: { anchor: 'top-left', offset: [16, 16], scale: 2 },
-  'session-timer': { anchor: 'top-left', offset: [16, 66], scale: 2 },
-  'net-position': { anchor: 'top-left', offset: [16, 116], scale: 2 },
+  rtp: { anchor: 'top-left', offset: [16, 16], scale: 2, origin: 'screen' },
+  'session-timer': { anchor: 'top-left', offset: [16, 66], scale: 2, origin: 'screen' },
+  'net-position': { anchor: 'top-left', offset: [16, 116], scale: 2, origin: 'screen' },
   balance: { anchor: 'bottom-left', offset: [36, -110], rotation: -5 },
   bet: { anchor: 'bottom-right', offset: [-36, -110], rotation: 5 },
 });
@@ -70,5 +74,5 @@ export const portraitDefaultLayouts: Readonly<Record<string, LayoutSpec>> = Obje
 export function defaultLayout(id: string): LayoutSpec {
   const l = landscapeDefaultLayouts[id];
   if (!l) return { anchor: 'center' };
-  return { anchor: l.anchor, offset: l.offset ? [l.offset[0], l.offset[1]] : undefined, scale: l.scale, rotation: l.rotation };
+  return { anchor: l.anchor, offset: l.offset ? [l.offset[0], l.offset[1]] : undefined, scale: l.scale, rotation: l.rotation, origin: l.origin };
 }
