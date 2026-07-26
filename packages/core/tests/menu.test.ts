@@ -24,14 +24,14 @@ describe('composeMenu — Settings → Paytable → Rules', () => {
     expect(composeMenu(undefined, { locales: ['en'] }).some((b) => b.id === 'lang')).toBe(false);
   });
 
-  it('appends extra settings, then Paytable, then Rules — in order', () => {
+  it('puts extra settings first, then Music/Effects sliders, then Paytable, then Rules — in order', () => {
     const bs = composeMenu({
       settings: [{ kind: 'toggle', id: 'shake', label: 'Screen shake' }],
       paytable: [{ kind: 'paytable', id: 'pt', rows: [{ symbol: 'W', payouts: '50x' }] }],
       rules: [{ kind: 'text', id: 'r1', text: 'Win on lines.' }],
     });
     expect(ids(bs)).toEqual([
-      'menu-sec-settings', 'music', 'sfx', 'shake',
+      'menu-sec-settings', 'shake', 'music', 'sfx',
       'menu-sec-paytable', 'pt',
       'menu-sec-rules', 'r1',
     ]);

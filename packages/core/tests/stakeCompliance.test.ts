@@ -189,15 +189,17 @@ describe('OpenUI reportRound + mute', () => {
     expect(ui.netPosition.get()).toBe(3);
   });
 
-  it('mute silences both sliders and restores the prior levels', () => {
+  it('mute flips the muted flag without altering the volume sliders (volume is preserved)', () => {
     const ui = createUI({});
     ui.musicSlider.setNormalized(0.8);
     ui.sfxSlider.setNormalized(0.6);
     ui.setMuted(true);
     expect(ui.muted.get()).toBe(true);
-    expect(ui.musicSlider.value.get()).toBe(0);
-    expect(ui.sfxSlider.value.get()).toBe(0);
+    // The sliders keep the real volume (muting is a separate flag) — so it can never be persisted as 0.
+    expect(ui.musicSlider.value.get()).toBeCloseTo(0.8);
+    expect(ui.sfxSlider.value.get()).toBeCloseTo(0.6);
     ui.setMuted(false);
+    expect(ui.muted.get()).toBe(false);
     expect(ui.musicSlider.value.get()).toBeCloseTo(0.8);
     expect(ui.sfxSlider.value.get()).toBeCloseTo(0.6);
   });
@@ -424,7 +426,8 @@ describe('free-spins spin face + audio start flag', () => {
   it('spec.audio.startMuted boots muted', () => {
     const ui = createUI({ audio: { startMuted: true } });
     expect(ui.muted.get()).toBe(true);
-    expect(ui.musicSlider.value.get()).toBe(0);
+    // Muting only flips the flag; the volume slider keeps its real value (never zeroed).
+    expect(ui.musicSlider.value.get()).toBeGreaterThan(0);
   });
 });
 

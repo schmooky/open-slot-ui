@@ -121,7 +121,6 @@ export class OpenUI {
    *  opts out. */
   autoplayInsufficientNotice = true;
   private sessionNet = 0;
-  private prevVolumes: { music: number; sfx: number } | null = null;
 
   /** The frozen UISpec `createUI` built this from, if any — authored = run = tested. */
   spec?: Readonly<UISpec>;
@@ -375,18 +374,14 @@ export class OpenUI {
     this.setMuted(!this.muted.get());
   }
 
-  /** Mute/unmute music+sfx, remembering the levels to restore on unmute. */
+  /**
+   * Master mute/unmute. This ONLY flips the `muted` signal — the host silences audio off it
+   * (and may grey the volume sliders). It does NOT drive the Music/Sound sliders to 0: doing so
+   * would fire `valueChanged` and let a persistence layer save the transient 0, wiping the real
+   * volume. The sliders keep showing the actual volume, just muted.
+   */
   setMuted(m: boolean): void {
     if (m === this.muted.get()) return;
-    if (m) {
-      this.prevVolumes = { music: this.musicSlider.value.get(), sfx: this.sfxSlider.value.get() };
-      this.musicSlider.setNormalized(0);
-      this.sfxSlider.setNormalized(0);
-    } else if (this.prevVolumes) {
-      this.musicSlider.setNormalized(this.prevVolumes.music);
-      this.sfxSlider.setNormalized(this.prevVolumes.sfx);
-      this.prevVolumes = null;
-    }
     this.muted.set(m);
   }
 
