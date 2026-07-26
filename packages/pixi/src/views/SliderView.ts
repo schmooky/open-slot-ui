@@ -58,7 +58,19 @@ export class SliderView extends ControlView {
     this.on('pointerupoutside', this.onUp);
 
     this.disposers.push(this.slider.value.subscribe(() => this.redraw()));
+    // Reflect the disabled state (e.g. volume sliders while sound is off) + the host input lock:
+    // dim to a semi-transparent, non-interactive look.
+    this.disposers.push(this.slider.state.subscribe(() => this.updateInteractive()));
+    this.disposers.push(this.ui.locked.subscribe(() => this.updateInteractive()));
+    this.updateInteractive();
     this.redraw();
+  }
+
+  private updateInteractive(): void {
+    const ok = this.slider.interactable;
+    this.eventMode = ok ? 'static' : 'none';
+    this.cursor = ok ? 'pointer' : 'default';
+    this.alpha = ok ? 1 : 0.4;
   }
 
   private redraw(): void {
@@ -91,6 +103,7 @@ export class SliderView extends ControlView {
   }
 
   private readonly onDown = (e: FederatedPointerEvent): void => {
+    if (!this.slider.interactable) return;
     this.dragging = true;
     this.slider.beginDrag();
     this.slider.setNormalized(this.valueFromEvent(e));

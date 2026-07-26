@@ -23,6 +23,7 @@ export class SliderControl extends Control {
   readonly states: StateMap = {
     idle: { interactable: true },
     dragging: { interactable: true },
+    disabled: { interactable: false },
   };
   readonly value = new Signal<number>(0.5);
   readonly label?: string;
@@ -42,9 +43,19 @@ export class SliderControl extends Control {
   }
 
   beginDrag(): void {
+    if (this.current === 'disabled') return;
     this.setState('dragging');
   }
   endDrag(): void {
+    if (this.current === 'disabled') return;
     this.setState('idle');
+  }
+
+  /** Grey the slider out + block interaction (e.g. the volume sliders while sound is off). */
+  disable(): void {
+    this.setState('disabled');
+  }
+  enable(): void {
+    if (this.current === 'disabled') this.setState('idle');
   }
 }

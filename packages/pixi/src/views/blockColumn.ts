@@ -170,8 +170,10 @@ export function buildBlockColumn(
     if (!view) return null;
     views.push(view);
     const isSlider = b.kind === 'slider';
-    const cw = Math.max(isSlider ? 200 : 52, Math.ceil(view.width) || 0);
-    const chh = Math.max(40, Math.ceil(view.height) || 0);
+    // SliderView is a FIXED-geometry box (its measured width is unreliable at build time and would
+    // let it overflow the card); a toggle we can measure. Both right-align to the row's right edge.
+    const cw = isSlider ? 260 : Math.max(52, Math.ceil(view.width) || 52);
+    const chh = isSlider ? 54 : Math.max(40, Math.ceil(view.height) || 40);
     const gap = 22;
     const leftW = Math.max(140, innerW - cw - gap);
     const label = (b as { label?: string }).label ? tr((b as { label?: string }).label!) : '';
