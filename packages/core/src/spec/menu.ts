@@ -68,9 +68,13 @@ export function composeMenu(menu: MenuSpec | undefined, opts: ComposeMenuOptions
   }
 
   // ── Settings ──────────────────────────────────────────────────────────────
+  // Order: heading → the host's extra settings (e.g. Speed / Sound toggles) → Music + Effects
+  // volume sliders → a Language switch. Each row shows its name + a description with the control
+  // on the right (see `settingRow` in the pixi block renderer).
   out.push({ kind: 'heading', id: 'menu-sec-settings', text: titles.settings });
-  out.push({ kind: 'slider', id: 'music', label: 'Music' });
-  out.push({ kind: 'slider', id: 'sfx', label: 'Sound' });
+  if (menu?.settings?.length) out.push(...menu.settings);
+  out.push({ kind: 'slider', id: 'music', label: 'Music', hint: 'Background music volume.' });
+  out.push({ kind: 'slider', id: 'sfx', label: 'Effects', hint: 'Sound effect volume.' });
   const locales = opts.locales ?? [];
   if (locales.length >= 2) {
     out.push({
@@ -80,7 +84,6 @@ export function composeMenu(menu: MenuSpec | undefined, opts: ComposeMenuOptions
       options: locales.map((code) => ({ value: code, label: LOCALE_LABELS[code] ?? code.toUpperCase() })),
     });
   }
-  if (menu?.settings?.length) out.push(...menu.settings);
 
   // ── Paytable ──────────────────────────────────────────────────────────────
   if (menu?.paytable?.length) {

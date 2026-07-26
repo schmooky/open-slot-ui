@@ -162,6 +162,41 @@ export function buildBlockColumn(
     }
   };
 
+  // A settings row: NAME (bold) + description (dim, wrapped) stacked on the LEFT, the control on
+  // the RIGHT, vertically centred (the reference settings design). Sliders are left-origin;
+  // toggles/others are centre-origin.
+  const settingRow = (b: BlockSpec, control: Control): Container | null => {
+    const view = makeView(b, control);
+    if (!view) return null;
+    views.push(view);
+    const isSlider = b.kind === 'slider';
+    const cw = Math.max(isSlider ? 200 : 52, Math.ceil(view.width) || 0);
+    const chh = Math.max(40, Math.ceil(view.height) || 0);
+    const gap = 22;
+    const leftW = Math.max(140, innerW - cw - gap);
+    const label = (b as { label?: string }).label ? tr((b as { label?: string }).label!) : '';
+    const hintTxt = (b as { hint?: string }).hint ? tr((b as { hint?: string }).hint!) : '';
+
+    const row = new Container();
+    const lbl = label ? new Text({ text: label, style: { fontFamily: t.type.family, fontSize: 15, fontWeight: '800', fill: t.color.text } }) : null;
+    lbl?.anchor.set(0, 0);
+    const hnt = hintTxt ? richParagraphNode(hintTxt, ui, leftW, { fontFamily: t.type.family, fontSize: 13, fill: t.color.textDim, lineHeight: 18 }) : null;
+    const lblH = lbl ? lbl.height : 0;
+    const spc = lbl && hnt ? 5 : 0;
+    const hntH = hnt ? hnt.height : 0;
+    const leftH = lblH + spc + hntH;
+    const rowH = Math.max(leftH, chh) + 18;
+
+    if (lbl) { lbl.position.set(-innerW / 2, -leftH / 2); row.addChild(lbl); }
+    if (hnt) { hnt.position.set(-innerW / 2 + leftW / 2, -leftH / 2 + lblH + spc + hntH / 2); row.addChild(hnt); }
+    if (isSlider) view.position.set(innerW / 2 - cw, -chh / 2);
+    else view.position.set(innerW / 2 - cw / 2, 0);
+    row.addChild(view);
+    // Pad the measured row so short rows still get breathing room (placeAuto reads bounds).
+    if (rowH > row.height) row.addChild(new Graphics().rect(-innerW / 2, -rowH / 2, 1, rowH).fill({ color: 0xffffff, alpha: 0 }));
+    return row;
+  };
+
   const walk = (bs: BlockSpec[]): void => {
     for (const b of bs) {
       switch (b.kind) {
@@ -218,17 +253,21 @@ export function buildBlockColumn(
         default: {
           const control = byId.get(b.id);
           if (!control) break;
-          // Slider/Toggle don't draw their own label — add a caption row above them.
-          // (Select/Stepper/Value/Button render their own label, so skip those.)
-          if ((b.kind === 'slider' || b.kind === 'toggle') && b.label) placeAuto(caption(tr(b.label)), 6);
+          // Settings rows (slider / toggle): the reference layout is a two-column row — the
+          // control's NAME with its description under it on the left, the control itself on the
+          // right — instead of a stacked caption/control/hint.
+          if (b.kind === 'slider' || b.kind === 'toggle') {
+            const row = settingRow(b, control);
+            if (row) placeAuto(row, 10);
+            break;
+          }
+          // Other interactive kinds render their own label; keep the simple stacked form + hint.
           const view = makeView(b, control);
           if (!view) break;
           views.push(view);
           const wrap = new Container();
-          if (b.kind === 'slider') view.position.set(-130, -27); // SliderView is left-origin
           wrap.addChild(view);
           placeFixed(wrap, ROW_H);
-          // A `hint` explains the control's function, shown dim just below it.
           const hint = (b as { hint?: string }).hint;
           if (hint) placeAuto(hintNode(tr(hint)), 12);
         }
