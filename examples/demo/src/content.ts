@@ -5,12 +5,25 @@ import type { BlockSpec, GameFacts } from '@open-slot-ui/core';
  * library's info menu renders (`menu.rules` in main.ts). Because the English text
  * here doubles as the i18n KEY, defining it once guarantees the whole section
  * translates against the same dictionary entries (see locales.ts). Every block's
- * text flows through `ui.t`; images use placehold.co so a designer can swap the link.
+ * text flows through `ui.t`; images are inline SVG so the demo needs no network.
  *
  * This array is a tour of the full rules block palette:
  *   text · media (image+text) · subheading · cards · steps · table · image ·
  *   mode-stats (auto, from FACTS) · callout (bonus + warning) · divider · legal
  */
+
+/**
+ * Stand-in art, drawn as an inline SVG data URI.
+ *
+ * This used to point at placehold.co — which meant the example could not render its
+ * own paytable without a network, and a HOSTED copy made third-party requests on
+ * every load. A designer swaps these for real files; the point is that the demo owns
+ * everything it shows.
+ */
+const art = (w: number, h: number, label: string, bg = '#2a2f3a', fg = '#ffd166'): string =>
+  `data:image/svg+xml;utf8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" rx="${Math.min(w, h) * 0.08}" fill="${bg}"/><text x="${w / 2}" y="${h / 2}" dominant-baseline="central" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="${Math.min(w, h) * 0.34}" fill="${fg}">${label}</text></svg>`,
+  )}`;
 export const RULES_BLOCKS: BlockSpec[] = [
   // — just text, with **bold** inline runs —
   {
@@ -26,7 +39,7 @@ export const RULES_BLOCKS: BlockSpec[] = [
     side: 'left',
     width: 320,
     height: 200,
-    src: 'https://placehold.co/320x200/2a2f3a/ffd166?text=BONUS',
+    src: art(320, 200, 'BONUS', '#2a2f3a', '#ffd166'),
     alt: 'Free Spins',
     title: 'Free Spins',
     // {{freeSpins.count}} / {{freeSpins.retrigger}} interpolate from the declared
@@ -40,9 +53,9 @@ export const RULES_BLOCKS: BlockSpec[] = [
     kind: 'cards',
     id: 'r-cards',
     items: [
-      { icon: 'https://placehold.co/72x72/ef4444/ffffff?text=W', title: 'Wild', text: 'Substitutes for every paying symbol.' },
-      { icon: 'https://placehold.co/72x72/3b82f6/ffffff?text=S', title: 'Scatter', text: 'Pays anywhere on the reels.' },
-      { icon: 'https://placehold.co/72x72/f59e0b/000000?text=x2', title: 'Multiplier', text: 'Boosts every win during the bonus.' },
+      { icon: art(72, 72, 'W', '#ef4444', '#ffffff'), title: 'Wild', text: 'Substitutes for every paying symbol.' },
+      { icon: art(72, 72, 'S', '#3b82f6', '#ffffff'), title: 'Scatter', text: 'Pays anywhere on the reels.' },
+      { icon: art(72, 72, 'x2', '#f59e0b', '#000000'), title: 'Multiplier', text: 'Boosts every win during the bonus.' },
     ],
   },
 
@@ -118,11 +131,11 @@ export const RULES_BLOCKS: BlockSpec[] = [
     ],
   },
 
-  // — a full-width feature image (designer-supplied art; placehold.co stands in) —
+  // — a full-width feature image (designer-supplied art; an inline SVG stands in) —
   {
     kind: 'image',
     id: 'r-banner',
-    src: 'https://placehold.co/1000x180/2a2f3a/ffd166?text=MAX+WIN+5%2C000x',
+    src: art(1000, 180, 'MAX WIN 5,000x', '#2a2f3a', '#ffd166'),
     alt: 'Max win 5,000x',
     width: 1000,
     height: 180,
@@ -146,7 +159,7 @@ export const RULES_BLOCKS: BlockSpec[] = [
  *  - `'buy'`  → a one-tap purchase ("Buy"): pay `cost × bet` to trigger the feature.
  *  - `'boost'`→ an activatable bet boost ("Activate"): a per-spin surcharge of
  *               `cost × bet` that toggles on/off.
- * Names are localized (the English text is the i18n key); images use placehold.co
+ * Names are localized (the English text is the i18n key); images are inline SVG
  * so a designer swaps in the real feature art.
  */
 export interface FeatureSpec {
@@ -159,10 +172,10 @@ export interface FeatureSpec {
 }
 
 export const FEATURES: FeatureSpec[] = [
-  { id: 'free-spins', name: 'Free Spins', variant: 'buy', cost: 100, image: 'https://placehold.co/480x300/7c3aed/ffffff?text=FREE+SPINS' },
-  { id: 'super-spins', name: 'Super Spins', variant: 'buy', cost: 300, image: 'https://placehold.co/480x300/db2777/ffffff?text=SUPER+SPINS' },
-  { id: 'ante-bet', name: 'Ante Bet', variant: 'boost', cost: 0.25, image: 'https://placehold.co/480x300/2563eb/ffffff?text=ANTE+BET' },
-  { id: 'double-chance', name: 'Double Chance', variant: 'boost', cost: 0.5, image: 'https://placehold.co/480x300/059669/ffffff?text=DOUBLE+CHANCE' },
+  { id: 'free-spins', name: 'Free Spins', variant: 'buy', cost: 100, image: art(480, 300, 'FREE SPINS', '#7c3aed', '#ffffff') },
+  { id: 'super-spins', name: 'Super Spins', variant: 'buy', cost: 300, image: art(480, 300, 'SUPER SPINS', '#db2777', '#ffffff') },
+  { id: 'ante-bet', name: 'Ante Bet', variant: 'boost', cost: 0.25, image: art(480, 300, 'ANTE BET', '#2563eb', '#ffffff') },
+  { id: 'double-chance', name: 'Double Chance', variant: 'boost', cost: 0.5, image: art(480, 300, 'DOUBLE CHANCE', '#059669', '#ffffff') },
 ];
 
 /**
