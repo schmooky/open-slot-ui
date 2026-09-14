@@ -137,6 +137,12 @@ examples/demo     standalone example client + Playwright device tests
 apps/site         the docs site (Astro)
 ```
 
+## Deploy the example
+
+The example client is a static build — `pnpm build:demo` → `examples/demo/dist`. See
+[DEPLOY.md](./DEPLOY.md) for the exact settings (including Timeweb App Platform, which
+redeploys on every push).
+
 ## Develop
 
 ```bash

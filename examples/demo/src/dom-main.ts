@@ -13,7 +13,17 @@ import { RULES_BLOCKS, FACTS } from './content';
  *   /dom.html?skin=/skin/ui.min.css
  */
 const q = new URLSearchParams(location.search);
-const skinHref = q.get('skin') ?? '/skin/ui.min.css';
+/**
+ * WHERE THE LOOK COMES FROM.
+ *
+ * open-ui ships no stylesheet for this markup — the skin is the game studio's. Locally
+ * it is read from `public/skin/` (gitignored: it is not ours to commit). A deployed
+ * build points at whatever URL the studio serves it from, via `VITE_SKIN_URL`.
+ *   /?skin=https://cdn.example.com/ui.css
+ */
+const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
+const skinHref = q.get('skin') ?? env.VITE_SKIN_URL ?? '/skin/ui.min.css';
+const iconFont = q.get('font') ?? env.VITE_SKIN_FONT_URL ?? '/skin/ui/fonts/icons/icomoon.woff2';
 
 /**
  * Money shapes worth looking at: a 2-decimal major, a ZERO-decimal currency whose
@@ -109,7 +119,7 @@ async function main(): Promise<void> {
   layout();
 
   const hud = mountDomHud(SPEC, {
-    skin: { href: skinHref, font: { family: 'icomoon', src: '/skin/ui/fonts/icons/icomoon.woff2' } },
+    skin: { href: skinHref, font: { family: 'icomoon', src: iconFont } },
     features: FEATURES,
     onBuy: (id, cost) => {
       // A boost is a per-spin surcharge, not a purchase — the demo just notes it.

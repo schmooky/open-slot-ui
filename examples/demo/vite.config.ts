@@ -17,10 +17,17 @@ export default defineConfig({
       // `/art` must come before the bare `pixi` alias so the subpath resolves to source.
       { find: /^@open-slot-ui\/pixi\/art$/, replacement: fromRoot('packages/pixi/src/art/index.ts') },
       { find: /^@open-slot-ui\/pixi$/, replacement: fromRoot('packages/pixi/src/index.ts') },
+      { find: /^@open-slot-ui\/dom$/, replacement: fromRoot('packages/dom/src/index.ts') },
       { find: /^pixi-text-counter$/, replacement: fromRoot('packages/pixi-text-counter/src/index.ts') },
     ],
     dedupe: ['pixi.js'],
   },
-  optimizeDeps: { exclude: ['@open-slot-ui/core', '@open-slot-ui/pixi'] },
+  optimizeDeps: { exclude: ['@open-slot-ui/core', '@open-slot-ui/pixi', '@open-slot-ui/dom'] },
+  // Two pages: `/` is the DOM renderer (the default), `/canvas.html` the canvas one.
+  build: {
+    rollupOptions: {
+      input: { index: fromRoot('examples/demo/index.html'), canvas: fromRoot('examples/demo/canvas.html') },
+    },
+  },
   server: { fs: { allow: [root.pathname] }, port: 5199, strictPort: true },
 });

@@ -19,6 +19,6 @@ examples/demo/screenshots
 Archive.zip
 *.tgz
 
-# The reference SKIN used by the DOM demo is the game studio's own stylesheet +
-# icon font — wired up locally, never committed.
-examples/demo/public/skin/
+# The demo's SKIN (stylesheet + icon font) is committed so the example builds and
+# deploys from a clean checkout — see examples/demo/public/skin/README.md for what it
+# is and who it belongs to.
