@@ -3,7 +3,7 @@ import { mountHud, mountBuyFeatureModal } from '@open-slot-ui/pixi';
 import { resolveBetLadder } from '@open-slot-ui/core';
 import type { UISpec, CurrencySpec, ThemePreset, JurisdictionConfig } from '@open-slot-ui/core';
 import { MESSAGES } from './locales';
-import { RULES_BLOCKS, FEATURES, FACTS } from './content';
+import { RULES_BLOCKS, FEATURES, FACTS, dropBlocks, art } from './content';
 import { mountHarness } from './harness';
 import { buildReels, evaluate } from './reels';
 
@@ -99,7 +99,7 @@ function buildSpec(): UISpec {
   // the free-spins facts — the rules audit then lists exactly what was "forgotten"
   // (missing per-mode sections included).
   const FORGOTTEN = new Set(['r-stats', 'r-f-ss-h', 'r-f-ss', 'r-f-ab-h', 'r-f-ab']);
-  const rules = cfg.forget ? RULES_BLOCKS.filter((b) => !FORGOTTEN.has(b.id)) : RULES_BLOCKS;
+  const rules = cfg.forget ? dropBlocks(RULES_BLOCKS, FORGOTTEN) : RULES_BLOCKS;
   const facts = cfg.forget ? { ...FACTS, freeSpins: undefined } : FACTS;
   // ?off=buyFeature,history,… switches ribbon features OFF; ?on=… switches them on.
   // (A misspelled flag is reported to onDataIssue and ignored — try ?off=nope.)
@@ -135,7 +135,7 @@ function buildSpec(): UISpec {
     // reads ?juris=…; a real game gets this from the RGS authenticate response).
     rtp: 96,
     jurisdiction: JURISDICTION,
-    game: { name: 'Scrolls of Fate', version: '1.0.0' },
+    game: { name: 'open-slot-ui', version: '0.14.0' },
     // What the game HAS, as data: modes + RTP/max win, free spins, volatility, cap.
     // Drives the rules' auto mode-stats grid + the completeness audit.
     facts,
@@ -149,10 +149,10 @@ function buildSpec(): UISpec {
     },
     // The unified ☰ menu — every part is a modular, configurable BLOCK: a banner
     // image, a divider+settings, a multiplier paytable with symbol icons, and rules
-    // with bold inline text + a stat grid + a callout. All localizable; images use
-    // placehold.co so the desired dimensions/resolutions show even offline.
+    // parsed from markup. All localizable; every image is the example's own inline
+    // SVG (`art`), so the menu renders with no network at all.
     menu: {
-      banner: { src: 'https://placehold.co/1000x120/1f2430/ffd166?text=Scrolls+of+Fate', width: 1000, height: 120 },
+      banner: { src: art(1000, 120, 'open-slot-ui', '#1f2430', '#ffd166'), width: 1000, height: 120 },
       // The lib's info menu already ships Sound + volume sliders + Language + Quick
       // spin (turbo) — only truly custom settings go here.
       settings: [
@@ -160,15 +160,15 @@ function buildSpec(): UISpec {
           { value: 'low', label: 'Low' }, { value: 'med', label: 'Medium' }, { value: 'high', label: 'High' },
         ], hint: 'Rendering quality. Lower it on older devices.' },
       ],
-      // A 3-column multiplier grid with symbol icons (placehold.co → real dimensions).
+      // A 3-column multiplier grid with symbol icons.
       paytable: [
         { kind: 'paytable', id: 'pt', columns: 3, rows: [
-          { symbol: 'Wild', icon: 'https://placehold.co/72x72/ef4444/ffffff?text=W', payouts: '8-9: 10.00x\n10-11: 25.00x\n12+: 50.00x' },
-          { symbol: 'Scatter', icon: 'https://placehold.co/72x72/3b82f6/ffffff?text=S', payouts: '8-9: 8.00x\n10-11: 20.00x\n12+: 40.00x' },
-          { symbol: 'Star', icon: 'https://placehold.co/72x72/f59e0b/000000?text=ST', payouts: '8-9: 6.00x\n10-11: 15.00x\n12+: 30.00x' },
-          { symbol: 'Ace', icon: 'https://placehold.co/72x72/22c55e/ffffff?text=A', payouts: '8-9: 5.00x\n10-11: 12.00x\n12+: 25.00x' },
-          { symbol: 'King', icon: 'https://placehold.co/72x72/a855f7/ffffff?text=K', payouts: '8-9: 2.00x\n10-11: 6.00x\n12+: 12.00x' },
-          { symbol: 'Queen', icon: 'https://placehold.co/72x72/ec4899/ffffff?text=Q', payouts: '8-9: 1.50x\n10-11: 4.00x\n12+: 8.00x' },
+          { symbol: 'Wild', icon: art(72, 72, 'W', '#ef4444', '#ffffff'), payouts: '8-9: 10.00x\n10-11: 25.00x\n12+: 50.00x' },
+          { symbol: 'Scatter', icon: art(72, 72, 'S', '#3b82f6', '#ffffff'), payouts: '8-9: 8.00x\n10-11: 20.00x\n12+: 40.00x' },
+          { symbol: 'Star', icon: art(72, 72, 'ST', '#f59e0b', '#000000'), payouts: '8-9: 6.00x\n10-11: 15.00x\n12+: 30.00x' },
+          { symbol: 'Ace', icon: art(72, 72, 'A', '#22c55e', '#ffffff'), payouts: '8-9: 5.00x\n10-11: 12.00x\n12+: 25.00x' },
+          { symbol: 'King', icon: art(72, 72, 'K', '#a855f7', '#ffffff'), payouts: '8-9: 2.00x\n10-11: 6.00x\n12+: 12.00x' },
+          { symbol: 'Queen', icon: art(72, 72, 'Q', '#ec4899', '#ffffff'), payouts: '8-9: 1.50x\n10-11: 4.00x\n12+: 8.00x' },
         ] },
       ],
       // A rich rules section showing off the whole block palette — defined once in

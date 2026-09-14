@@ -82,6 +82,61 @@ can't break it.
 
 Full reference: **[the Configuration guide](https://open-ui.schmooky.dev/guides/configuration/)**.
 
+## Rules as building blocks
+
+The info window's Settings / Paytable / **Rules** are not prose you hand the
+library — they are **blocks**, a vocabulary both renderers speak. The same
+declaration draws on canvas (PixiJS) and in the DOM, is validated, is translated,
+and is **audited**: every declared game mode must have its own section, with its
+RTP, max win and price actually stated.
+
+| Group | Kinds |
+| --- | --- |
+| Prose | `heading` · `subheading` · `text` · `callout` · `quote` · `legal` · `divider` · `spacer` · `link` |
+| Tables & data | `table` · `kv` · `compare` · `stat-grid` · `mode-stats` (auto, from the declared facts) · `symbols` · `paytable` |
+| The reels | `paylines` · `grid` (any cells lit — a scatter pattern, a cluster, a way) |
+| At a glance | `badges` · `meter` · `timeline` · `steps` |
+| Pictures | `image` · `media` (image + text) · `gallery` · `cards` |
+| Containers | `tabs` · `accordion` · `columns` · `group` |
+| Interactive | `toggle` · `slider` · `select` · `stepper` · `button` · `value` |
+
+Write them as objects, or **as markup** — a rules page is content, so it can live
+in a file a writer edits and a translator reads:
+
+```xml
+<rules>
+  <badges><badge tone="accent">20 lines</badge><badge tone="bonus">Free spins</badge></badges>
+  <tabs>
+    <tab id="play" label="How to play">
+      <list ordered><item>Set your bet.</item><item>Press spin.</item></list>
+      <grid reels="5" rows="3" symbol="S" label="Scatters trigger anywhere">
+        <cell reel="0" row="1"/><cell reel="2" row="0"/><cell reel="4" row="2"/>
+      </grid>
+    </tab>
+    <tab id="pays" label="Symbols">
+      <symbols counts="3 of a kind, 4 of a kind, 5 of a kind">
+        <symbol name="Wild" icon="wild.png" pays="5x, 20x, 50x"/>
+      </symbols>
+    </tab>
+  </tabs>
+  <heading>Free Spins</heading>
+  <text>Buy it for {{cost.free-spins}} your bet to start {{freeSpins.count}} free spins.</text>
+</rules>
+```
+
+```ts
+import { parseBlocks } from '@open-slot-ui/core';
+
+const { blocks, issues } = parseBlocks(rulesXml); // JSON is accepted too; never throws
+hud.mount({ menu: { rules: blocks } });
+```
+
+`{{cost.free-spins}}`, `{{rtp.base}}`, `{{maxWin.bonus}}`, `{{freeSpins.count}}`
+interpolate from the **declared facts** at render time — a price or an RTP in the
+rules can never drift from the configuration, and the audit checks the copy *as
+rendered*. Every text is also its own i18n key, so a rules file translates against
+one dictionary.
+
 ## Stake Engine compliance
 
 open-ui renders the HUD; your game owns the [Stake Engine](https://stake-engine.com)

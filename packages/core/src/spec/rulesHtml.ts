@@ -11,10 +11,19 @@ import { modeStatsItems, type GameFacts, type RulesAuditIssue } from './facts';
 
 /** Escape text for safe HTML interpolation. */
 export const escapeHtml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+/**
+ * Escape for an ATTRIBUTE value — quotes included.
+ *
+ * `escapeHtml` is for text between tags, where a quote is just a quote. In
+ * `alt="…"` or `href="…"` it is the delimiter, so a string carrying one would end
+ * the attribute and everything after it would be parsed as markup.
+ */
+export const escapeAttr = (s: string): string => escapeHtml(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 /** Escape, then turn `**bold**` runs into `<b>` — the shared inline syntax. */
 export const richHtml = (s: string): string => escapeHtml(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 
 const esc = escapeHtml;
+const att = escapeAttr;
 const rich = richHtml;
 
 /** The stat-grid `<dl>` markup shared by `stat-grid` and the auto `mode-stats` block. */
@@ -29,7 +38,7 @@ type PayRow = Extract<BlockSpec, { kind: 'paytable' }>['rows'][number];
 function renderPaytable(rows: readonly PayRow[], tr: (s: string) => string): string {
   return rows
     .map((r) => {
-      const icon = r.icon ? `<img class="ohm-symimg" src="${r.icon}" alt="" loading="lazy">` : `<span class="ohm-emoji">${esc(tr(r.symbol ?? ''))}</span>`;
+      const icon = r.icon ? `<img class="ohm-symimg" src="${att(r.icon)}" alt="" loading="lazy">` : `<span class="ohm-emoji">${esc(tr(r.symbol ?? ''))}</span>`;
       const lines = r.payouts
         .split('\n')
         .map((line) => {
@@ -68,17 +77,17 @@ export function renderBlocksHtml(blocks: BlockSpec[], tr: (s: string) => string,
         out.push('<hr class="ohm-hr">');
         break;
       case 'image':
-        out.push(`<img class="ohm-feature" alt="${esc(tr(b.alt ?? ''))}" src="${b.src}" loading="lazy">`);
+        out.push(`<img class="ohm-feature" alt="${att(tr(b.alt ?? ''))}" src="${att(b.src)}" loading="lazy">`);
         break;
       case 'media': {
-        const img = `<img alt="${esc(tr(b.alt ?? ''))}" src="${b.src}" loading="lazy">`;
+        const img = `<img alt="${att(tr(b.alt ?? ''))}" src="${att(b.src)}" loading="lazy">`;
         const body = `<div class="ohm-media-body">${b.title ? `<h4>${esc(tr(b.title))}</h4>` : ''}<p>${rich(tr(b.text))}</p></div>`;
-        out.push(`<div class="ohm-media ohm-media--${b.side ?? 'left'}">${img}${body}</div>`);
+        out.push(`<div class="ohm-media${b.side === 'right' ? ' ohm-media--right' : ''}">${img}${body}</div>`);
         break;
       }
       case 'cards': {
         const cards = b.items
-          .map((it) => `<div class="ohm-fcard">${it.icon ? `<img src="${it.icon}" alt="" loading="lazy">` : ''}<h5>${esc(tr(it.title))}</h5>${it.text ? `<p>${rich(tr(it.text))}</p>` : ''}</div>`)
+          .map((it) => `<div class="ohm-fcard">${it.icon ? `<img src="${att(it.icon)}" alt="" loading="lazy">` : ''}<h5>${esc(tr(it.title))}</h5>${it.text ? `<p>${rich(tr(it.text))}</p>` : ''}</div>`)
           .join('');
         out.push(`<div class="ohm-cards">${cards}</div>`);
         break;
@@ -124,6 +133,115 @@ export function renderBlocksHtml(blocks: BlockSpec[], tr: (s: string) => string,
       case 'group':
         out.push(`<div class="ohm-group">${b.title ? `<h4 class="ohm-subh">${esc(tr(b.title))}</h4>` : ''}${renderBlocksHtml(b.children, tr, facts)}</div>`);
         break;
+
+      // ── the wider vocabulary ──────────────────────────────────────────────
+      case 'grid': {
+        const lit = new Set(b.cells.map(([reel, row]) => `${reel},${row}`));
+        const cells: string[] = [];
+        for (let row = 0; row < b.rows; row++) {
+          for (let reel = 0; reel < b.reels; reel++) {
+            const on = lit.has(`${reel},${row}`);
+            cells.push(`<i class="${on ? 'on' : ''}">${on && b.symbol ? esc(tr(b.symbol)) : ''}</i>`);
+          }
+        }
+        out.push(
+          `<figure class="ohm-rgrid"><div class="ohm-linegrid" style="grid-template-columns:repeat(${b.reels},1fr)">${cells.join('')}</div>${b.label ? `<figcaption>${esc(tr(b.label))}</figcaption>` : ''}</figure>`,
+        );
+        break;
+      }
+      case 'symbols': {
+        const head = b.counts?.length
+          ? `<thead><tr><th></th><th></th>${b.counts.map((c) => `<th>${esc(tr(c))}</th>`).join('')}</tr></thead>`
+          : '';
+        const body = b.rows
+          .map((r) => {
+            const icon = r.icon
+              ? `<img class="ohm-symimg" src="${att(r.icon)}" alt="" loading="lazy">`
+              : `<span class="ohm-emoji">${esc(tr(r.symbol ?? ''))}</span>`;
+            const pays = r.pays.map((v) => `<td>${esc(tr(v))}</td>`).join('');
+            return `<tr><td class="ohm-symcell">${icon}</td><th scope="row">${esc(tr(r.name ?? ''))}</th>${pays}</tr>`;
+          })
+          .join('');
+        out.push(`<table class="ohm-table ohm-symbols">${head}<tbody>${body}</tbody></table>`);
+        break;
+      }
+      case 'kv': {
+        const rows = b.items.map((it) => `<div><dt>${esc(tr(it.term))}</dt><dd>${rich(tr(it.text))}</dd></div>`).join('');
+        out.push(`<dl class="ohm-kv">${rows}</dl>`);
+        break;
+      }
+      case 'meter': {
+        const max = Math.max(1, b.max ?? 5);
+        const value = Math.max(0, Math.min(max, b.value));
+        const pips = Array.from({ length: max }, (_, i) => `<i class="${i < value ? 'on' : ''}"></i>`).join('');
+        out.push(
+          `<div class="ohm-meter">${b.label ? `<span class="ohm-meter-label">${esc(tr(b.label))}</span>` : ''}<span class="ohm-meter-pips" role="img" aria-label="${value} / ${max}">${pips}</span>${b.caption ? `<span class="ohm-meter-cap">${esc(tr(b.caption))}</span>` : ''}</div>`,
+        );
+        break;
+      }
+      case 'badges':
+        out.push(
+          `<div class="ohm-badges">${b.items.map((it) => `<span class="ohm-badge${it.tone && it.tone !== 'neutral' ? ` ohm-badge--${it.tone}` : ''}">${esc(tr(it.text))}</span>`).join('')}</div>`,
+        );
+        break;
+      case 'tabs': {
+        // Radio inputs + labels: real tabs with no JavaScript, so the same markup
+        // works in the game, in a docs page and in a static export.
+        const name = `ohm-tabs-${att(b.id)}`;
+        const labels = b.tabs
+          .map((t, i) => `<input type="radio" name="${name}" id="${name}-${att(t.id)}"${i === 0 ? ' checked' : ''}><label for="${name}-${att(t.id)}">${esc(tr(t.label))}</label>`)
+          .join('');
+        const panels = b.tabs.map((t) => `<section class="ohm-tabpanel">${renderBlocksHtml(t.children, tr, facts)}</section>`).join('');
+        out.push(`<div class="ohm-tabs" data-count="${b.tabs.length | 0}">${labels}<div class="ohm-tabpanels">${panels}</div></div>`);
+        break;
+      }
+      case 'accordion': {
+        const items = b.items
+          .map((it) => `<details class="ohm-acc"${it.open ? ' open' : ''}><summary>${esc(tr(it.title))}</summary><div class="ohm-acc-body">${renderBlocksHtml(it.children, tr, facts)}</div></details>`)
+          .join('');
+        out.push(`<div class="ohm-accs">${items}</div>`);
+        break;
+      }
+      case 'columns':
+        out.push(
+          `<div class="ohm-cols ohm-cols--${b.of ?? b.children.length}">${b.children.map((col) => `<div>${renderBlocksHtml(col, tr, facts)}</div>`).join('')}</div>`,
+        );
+        break;
+      case 'quote':
+        out.push(`<blockquote class="ohm-quote"><p>${rich(tr(b.text))}</p>${b.cite ? `<cite>${esc(tr(b.cite))}</cite>` : ''}</blockquote>`);
+        break;
+      case 'gallery': {
+        const figs = b.items
+          .map((it) => `<figure><img src="${att(it.src)}" alt="${att(tr(it.alt ?? ''))}" loading="lazy">${it.caption ? `<figcaption>${esc(tr(it.caption))}</figcaption>` : ''}</figure>`)
+          .join('');
+        out.push(`<div class="ohm-gallery" style="--cols:${Math.max(1, Math.min(6, Math.round(Number(b.columns) || Math.min(3, b.items.length) || 1)))}">${figs}</div>`);
+        break;
+      }
+      case 'timeline': {
+        const items = b.items
+          .map((it) => `<li><span class="ohm-tl-mark">${esc(tr(it.marker ?? ''))}</span><div><b>${esc(tr(it.title))}</b>${it.text ? `<p>${rich(tr(it.text))}</p>` : ''}</div></li>`)
+          .join('');
+        out.push(`<ol class="ohm-timeline">${items}</ol>`);
+        break;
+      }
+      case 'compare': {
+        const head = `<thead><tr><th></th><th>${esc(tr(b.columns[0]))}</th><th>${esc(tr(b.columns[1]))}</th></tr></thead>`;
+        const body = b.rows.map((r) => `<tr><th scope="row">${esc(tr(r.label))}</th><td>${esc(tr(r.a))}</td><td>${esc(tr(r.b))}</td></tr>`).join('');
+        out.push(`<table class="ohm-table ohm-compare">${head}<tbody>${body}</tbody></table>`);
+        break;
+      }
+      case 'link': {
+        // A link in the rules leads OUT of the game, so it opens in its own tab
+        // unless the author says otherwise — and never with window access back.
+        const ext = b.external !== false;
+        out.push(
+          `<p class="ohm-linkrow"><a class="ohm-link" href="${att(b.href)}"${ext ? ' target="_blank" rel="noopener noreferrer"' : ''}>${esc(tr(b.text))}${ext ? '<span aria-hidden="true"> ↗</span>' : ''}</a></p>`,
+        );
+        break;
+      }
+      case 'spacer':
+        out.push(`<div class="ohm-spacer ohm-spacer--${b.size ?? 'md'}"></div>`);
+        break;
       default:
         break; // interactive kinds render in the Settings section, not the rules body
     }
@@ -165,25 +283,19 @@ export const INFO_MENU_VARS: Readonly<Record<string, string>> = Object.freeze({
   '--font': 'system-ui, sans-serif',
 });
 
-export const INFO_MENU_CSS = `
-.ohm-root { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; font-family: var(--font); opacity: 0; pointer-events: none; transition: opacity .18s ease; }
-.ohm-root.open { opacity: 1; pointer-events: auto; }
-.ohm-backdrop { position: absolute; inset: 0; background: rgba(8,6,4,0); backdrop-filter: blur(0px) saturate(1); -webkit-backdrop-filter: blur(0px) saturate(1); transition: background .4s ease, backdrop-filter .4s ease, -webkit-backdrop-filter .4s ease; }
-.ohm-root.open .ohm-backdrop { background: rgba(8,6,4,.34); backdrop-filter: blur(6px) saturate(1.1); -webkit-backdrop-filter: blur(6px) saturate(1.1); }
-.ohm-card { position: relative; width: min(92%, 1100px); max-height: 86vh; display: flex; flex-direction: column; background: var(--surface); color: var(--text); border: 1.5px solid #000; border-radius: var(--card-radius); box-shadow: 0 30px 80px rgba(0,0,0,.5); overflow: hidden; transform: translateY(8px) scale(.99); transition: transform .18s ease; }
-.ohm-root.open .ohm-card { transform: none; }
-.ohm-x { position: absolute; top: 18px; right: 22px; width: 46px; height: 46px; border-radius: 999px; border: 0; background: rgba(18,14,10,.82); color: #fff; font-size: 18px; cursor: pointer; display: grid; place-items: center; box-shadow: 0 6px 18px rgba(0,0,0,.45); z-index: 2; transition: transform .12s, background .12s; }
-.ohm-x:hover { transform: scale(1.08); background: rgba(18,14,10,.95); }
-.ohm-body { padding: 24px 26px 26px; overflow-y: scroll; }
-.ohm-body::-webkit-scrollbar { width: 18px; }
-.ohm-body::-webkit-scrollbar-track { background: transparent; margin: 12px 0; }
-.ohm-body::-webkit-scrollbar-thumb { background-color: #111; border: 6px solid transparent; background-clip: padding-box; border-radius: 999px; min-height: 44px; }
-.ohm-body::-webkit-scrollbar-thumb:hover { background-color: #000; }
-.ohm-logo { display: block; margin: 6px auto 18px; max-width: 64%; height: auto; }
-.ohm-logo-text { margin: 6px 0 18px; text-align: center; font-size: 30px; font-weight: 900; letter-spacing: 1px; color: var(--text); }
+/**
+ * The BLOCK VOCABULARY's stylesheet — every `.ohm-*` class `renderBlocksHtml`
+ * emits, and nothing else.
+ *
+ * It is deliberately separate from the modal chrome below: the canvas menu draws
+ * its own window and wants both, while a DOM host already HAS a window (its own
+ * skin's) and wants only the blocks inside it. Colours come from the six custom
+ * properties in {@link INFO_MENU_VARS}, so a host restyles the whole vocabulary
+ * by setting those on its container.
+ */
+export const BLOCK_CSS = `
 .ohm-sec { display: flex; align-items: center; gap: 14px; margin: 26px 0 14px; color: var(--text); font-weight: 800; letter-spacing: 1px; }
 .ohm-sec::before, .ohm-sec::after { content: ""; flex: 1; height: 2px; background: color-mix(in srgb, var(--text) 80%, transparent); border-radius: 2px; }
-.ohm-root *, .ohm-root *::before, .ohm-root *::after { box-sizing: border-box; }
 .ohm-row { display: flex; align-items: center; gap: 16px; margin: 14px 0; font-weight: 700; }
 .ohm-setting { margin: 14px 0; }
 .ohm-setting .ohm-row { margin: 0; }
@@ -249,4 +361,101 @@ export const INFO_MENU_CSS = `
 .ohm-steps li { margin: 5px 0; }
 .ohm-steps b { color: var(--text); }
 .ohm-group { margin: 8px 0; }
+/* ── the wider block vocabulary ─────────────────────────────────────────── */
+/* The reel masks: a wrapped flow of REELS×ROWS grids, lit cell black, unlit grey —
+   plain black-and-white, no outlines or rounding, as the reference draws them. */
+.ohm-lines { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 14px; margin: 14px 0; justify-items: center; }
+.ohm-line { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.ohm-line > span { font-size: 11px; font-weight: 700; color: var(--text-dim); }
+.ohm-linegrid { display: grid; gap: 2px; width: 72px; }
+.ohm-linegrid i { aspect-ratio: 1; background: #e2e5ea; }
+.ohm-linegrid i.on { background: #111; }
+.ohm-rgrid { margin: 14px 0; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.ohm-rgrid .ohm-linegrid { width: min(240px, 100%); gap: 3px; }
+.ohm-rgrid .ohm-linegrid i { display: grid; place-items: center; font-size: 14px; font-weight: 800; color: #fff; }
+.ohm-rgrid figcaption { color: var(--text-dim); font-size: 12.5px; text-align: center; }
+.ohm-symbols td, .ohm-symbols th { text-align: center; }
+.ohm-symbols th[scope=row] { text-align: left; white-space: nowrap; }
+.ohm-symbols .ohm-symcell { width: 1%; padding-right: 0; }
+.ohm-symbols .ohm-symimg { width: 38px; height: 38px; object-fit: contain; display: block; }
+.ohm-kv { margin: 12px 0; display: grid; gap: 1px; background: var(--surface-alt); border-radius: 6px; overflow: hidden; }
+.ohm-kv > div { display: grid; grid-template-columns: minmax(120px, 34%) 1fr; gap: 12px; background: var(--surface); padding: 10px 14px; }
+.ohm-kv dt { margin: 0; font-weight: 700; }
+.ohm-kv dd { margin: 0; color: var(--text-dim); }
+.ohm-meter { display: flex; align-items: center; gap: 10px; margin: 12px 0; flex-wrap: wrap; }
+.ohm-meter-label { font-weight: 700; }
+.ohm-meter-pips { display: inline-flex; gap: 4px; }
+.ohm-meter-pips i { width: 26px; height: 10px; border-radius: 2px; background: var(--surface-alt); }
+.ohm-meter-pips i.on { background: var(--accent); }
+.ohm-meter-cap { color: var(--text-dim); font-size: 13px; }
+.ohm-badges { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.ohm-badge { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 5px 10px; border-radius: 999px; background: var(--surface-alt); color: var(--text); }
+.ohm-badge--accent { background: var(--accent); color: var(--accent-text); }
+.ohm-badge--bonus { background: #17803d; color: #fff; }
+.ohm-badge--warning { background: #b4410f; color: #fff; }
+.ohm-tabs { margin: 16px 0; }
+.ohm-tabs > input { position: absolute; opacity: 0; pointer-events: none; }
+.ohm-tabs > label { display: inline-block; padding: 8px 14px; font-weight: 700; cursor: pointer; border-bottom: 3px solid transparent; color: var(--text-dim); }
+.ohm-tabs > input:checked + label { color: var(--text); border-bottom-color: var(--accent); }
+.ohm-tabs > input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ohm-tabpanels > .ohm-tabpanel { display: none; padding-top: 8px; }
+.ohm-tabs > input:nth-of-type(1):checked ~ .ohm-tabpanels > .ohm-tabpanel:nth-of-type(1),
+.ohm-tabs > input:nth-of-type(2):checked ~ .ohm-tabpanels > .ohm-tabpanel:nth-of-type(2),
+.ohm-tabs > input:nth-of-type(3):checked ~ .ohm-tabpanels > .ohm-tabpanel:nth-of-type(3),
+.ohm-tabs > input:nth-of-type(4):checked ~ .ohm-tabpanels > .ohm-tabpanel:nth-of-type(4),
+.ohm-tabs > input:nth-of-type(5):checked ~ .ohm-tabpanels > .ohm-tabpanel:nth-of-type(5),
+.ohm-tabs > input:nth-of-type(6):checked ~ .ohm-tabpanels > .ohm-tabpanel:nth-of-type(6) { display: block; }
+.ohm-accs { margin: 12px 0; display: grid; gap: 8px; }
+.ohm-acc { border: 1px solid var(--surface-alt); border-radius: 6px; overflow: hidden; }
+.ohm-acc > summary { cursor: pointer; padding: 12px 14px; font-weight: 700; background: var(--surface-alt); list-style: none; }
+.ohm-acc > summary::-webkit-details-marker { display: none; }
+.ohm-acc > summary::after { content: '+'; float: right; font-weight: 400; }
+.ohm-acc[open] > summary::after { content: '\\2212'; }
+.ohm-acc-body { padding: 4px 14px 12px; }
+.ohm-cols { display: grid; gap: 18px; margin: 14px 0; grid-template-columns: 1fr; }
+@media (min-width: 720px) {
+  .ohm-cols--2 { grid-template-columns: repeat(2, 1fr); }
+  .ohm-cols--3 { grid-template-columns: repeat(3, 1fr); }
+  .ohm-cols--4 { grid-template-columns: repeat(4, 1fr); }
+}
+.ohm-quote { margin: 16px 0; padding: 10px 0 10px 16px; border-left: 3px solid var(--accent); }
+.ohm-quote p { margin: 0; font-size: 16px; }
+.ohm-quote cite { display: block; margin-top: 6px; color: var(--text-dim); font-size: 13px; font-style: normal; }
+.ohm-gallery { display: grid; grid-template-columns: repeat(var(--cols, 3), 1fr); gap: 12px; margin: 14px 0; }
+.ohm-gallery figure { margin: 0; }
+.ohm-gallery img { width: 100%; border-radius: 6px; display: block; }
+.ohm-gallery figcaption { margin-top: 6px; color: var(--text-dim); font-size: 13px; text-align: center; }
+.ohm-timeline { list-style: none; margin: 14px 0; padding: 0; display: grid; gap: 14px; }
+.ohm-timeline li { display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; }
+.ohm-tl-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 999px; background: var(--accent); color: var(--accent-text); font-weight: 800; font-size: 13px; }
+.ohm-timeline p { margin: 4px 0 0; color: var(--text-dim); }
+.ohm-compare th[scope=row] { text-align: left; }
+.ohm-linkrow { margin: 10px 0; }
+.ohm-link { color: var(--accent); font-weight: 700; text-decoration: none; border-bottom: 1px solid currentColor; }
+.ohm-spacer { width: 100%; }
+.ohm-spacer--sm { height: 8px; }
+.ohm-spacer--md { height: 20px; }
+.ohm-spacer--lg { height: 40px; }
 `;
+
+/** The info-menu MODAL chrome (backdrop, card, close button, scrollbar) — plus the
+ *  block vocabulary itself, so the canvas menu injects one stylesheet. */
+export const INFO_MENU_CSS = `
+.ohm-root { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; font-family: var(--font); opacity: 0; pointer-events: none; transition: opacity .18s ease; }
+.ohm-root.open { opacity: 1; pointer-events: auto; }
+.ohm-backdrop { position: absolute; inset: 0; background: rgba(8,6,4,0); backdrop-filter: blur(0px) saturate(1); -webkit-backdrop-filter: blur(0px) saturate(1); transition: background .4s ease, backdrop-filter .4s ease, -webkit-backdrop-filter .4s ease; }
+.ohm-root.open .ohm-backdrop { background: rgba(8,6,4,.34); backdrop-filter: blur(6px) saturate(1.1); -webkit-backdrop-filter: blur(6px) saturate(1.1); }
+.ohm-card { position: relative; width: min(92%, 1100px); max-height: 86vh; display: flex; flex-direction: column; background: var(--surface); color: var(--text); border: 1.5px solid #000; border-radius: var(--card-radius); box-shadow: 0 30px 80px rgba(0,0,0,.5); overflow: hidden; transform: translateY(8px) scale(.99); transition: transform .18s ease; }
+.ohm-root.open .ohm-card { transform: none; }
+.ohm-x { position: absolute; top: 18px; right: 22px; width: 46px; height: 46px; border-radius: 999px; border: 0; background: rgba(18,14,10,.82); color: #fff; font-size: 18px; cursor: pointer; display: grid; place-items: center; box-shadow: 0 6px 18px rgba(0,0,0,.45); z-index: 2; transition: transform .12s, background .12s; }
+.ohm-x:hover { transform: scale(1.08); background: rgba(18,14,10,.95); }
+.ohm-body { padding: 24px 26px 26px; overflow-y: scroll; }
+.ohm-body::-webkit-scrollbar { width: 18px; }
+.ohm-body::-webkit-scrollbar-track { background: transparent; margin: 12px 0; }
+.ohm-body::-webkit-scrollbar-thumb { background-color: #111; border: 6px solid transparent; background-clip: padding-box; border-radius: 999px; min-height: 44px; }
+.ohm-body::-webkit-scrollbar-thumb:hover { background-color: #000; }
+.ohm-logo { display: block; margin: 6px auto 18px; max-width: 64%; height: auto; }
+.ohm-logo-text { margin: 6px 0 18px; text-align: center; font-size: 30px; font-weight: 900; letter-spacing: 1px; color: var(--text); }
+.ohm-root *, .ohm-root *::before, .ohm-root *::after { box-sizing: border-box; }
+` + BLOCK_CSS;
+

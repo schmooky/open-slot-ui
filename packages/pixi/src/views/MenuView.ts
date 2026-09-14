@@ -124,13 +124,22 @@ export class MenuView extends ControlView {
     this.closeBtn.on('pointertap', () => this.panel.closePanel());
   }
 
+  private readonly tabState = new Map<string, number>();
+
   private rebuildContent(): void {
     for (const v of this.childViews) v.dispose();
     this.childViews.length = 0;
     for (const child of this.content.removeChildren()) child.destroy();
 
     const bodyW = this.vpW > 0 ? this.vpW : Math.min(this.maxWidth - INSET * 2, 520);
-    const col = buildBlockColumn(this.blocks, this.controls, this.lightUi, this.ticker, bodyW, { controlSkins: this.opts.controlSkins, dropdownLayer: this.dropdownLayer });
+    const col = buildBlockColumn(this.blocks, this.controls, this.lightUi, this.ticker, bodyW, {
+      controlSkins: this.opts.controlSkins,
+      dropdownLayer: this.dropdownLayer,
+      // Tab selection lives HERE, not in the column: switching a tab rebuilds the
+      // column, and the reader has to stay on the tab they picked.
+      tabState: this.tabState,
+      onRelayout: () => { if (!this.destroyed) this.rebuildContent(); },
+    });
     this.childViews = col.views;
     this.content.addChild(...col.content.removeChildren());
     this.content.x = bodyW / 2; // column rows are centered at x=0

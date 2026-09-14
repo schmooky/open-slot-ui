@@ -1,4 +1,5 @@
 import {
+  BLOCK_CSS,
   PanelControl,
   composeMenu,
   createUI,
@@ -364,6 +365,27 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
  * binding has to supply some other way. Nothing here restyles anything: it only makes
  * clipped content reachable. Injected before the skin so the skin always wins.
  */
+/**
+ * The rules BLOCK vocabulary, inside the skin's own info window.
+ *
+ * The skin styles ITS markup — a body of paragraphs and tables — and knows nothing
+ * of the blocks a spec is written in, so a tab strip or a meter would land in the
+ * window as naked HTML. `BLOCK_CSS` is the vocabulary's own stylesheet; all it
+ * needs is its six colour properties, which are mapped here onto the skin's so the
+ * blocks inherit the game's palette instead of a second one.
+ */
+const BLOCKS_CSS_SCOPED = `
+.GameInfo__body {
+  --accent: var(--hg-bg-accent, #ffc529);
+  --accent-text: var(--hg-text-color-inverse, #000);
+  --surface: var(--hg-bg-secondary, #2a2a2a);
+  --surface-alt: var(--hg-bg-tertiary, #2b2b2d);
+  --text: var(--hg-text-color, #fafafa);
+  --text-dim: var(--hg-text-color-secondary, #adb5bd);
+}
+.GameInfo__body *, .GameInfo__body *::before, .GameInfo__body *::after { box-sizing: border-box; }
+${BLOCK_CSS}`;
+
 const BEHAVIOUR_CSS = `
 /* The buy sheet's card list is CLIPPED by the design (it fades its top and bottom
    edges) and the reference scrolls it with its own JS. Without that, every card below
@@ -409,7 +431,7 @@ function mountSkin(skin: DomSkin = {}, onLoad?: () => void): Dispose | undefined
   // — these rules only make clipped content reachable, never restyle it.
   const behaviour = document.createElement('style');
   behaviour.dataset.openui = 'behaviour';
-  behaviour.textContent = BEHAVIOUR_CSS;
+  behaviour.textContent = `${BLOCKS_CSS_SCOPED}\n${BEHAVIOUR_CSS}`;
   document.head.appendChild(behaviour);
   nodes.push(behaviour);
   return () => nodes.forEach((n) => n.remove());

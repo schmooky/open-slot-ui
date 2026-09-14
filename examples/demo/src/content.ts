@@ -1,158 +1,102 @@
-import type { BlockSpec, GameFacts } from '@open-slot-ui/core';
+import { parseBlocks, type BlockSpec, type GameFacts } from '@open-slot-ui/core';
+import rulesXml from './rules.xml?raw';
 
 /**
- * The RULES section content as declarative BLOCKS — the single source of truth the
- * library's info menu renders (`menu.rules` in main.ts). Because the English text
- * here doubles as the i18n KEY, defining it once guarantees the whole section
- * translates against the same dictionary entries (see locales.ts). Every block's
- * text flows through `ui.t`; images are inline SVG so the demo needs no network.
+ * The RULES section content, PARSED FROM MARKUP (`rules.xml`) — the single source
+ * of truth the library's info menu renders (`menu.rules` in dom-main.ts).
  *
- * This array is a tour of the full rules block palette:
- *   text · media (image+text) · subheading · cards · steps · table · image ·
- *   mode-stats (auto, from FACTS) · callout (bonus + warning) · divider · legal
+ * Blocks are a vocabulary, not a data structure you have to write by hand: the
+ * rules live in a file a writer can edit, `parseBlocks()` turns them into the
+ * `BlockSpec[]` the renderers already speak, and `validateSpec` + `auditRules`
+ * check them the same as any other spec. The English text doubles as the i18n
+ * KEY, so the whole section translates against one dictionary (see locales.ts).
+ *
+ * The document is a tour of the palette: badges · meter · tabs (with columns,
+ * reel grids, a symbol table, paylines, a comparison and a glossary inside) ·
+ * media · timeline · cards · gallery · image · callouts · accordion · quote ·
+ * link · mode-stats (auto, from FACTS) · divider · legal.
  */
 
 /**
  * Stand-in art, drawn as an inline SVG data URI.
  *
+ * The `width`/`height` attributes are not decoration: an SVG with only a viewBox has
+ * no intrinsic size, and a canvas renderer decoding it into a texture gets nothing.
+ *
  * This used to point at placehold.co — which meant the example could not render its
  * own paytable without a network, and a HOSTED copy made third-party requests on
  * every load. A designer swaps these for real files; the point is that the demo owns
- * everything it shows.
+ * everything it shows. Exported, because the canvas example's menu (main.ts) draws
+ * its banner and paytable icons from the same stand-ins.
  */
-const art = (w: number, h: number, label: string, bg = '#2a2f3a', fg = '#ffd166'): string =>
+export const art = (w: number, h: number, label: string, bg = '#2a2f3a', fg = '#ffd166'): string =>
   `data:image/svg+xml;utf8,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" rx="${Math.min(w, h) * 0.08}" fill="${bg}"/><text x="${w / 2}" y="${h / 2}" dominant-baseline="central" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="${Math.min(w, h) * 0.34}" fill="${fg}">${label}</text></svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" rx="${Math.min(w, h) * 0.08}" fill="${bg}"/><text x="${w / 2}" y="${h / 2}" dominant-baseline="central" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="${Math.min(w, h) * 0.34}" fill="${fg}">${label}</text></svg>`,
   )}`;
-export const RULES_BLOCKS: BlockSpec[] = [
-  // — just text, with **bold** inline runs —
-  {
-    kind: 'text',
-    id: 'r-intro',
-    text: 'Match symbols on a line to win — **bigger symbols pay more**, and **Wild** substitutes for all.',
-  },
 
-  // — image + text, side by side (the "media" layout) —
-  {
-    kind: 'media',
-    id: 'r-fs',
-    side: 'left',
-    width: 320,
-    height: 200,
-    src: art(320, 200, 'BONUS', '#2a2f3a', '#ffd166'),
-    alt: 'Free Spins',
-    title: 'Free Spins',
-    // {{freeSpins.count}} / {{freeSpins.retrigger}} interpolate from the declared
-    // FACTS below — the stated count can never drift from the config.
-    text: 'Land 3 or more **Scatters** to trigger {{freeSpins.count}} free spins with a rising multiplier. Free spins {{freeSpins.retrigger}} be retriggered.',
-  },
+/**
+ * Resolve this demo's `art:LABEL|bg|fg|WxH` image scheme to inline SVG.
+ *
+ * Markup can't call a function, so the rules name their art and the host resolves
+ * it — the same hook a real game would use to turn a CDN key into a URL. The size
+ * comes from the reference itself, or from the block's own width/height when it
+ * has them; anything that isn't an `art:` reference is left exactly as written.
+ */
+function resolveArt(value: string, w?: number, h?: number): string {
+  if (!value.startsWith('art:')) return value;
+  const [label = '', bg, fg, size] = value.slice(4).split('|');
+  const [sw, sh] = (size ?? '').split('x').map(Number);
+  const width = sw || w || 72;
+  const height = sh || h || 72;
+  return art(width, height, label, bg || undefined, fg || undefined);
+}
 
-  // — a sub-section title + a row of feature cards (icon + title + text) —
-  { kind: 'subheading', id: 'r-feat-h', text: 'Features' },
-  {
-    kind: 'cards',
-    id: 'r-cards',
-    items: [
-      { icon: art(72, 72, 'W', '#ef4444', '#ffffff'), title: 'Wild', text: 'Substitutes for every paying symbol.' },
-      { icon: art(72, 72, 'S', '#3b82f6', '#ffffff'), title: 'Scatter', text: 'Pays anywhere on the reels.' },
-      { icon: art(72, 72, 'x2', '#f59e0b', '#000000'), title: 'Multiplier', text: 'Boosts every win during the bonus.' },
-    ],
-  },
+/** Walk the parsed blocks and resolve every image reference in them. */
+function resolveBlockArt(blocks: BlockSpec[]): BlockSpec[] {
+  const walkValue = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(walkValue);
+    if (!node || typeof node !== 'object') return node;
+    const out: Record<string, unknown> = { ...(node as Record<string, unknown>) };
+    const w = typeof out['width'] === 'number' ? (out['width'] as number) : undefined;
+    const h = typeof out['height'] === 'number' ? (out['height'] as number) : undefined;
+    for (const key of ['src', 'icon', 'image']) {
+      const v = out[key];
+      if (typeof v === 'string') out[key] = resolveArt(v, w, h);
+    }
+    for (const [key, v] of Object.entries(out)) {
+      if (Array.isArray(v) || (v && typeof v === 'object')) out[key] = walkValue(v);
+    }
+    return out;
+  };
+  return walkValue(blocks) as BlockSpec[];
+}
 
-  // — every CONFIGURED buy/boost feature gets its OWN section (the audit enforces
-  //   this: a mode with no dedicated section — not just a passing mention — is
-  //   called out). Prices are {{cost.*}} TOKENS resolved from the live facts, so
-  //   the rules can never quote a price the buy modal doesn't charge. —
-  { kind: 'subheading', id: 'r-f-fs-h', text: 'Free Spins' },
-  {
-    kind: 'text',
-    id: 'r-f-fs',
-    text: 'Land 3 or more **Scatters** — or buy the feature outright for {{cost.free-spins}} your bet — to start {{freeSpins.count}} free spins with a rising multiplier. Free spins {{freeSpins.retrigger}} be retriggered.',
-  },
-  { kind: 'subheading', id: 'r-f-ss-h', text: 'Super Spins' },
-  {
-    kind: 'text',
-    id: 'r-f-ss',
-    text: 'The premium bonus: buy it for {{cost.super-spins}} your bet to start the free spins at a higher multiplier that climbs faster.',
-  },
-  { kind: 'subheading', id: 'r-f-ab-h', text: 'Ante Bet' },
-  {
-    kind: 'text',
-    id: 'r-f-ab',
-    text: 'An optional ante: every spin costs **+25%** more, and in return the chance of triggering the bonus naturally is doubled. Toggle it any time from the bonus button.',
-  },
-  { kind: 'subheading', id: 'r-f-dc-h', text: 'Double Chance' },
-  {
-    kind: 'text',
-    id: 'r-f-dc',
-    text: 'A stronger ante at **+50%** per spin for even better bonus odds. One boost can be active at a time.',
-  },
+const parsed = parseBlocks(rulesXml);
+// The parser never throws; a typo in the rules file surfaces here instead of
+// silently dropping a section.
+if (parsed.issues.length) console.warn('[demo] rules.xml:', parsed.issues);
 
-  // — the controls guide (Info/Help must explain every interactive control) —
-  { kind: 'subheading', id: 'r-controls-h', text: 'Controls' },
-  {
-    kind: 'steps',
-    id: 'r-controls',
-    ordered: false,
-    items: [
-      '**SPIN** — plays one round at the current bet.',
-      '**− / +** — lower or raise your bet.',
-      '**Autoplay** — play a chosen number of rounds automatically; tap again to stop.',
-      '**Turbo** — shortens the spin animation; the result is identical.',
-      '**Bonus** — opens the buy-feature list.',
-      '**Menu (☰)** — opens settings, the paytable and these rules.',
-    ],
-  },
+export const RULES_BLOCKS: BlockSpec[] = resolveBlockArt(parsed.blocks);
 
-  // — an ordered list of steps —
-  { kind: 'subheading', id: 'r-play-h', text: 'How to play' },
-  {
-    kind: 'steps',
-    id: 'r-steps',
-    ordered: true,
-    items: [
-      'Set your bet with the - and + buttons.',
-      'Press spin once, or **hold** for turbo.',
-      'Land 3 or more **Scatters** to start the bonus.',
-    ],
-  },
-
-  // — a generic table (header row + body rows) —
-  { kind: 'subheading', id: 'r-pay-h', text: 'Symbol payouts' },
-  {
-    kind: 'table',
-    id: 'r-table',
-    columns: ['Symbol', '3', '4', '5'],
-    rows: [
-      ['Wild', '5x', '20x', '50x'],
-      ['Scatter', '3x', '10x', '40x'],
-      ['Star', '2x', '8x', '30x'],
-      ['Ace', '1x', '5x', '20x'],
-    ],
-  },
-
-  // — a full-width feature image (designer-supplied art; an inline SVG stands in) —
-  {
-    kind: 'image',
-    id: 'r-banner',
-    src: art(1000, 180, 'MAX WIN 5,000x', '#2a2f3a', '#ffd166'),
-    alt: 'Max win 5,000x',
-    width: 1000,
-    height: 180,
-  },
-
-  // — the AUTO per-mode RTP / Max-win grid, rendered straight from FACTS below —
-  // declared once, so this table can never drift from the game's configuration.
-  { kind: 'mode-stats', id: 'r-stats', extras: [{ label: 'Lines', value: '20' }] },
-
-  // — highlighted callouts: a bonus tip and a warning notice —
-  { kind: 'callout', id: 'r-tip', tone: 'bonus', title: 'Tip', text: 'Hold spin for turbo.' },
-  { kind: 'callout', id: 'r-note', tone: 'warning', title: 'Please note', text: 'Malfunction voids all pays and play.' },
-
-  // — a divider, then small legal / fine print —
-  { kind: 'divider', id: 'r-div' },
-  { kind: 'legal', id: 'r-legal', text: 'Play responsibly. 18+. Terms and conditions apply.' },
-];
+/**
+ * Drop blocks by id, ANYWHERE in the document — a block can sit inside a tab, an
+ * accordion section or a column, so a flat filter would miss it. The demo uses
+ * this for `?forget=1`; a real game would use it to strip a section a market
+ * forbids.
+ */
+export function dropBlocks(blocks: BlockSpec[], ids: ReadonlySet<string>): BlockSpec[] {
+  const keep = (list: BlockSpec[]): BlockSpec[] =>
+    list
+      .filter((b) => !ids.has(b.id))
+      .map((b) => {
+        if (b.kind === 'group') return { ...b, children: keep(b.children) };
+        if (b.kind === 'columns') return { ...b, children: b.children.map(keep) };
+        if (b.kind === 'tabs') return { ...b, tabs: b.tabs.map((t) => ({ ...t, children: keep(t.children) })) };
+        if (b.kind === 'accordion') return { ...b, items: b.items.map((i) => ({ ...i, children: keep(i.children) })) };
+        return b;
+      });
+  return keep(blocks);
+}
 
 /**
  * BUY-FEATURE options for the buy-feature modal (up to 4). Two variants:

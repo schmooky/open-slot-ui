@@ -63,6 +63,12 @@ skin: {
 If your stylesheet was written for this markup, the HUD wears it as-is. If you're
 starting fresh, the class names above are the contract to style.
 
+One stylesheet does come with the binding: the **rules block vocabulary**
+(`BLOCK_CSS`, scoped to `.GameInfo__body`). A skin styles its own info window, but
+it cannot know what a tab strip, a symbol table or a reel grid is, so those blocks
+would land as naked HTML. The injected rules take their six colours from the skin's
+own custom properties, so the blocks wear the game's palette, not a second one.
+
 ## License
 
 [MIT](./LICENSE)

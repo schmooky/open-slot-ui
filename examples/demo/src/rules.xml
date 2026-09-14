@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The demo's RULES, written as markup instead of TypeScript.
+
+  `parseBlocks()` turns this file into the same `BlockSpec[]` a host could have
+  written by hand, so the rules are content: a writer edits them, a translator
+  reads them (every string here is also the i18n key — see locales.ts), and the
+  build diffs them like any other text.
+
+  `{{…}}` tokens interpolate from the declared FACTS at render time, so a price
+  or an RTP stated here can never drift from the game's configuration.
+
+  Images use the demo's own `art:LABEL|bg|fg|WxH` scheme, resolved to inline SVG in
+  content.ts — a real game points these at real files.
+-->
+<rules>
+  <badges>
+    <badge tone="accent">20 lines</badge>
+    <badge>5 × 3 reels</badge>
+    <badge tone="bonus">Free spins</badge>
+    <badge tone="warning">High volatility</badge>
+  </badges>
+
+  <text>Match symbols on a line to win — **bigger symbols pay more**, and **Wild** substitutes for all.</text>
+
+  <meter label="Volatility" value="4" max="5">Wins come rarely, and land big when they do.</meter>
+
+  <!-- ── the three ways to read this game, one tab each ─────────────────── -->
+  <tabs id="r-tabs">
+    <tab id="t-play" label="How to play">
+      <steps ordered>
+        <item>Set your bet with the − and + buttons.</item>
+        <item>Press spin once, or **hold** for turbo.</item>
+        <item>Land 3 or more **Scatters** to start the bonus.</item>
+      </steps>
+      <text>Every spin costs your current bet and pays left to right from reel one. Wins are added to your balance as soon as the reels stop.</text>
+      <columns of="2">
+        <column>
+          <grid reels="5" rows="3" symbol="S" label="Scatters trigger anywhere">
+            <cell reel="0" row="1"/>
+            <cell reel="2" row="0"/>
+            <cell reel="4" row="2"/>
+          </grid>
+        </column>
+        <column>
+          <grid reels="5" rows="3" symbol="W" label="Wild completes the line">
+            <cell reel="0" row="1"/>
+            <cell reel="1" row="1"/>
+            <cell reel="2" row="1"/>
+          </grid>
+        </column>
+      </columns>
+    </tab>
+
+    <tab id="t-pays" label="Symbols">
+      <symbols counts="3 of a kind, 4 of a kind, 5 of a kind">
+        <symbol name="Wild" icon="art:W|#ef4444|#ffffff" pays="5x, 20x, 50x"/>
+        <symbol name="Scatter" icon="art:S|#3b82f6|#ffffff" pays="3x, 10x, 40x"/>
+        <symbol name="Star" icon="art:★|#f59e0b|#000000" pays="2x, 8x, 30x"/>
+        <symbol name="Ace" icon="art:A|#2a2f3a|#ffd166" pays="1x, 5x, 20x"/>
+      </symbols>
+      <subheading>The 20 lines</subheading>
+      <paylines reels="5" rows="3">
+        <line>1,1,1,1,1</line>
+        <line>0,0,0,0,0</line>
+        <line>2,2,2,2,2</line>
+        <line>0,1,2,1,0</line>
+        <line>2,1,0,1,2</line>
+      </paylines>
+      <legal>Only the highest win per line pays. Line wins are multiplied by the line bet; scatter wins by the total bet.</legal>
+    </tab>
+
+    <tab id="t-numbers" label="Numbers">
+      <mode-stats id="r-stats">
+        <extra label="Lines" value="20"/>
+      </mode-stats>
+      <compare a="Base game" b="Free Spins">
+        <row label="RTP" a="96.50%" b="96.50%"/>
+        <row label="Max win" a="5,000x" b="5,000x"/>
+        <row label="Multiplier" a="None" b="Rises every spin"/>
+        <row label="Hit rate" a="1 in 4.2" b="1 in 1.6"/>
+      </compare>
+      <glossary>
+        <entry term="RTP">The return to player over millions of rounds — not a promise about any session.</entry>
+        <entry term="Volatility">How lumpy the wins are. High means rarer wins that pay more.</entry>
+        <entry term="Max win">The most one round can pay, as a multiple of your bet. This game caps at 5,000x.</entry>
+      </glossary>
+    </tab>
+  </tabs>
+
+  <!-- ── the bonus, as a sequence ───────────────────────────────────────── -->
+  <heading>Free Spins</heading>
+  <media side="left" width="320" height="200" src="art:BONUS|#2a2f3a|#ffd166" alt="Free Spins" title="Free Spins">
+    Land 3 or more **Scatters** — or buy the feature outright for {{cost.free-spins}} your bet — to start {{freeSpins.count}} free spins with a rising multiplier. Free spins {{freeSpins.retrigger}} be retriggered.
+  </media>
+  <timeline>
+    <step marker="1" title="Land 3 Scatters">Anywhere on the reels, on any spin.</step>
+    <step marker="2" title="{{freeSpins.count}} free spins begin">The multiplier starts at 1x and climbs with every winning spin.</step>
+    <step marker="3" title="The round pays out">Every free-spin win is added at the multiplier it landed on, up to the 5,000x cap.</step>
+  </timeline>
+
+  <!-- ── every configured mode gets its own section; the audit checks it ── -->
+  <heading id="r-f-ss-h">Super Spins</heading>
+  <text id="r-f-ss">The premium bonus: buy it for {{cost.super-spins}} your bet to start the free spins at a higher multiplier that climbs faster. The RTP stays 96.50% and the cap stays 5,000x.</text>
+
+  <heading id="r-f-ab-h">Ante Bet</heading>
+  <text id="r-f-ab">An optional ante: every spin costs **+25%** more, and in return the chance of triggering the bonus naturally is doubled. Toggle it any time from the bonus button. RTP 96.50%, max win 5,000x.</text>
+
+  <heading>Double Chance</heading>
+  <text>A stronger ante at **+50%** per spin for even better bonus odds. One boost can be active at a time. RTP 96.50%, max win 5,000x.</text>
+
+  <!-- ── the controls guide (Info/Help must explain every control) ───────── -->
+  <heading>Controls</heading>
+  <list>
+    <item>**SPIN** — plays one round at the current bet.</item>
+    <item>**− / +** — lower or raise your bet.</item>
+    <item>**Autoplay** — play a chosen number of rounds automatically; tap again to stop.</item>
+    <item>**Turbo** — shortens the spin animation; the result is identical.</item>
+    <item>**Bonus** — opens the buy-feature list.</item>
+    <item>**Menu (☰)** — opens settings, the paytable and these rules.</item>
+  </list>
+
+  <heading>Features</heading>
+  <cards>
+    <card icon="art:W|#ef4444|#ffffff" title="Wild">Substitutes for every paying symbol.</card>
+    <card icon="art:S|#3b82f6|#ffffff" title="Scatter">Pays anywhere on the reels.</card>
+    <card icon="art:x2|#f59e0b|#000000" title="Multiplier">Boosts every win during the bonus.</card>
+  </cards>
+  <gallery columns="3">
+    <image src="art:FREE SPINS|#7c3aed|#ffffff|480x300" caption="Free Spins"/>
+    <image src="art:SUPER SPINS|#db2777|#ffffff|480x300" caption="Super Spins"/>
+    <image src="art:ANTE BET|#2563eb|#ffffff|480x300" caption="Ante Bet"/>
+  </gallery>
+
+  <image src="art:MAX WIN 5,000x|#2a2f3a|#ffd166" alt="Max win 5,000x" width="1000" height="180"/>
+
+  <note tone="bonus" title="Tip">Hold spin for turbo.</note>
+
+  <!-- ── the fine print, folded away until someone wants it ──────────────── -->
+  <accordion>
+    <section id="a-rg" title="Responsible play">
+      <text>Set a limit before you start. Autoplay stops on its own when your loss or win limit is reached, and you can stop it at any time.</text>
+      <quote cite="The house">A slot is entertainment with a price, not a way to make money.</quote>
+    </section>
+    <section id="a-disconnect" title="Disconnections and malfunctions">
+      <text>An interrupted round is settled the next time you open the game. Malfunction voids all pays and play.</text>
+    </section>
+    <section id="a-terms" title="Terms">
+      <a href="https://example.test/terms">Operator terms and conditions</a>
+    </section>
+  </accordion>
+
+  <note tone="warning" title="Please note">Malfunction voids all pays and play.</note>
+  <hr/>
+  <small>Play responsibly. 18+. Terms and conditions apply.</small>
+</rules>

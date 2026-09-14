@@ -185,6 +185,78 @@ export function validateSpec(spec: UISpec): { ok: boolean; issues: SpecIssue[] }
         if (b.kind === 'table' && (!b.rows || b.rows.length === 0)) {
           add('warn', `${p}.rows`, 'empty-table', 'a table block has no rows');
         }
+        if (b.kind === 'grid') {
+          if (!(b.reels > 0) || !(b.rows > 0)) add('error', `${p}.reels`, 'grid-shape', 'a grid block needs reels > 0 and rows > 0');
+          b.cells?.forEach((c, ci) => {
+            if (!Array.isArray(c) || c.length !== 2) {
+              add('error', `${p}.cells[${ci}]`, 'grid-cell', 'a grid cell must be [reel, row]');
+            } else if (c[0] < 0 || c[0] >= b.reels || c[1] < 0 || c[1] >= b.rows) {
+              add('warn', `${p}.cells[${ci}]`, 'grid-cell-oor', `cell [${c[0]}, ${c[1]}] falls outside the ${b.reels}x${b.rows} grid`);
+            }
+          });
+        }
+        if (b.kind === 'symbols') {
+          if (!b.rows || b.rows.length === 0) add('warn', `${p}.rows`, 'empty-symbols', 'a symbols block has no rows');
+          const want = b.counts?.length;
+          if (want) {
+            b.rows?.forEach((r, ri) => {
+              if (r.pays.length !== want) {
+                add('warn', `${p}.rows[${ri}].pays`, 'symbols-arity', `row has ${r.pays.length} pays but ${want} counts are declared`);
+              }
+            });
+          }
+        }
+        if (b.kind === 'kv' && (!b.items || b.items.length === 0)) {
+          add('warn', `${p}.items`, 'empty-kv', 'a kv block has no items');
+        }
+        if (b.kind === 'meter') {
+          const max = b.max ?? 1;
+          if (!(max > 0)) add('error', `${p}.max`, 'meter-max', 'a meter needs max > 0');
+          else if (b.value < 0 || b.value > max) add('warn', `${p}.value`, 'meter-range', `value ${b.value} is outside 0..${max}`);
+        }
+        if (b.kind === 'badges' && (!b.items || b.items.length === 0)) {
+          add('warn', `${p}.items`, 'empty-badges', 'a badges block has no items');
+        }
+        if (b.kind === 'tabs') {
+          if (!b.tabs || b.tabs.length === 0) add('error', `${p}.tabs`, 'empty-tabs', 'a tabs block needs at least one tab');
+          if (b.tabs && b.tabs.length > 6) add('warn', `${p}.tabs`, 'tabs-too-many', `${b.tabs.length} tabs exceeds the 6 the stylesheet can show; extras stay hidden`);
+          const seen = new Set<string>();
+          b.tabs?.forEach((t, ti) => {
+            if (!t.id || !t.id.trim()) add('error', `${p}.tabs[${ti}].id`, 'blank-id', 'a tab needs a non-empty id');
+            else if (seen.has(t.id)) add('error', `${p}.tabs[${ti}].id`, 'dup-id', `duplicate tab id "${t.id}"`);
+            else seen.add(t.id);
+            walkBlocks(t.children, `${p}.tabs[${ti}].children`);
+          });
+        }
+        if (b.kind === 'accordion') {
+          if (!b.items || b.items.length === 0) add('warn', `${p}.items`, 'empty-accordion', 'an accordion block has no items');
+          b.items?.forEach((it, ii) => walkBlocks(it.children, `${p}.items[${ii}].children`));
+        }
+        if (b.kind === 'columns') {
+          const of = b.of ?? b.children?.length ?? 0;
+          if (b.children && b.children.length > of) {
+            add('warn', `${p}.children`, 'columns-overflow', `${b.children.length} columns of content in a ${of}-column block`);
+          }
+          b.children?.forEach((col, ci) => walkBlocks(col, `${p}.children[${ci}]`));
+        }
+        if (b.kind === 'gallery') {
+          if (!b.items || b.items.length === 0) add('warn', `${p}.items`, 'empty-gallery', 'a gallery block has no items');
+          b.items?.forEach((it, ii) => {
+            if (!it.src || !it.src.trim()) add('error', `${p}.items[${ii}].src`, 'image-src', 'a gallery item needs a src');
+          });
+          if (b.columns != null && (b.columns < 1 || b.columns > 6)) {
+            add('warn', `${p}.columns`, 'gallery-columns', `columns ${b.columns} clamped to 1..6`);
+          }
+        }
+        if (b.kind === 'timeline' && (!b.items || b.items.length === 0)) {
+          add('warn', `${p}.items`, 'empty-timeline', 'a timeline block has no items');
+        }
+        if (b.kind === 'compare' && (!b.rows || b.rows.length === 0)) {
+          add('warn', `${p}.rows`, 'empty-compare', 'a compare block has no rows');
+        }
+        if (b.kind === 'link' && (!b.href || !b.href.trim())) {
+          add('error', `${p}.href`, 'link-href', 'a link block needs an href');
+        }
         if (b.kind === 'group') walkBlocks(b.children, `${p}.children`);
       });
     };

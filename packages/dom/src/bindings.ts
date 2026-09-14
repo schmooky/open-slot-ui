@@ -1,4 +1,4 @@
-import { formatAmount, renderBlocksHtml, composeMenu, type OpenUI, type HudState, type BlockSpec } from '@open-slot-ui/core';
+import { formatAmount, renderBlocksHtml, factsVars, composeMenu, type OpenUI, type HudState, type BlockSpec } from '@open-slot-ui/core';
 import { $, on, text, toggleClass, setVisible, setDisabled, setIcon, el } from './dom';
 import { label } from './i18n';
 
@@ -515,6 +515,7 @@ export function bindAutoplay(ui: OpenUI, ctx: BindContext): Dispose {
 /** Game info, bet history, the buy sheet, the notice dialog and the message strip. */
 export function bindWindows(ui: OpenUI, ctx: BindContext): Dispose {
   const r = ctx.root;
+  const disposers: Dispose[] = [];
 
   const window_ = (id: string, panel: { isOpen: boolean; openPanel(): void; closePanel(): void; state: { subscribe(fn: () => void): Dispose } }, closeId: string): Dispose => {
     const win = $(r, id);
@@ -534,7 +535,21 @@ export function bindWindows(ui: OpenUI, ctx: BindContext): Dispose {
   const infoBody = $(r, 'GameInfoBody');
   if (infoBody) {
     const blocks = ctx.infoBlocks ?? composeMenu(undefined, {});
-    infoBody.innerHTML = renderBlocksHtml(blocks, (key) => ui.t(key), ui.facts.get());
+    // `ohm-body` is what the block stylesheet scopes its prose rules to; the skin's
+    // own class stays, so the window is still the skin's window.
+    infoBody.classList.add('ohm-body');
+    // Rules copy translates WITH the facts interpolation vars, exactly as the canvas
+    // menu does it: `{{rtp.base}}` / `{{cost.free-spins}}` / `{{freeSpins.count}}`
+    // resolve from the LIVE declared facts, so a stated price or RTP can never drift
+    // from the configuration. The buy sheet declares its features into those facts at
+    // mount, so the body re-renders whenever they change.
+    const paintInfo = (): void => {
+      const vars = factsVars(ui.facts.get(), { 'game.name': ui.gameInfo.name ?? '', 'game.version': ui.gameInfo.version ?? '' });
+      const trr = (key: string): string => ui.t(key, vars);
+      infoBody.innerHTML = renderBlocksHtml(blocks, trr, ui.facts.get());
+    };
+    paintInfo();
+    disposers.push(ui.facts.subscribe(paintInfo));
   }
   text($(r, 'GameInfoGameName'), ui.gameInfo.name ?? '');
 
@@ -708,6 +723,7 @@ export function bindWindows(ui: OpenUI, ctx: BindContext): Dispose {
   paintFeedback();
 
   return all(
+    ...disposers,
     window_('GameInfoWindow', ui.settingsPanel, 'GameInfoClose'),
     window_('BetHistoryWindow', ui.historyPanel, 'BetHistoryClose'),
     window_('FeatureBuyWindow', ctx.buyPanel, 'FeatureBuyClose'),

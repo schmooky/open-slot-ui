@@ -148,6 +148,36 @@ export type BlockSpec = {
   // A grid of little REELS×ROWS payline masks — one cell lit per reel (the row that line pays
   // on). Black-and-white, no outlines/rounding. `lines[i][reel] = rowIndex` (0-based).
   | { kind: 'paylines'; id: string; reels: number; rows: number; lines: number[][] }
+  // ── more building blocks: the vocabulary rules are actually written in ───────
+  // A REEL GRID with any cells lit — the general form of `paylines`: a scatter
+  // pattern, a cluster, a winning way, a "this lands here" illustration.
+  | { kind: 'grid'; id: string; reels: number; rows: number; cells: Array<[reel: number, row: number]>; label?: string; symbol?: string }
+  // The SYMBOL TABLE: one row per symbol, its name, and what each count pays.
+  | { kind: 'symbols'; id: string; counts?: string[]; rows: Array<{ symbol?: string; icon?: string; name?: string; pays: string[] }> }
+  // TERM / DESCRIPTION pairs — a glossary, a spec sheet, "what this word means".
+  | { kind: 'kv'; id: string; items: Array<{ term: string; text: string }> }
+  // A 0..max METER — volatility, risk, hit rate. Reads at a glance; `label` names it.
+  | { kind: 'meter'; id: string; label?: string; value: number; max?: number; caption?: string }
+  // Short CHIPS: mechanic tags, "ways 243", "max win 5,000x".
+  | { kind: 'badges'; id: string; items: Array<{ text: string; tone?: 'neutral' | 'accent' | 'bonus' | 'warning' }> }
+  // TABBED sections — long rules that would otherwise be one endless scroll.
+  | { kind: 'tabs'; id: string; tabs: Array<{ id: string; label: string; children: BlockSpec[] }> }
+  // COLLAPSIBLE sections, closed by default unless `open`.
+  | { kind: 'accordion'; id: string; items: Array<{ id: string; title: string; open?: boolean; children: BlockSpec[] }> }
+  // SIDE-BY-SIDE columns of blocks. `of` is how many across on a wide screen.
+  | { kind: 'columns'; id: string; of?: 2 | 3 | 4; children: BlockSpec[][] }
+  // A pulled-out NOTE in the author's voice — not a callout, not body text.
+  | { kind: 'quote'; id: string; text: string; cite?: string }
+  // An IMAGE STRIP with captions.
+  | { kind: 'gallery'; id: string; items: Array<{ src: string; alt?: string; caption?: string }>; columns?: number }
+  // An ordered TIMELINE of what happens when — a bonus round, a feature sequence.
+  | { kind: 'timeline'; id: string; items: Array<{ title: string; text?: string; marker?: string }> }
+  // A/B COMPARISON — base game vs bonus, this mode vs that one.
+  | { kind: 'compare'; id: string; columns: [string, string]; rows: Array<{ label: string; a: string; b: string }> }
+  // A LINK out (operator terms, a help page). `external` marks it as leaving the game.
+  | { kind: 'link'; id: string; text: string; href: string; external?: boolean }
+  // Deliberate vertical AIR between blocks. `size` in steps, not pixels.
+  | { kind: 'spacer'; id: string; size?: 'sm' | 'md' | 'lg' }
   | { kind: 'image'; id: string; src: string; alt?: string; width?: number; height?: number }
   | { kind: 'media'; id: string; src: string; alt?: string; side?: 'left' | 'right'; title?: string; text: string; width?: number; height?: number }
   | { kind: 'cards'; id: string; items: Array<{ icon?: string; title: string; text?: string }> }
@@ -174,6 +204,20 @@ export const BLOCK_KINDS = [
   'table',
   'paytable',
   'paylines',
+  'grid',
+  'symbols',
+  'kv',
+  'meter',
+  'badges',
+  'tabs',
+  'accordion',
+  'columns',
+  'quote',
+  'gallery',
+  'timeline',
+  'compare',
+  'link',
+  'spacer',
   'image',
   'media',
   'cards',

@@ -193,12 +193,16 @@ function scanBlocks(blocks: BlockSpec[] | undefined, resolve: (s: string) => str
       section.text += `\n${r}`;
     }
   };
+  const startSection = (heading: string): void => {
+    section = { heading, text: '', explains: new Set(), covers: new Set() };
+    scan.sections.push(section);
+    scan.headings += `\n${heading}`;
+  };
   const walk = (list: BlockSpec[] | undefined): void => {
     for (const b of list ?? []) {
       // A heading starts a NEW section (the unit a mode's explanation lives in).
       if (b.kind === 'heading' || b.kind === 'subheading') {
-        section = { heading: resolve(b.text), text: '', explains: new Set(), covers: new Set() };
-        scan.sections.push(section);
+        startSection(resolve(b.text));
       }
       for (const c of b.covers ?? []) {
         scan.covers.add(c);
@@ -219,14 +223,12 @@ function scanBlocks(blocks: BlockSpec[] | undefined, resolve: (s: string) => str
           addText(b.text);
           break;
         case 'heading':
-        case 'subheading': {
-          // Global text/headings only — a section's `text` is the prose UNDER its
-          // heading, so a bare heading can't pass for an explanation.
-          const r = resolve(b.text);
-          scan.headings += `\n${r}`;
-          scan.text += `\n${r}`;
+        case 'subheading':
+          // Global text only — a section's `text` is the prose UNDER its heading,
+          // so a bare heading can't pass for an explanation. (`scan.headings` is
+          // filled where the section starts, above.)
+          scan.text += `\n${resolve(b.text)}`;
           break;
-        }
         case 'text':
           addText(b.text);
           break;
@@ -266,6 +268,76 @@ function scanBlocks(blocks: BlockSpec[] | undefined, resolve: (s: string) => str
         case 'group':
           addText(b.title);
           walk(b.children);
+          break;
+
+        // ── the wider vocabulary: rules written in these still count ───────
+        // A tab label and an accordion title ARE headings — a mode explained
+        // inside one is explained, and the audit has to see it that way.
+        case 'tabs':
+          for (const tab of b.tabs) {
+            startSection(resolve(tab.label));
+            walk(tab.children);
+          }
+          break;
+        case 'accordion':
+          for (const it of b.items) {
+            startSection(resolve(it.title));
+            walk(it.children);
+          }
+          break;
+        case 'columns':
+          for (const col of b.children) walk(col);
+          break;
+        case 'kv':
+          b.items.forEach((it) => {
+            addText(it.term);
+            addText(it.text);
+          });
+          break;
+        case 'symbols':
+          (b.counts ?? []).forEach(addText);
+          b.rows.forEach((r) => {
+            addText(r.name);
+            addText(r.symbol);
+            r.pays.forEach(addText);
+          });
+          break;
+        case 'timeline':
+          b.items.forEach((it) => {
+            addText(it.title);
+            addText(it.text);
+          });
+          break;
+        case 'compare':
+          b.columns.forEach(addText);
+          b.rows.forEach((r) => {
+            addText(r.label);
+            addText(r.a);
+            addText(r.b);
+          });
+          break;
+        case 'quote':
+          addText(b.text);
+          addText(b.cite);
+          break;
+        case 'badges':
+          b.items.forEach((it) => addText(it.text));
+          break;
+        case 'meter':
+          addText(b.label);
+          addText(b.caption);
+          break;
+        case 'grid':
+          addText(b.label);
+          break;
+        case 'gallery':
+          b.items.forEach((it) => {
+            addText(it.caption);
+            addText(it.alt);
+          });
+          break;
+        case 'link':
+          addText(b.text);
           break;
         default:
           addText(anyB.label);

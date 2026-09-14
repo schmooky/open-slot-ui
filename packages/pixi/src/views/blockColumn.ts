@@ -1,4 +1,4 @@
-import { Container, Graphics, Text, Sprite, Texture, type TextStyleOptions, type Ticker } from 'pixi.js';
+import { Container, Graphics, Text, type TextStyleOptions, type Ticker } from 'pixi.js';
 import {
   type OpenUI,
   type Control,
@@ -9,7 +9,32 @@ import {
   type SelectControl,
   type StepperControl,
   type ValueDisplay,
+  modeStatsItems,
+  factsVars,
 } from '@open-slot-ui/core';
+import {
+  richParagraphNode,
+  gridNode,
+  symbolsNode,
+  kvNode,
+  meterNode,
+  badgesNode,
+  quoteNode,
+  galleryNode,
+  timelineNode,
+  compareNode,
+  linkNode,
+  spacerNode,
+  calloutNode,
+  statGridNode,
+  dividerNode,
+  tableNode,
+  cardsNode,
+  mediaNode,
+  imageBoxNode,
+  paylinesNode,
+  paytableNode,
+} from './blockNodes';
 import { ControlView } from './ControlView';
 import { SliderView } from './SliderView';
 import { ToggleView } from './ToggleView';
@@ -25,6 +50,18 @@ export interface BlockColumnOptions {
   controlSkins?: Partial<Record<string, ControlViewFactory>>;
   /** Unclipped layer for select dropdowns (so a scroll mask doesn't clip them). */
   dropdownLayer?: Container;
+  /**
+   * Which tab of each `tabs` block is open, by block id — owned by the CALLER so a
+   * rebuild keeps the reader where they were. Pass it together with `onRelayout`.
+   */
+  tabState?: Map<string, number>;
+  /**
+   * Called when a block changed its own height (a tab switched) and the column has
+   * to be laid out again. A caller that can rebuild (the menu) gets tabs sized to
+   * the open panel; a caller that cannot gets a strip as tall as its tallest panel,
+   * so nothing below it ever moves.
+   */
+  onRelayout?: () => void;
 }
 
 export interface BlockColumn {
@@ -58,7 +95,16 @@ export function buildBlockColumn(
   opts: BlockColumnOptions = {},
 ): BlockColumn {
   const t = ui.theme;
-  const tr = (s: string): string => ui.t(s);
+  // Copy translates WITH the facts interpolation vars, exactly as the DOM renderer
+  // does it: `{{rtp.base}}` / `{{cost.free-spins}}` / `{{freeSpins.count}}` resolve
+  // from the LIVE declared facts, so a price or an RTP stated in the rules can never
+  // drift from the configuration.
+  const factVars = factsVars(ui.facts.get(), { 'game.name': ui.gameInfo.name ?? '', 'game.version': ui.gameInfo.version ?? '' });
+  const tr = (s: string): string => ui.t(s, factVars);
+  // The node builders below translate their own labels through `ui.t`. This is the
+  // same `ui` with that one method replaced by `tr`, so every block resolves the
+  // fact tokens without each builder having to be handed a translator.
+  const uiT = Object.create(ui as object, { t: { value: tr } }) as OpenUI;
   const innerW = bodyW - PAD * 2;
   const byId = new Map(controls.map((c) => [c.id, c] as const));
   const content = new Container();
@@ -199,6 +245,102 @@ export function buildBlockColumn(
     return row;
   };
 
+  /** Renders a nested `BlockSpec[]` at `width` via this same builder, so a block
+   *  inside a tab or a column looks exactly like one at the top level. */
+  const nested = (bs: BlockSpec[], width: number): { node: Container; height: number } => {
+    const sub = buildBlockColumn(bs, controls, ui, ticker, width, opts);
+    views.push(...sub.views); // the caller disposes them with the rest of the column
+    const node = new Container();
+    node.addChild(sub.content);
+    sub.content.position.set(0, -sub.height / 2);
+    return { node, height: sub.height };
+  };
+
+  /**
+   * A real tab strip: labels across the top, one panel open at a time.
+   *
+   * Canvas has no reflow, so the two callers get two honest shapes. With
+   * `onRelayout` (the menu, which can rebuild) only the OPEN panel is built and the
+   * block is exactly as tall as it — switching re-lays the column out. Without it,
+   * every panel is built and the strip takes the height of the tallest, so a switch
+   * can never move the rows underneath.
+   */
+  const tabsNode = (b: Extract<BlockSpec, { kind: 'tabs' }>): Container => {
+    const wrap = new Container();
+    if (!b.tabs.length) return wrap;
+    const stripH = 38;
+    const relayout = opts.onRelayout;
+    const active = Math.min(Math.max(opts.tabState?.get(b.id) ?? 0, 0), b.tabs.length - 1);
+    const panels = b.tabs.map((tab, i) => (relayout && i !== active ? null : nested(tab.children, bodyW)));
+    const panelH = panels.reduce((a, p) => Math.max(a, p?.height ?? 0), 0);
+    const totalH = stripH + panelH;
+    const tabW = innerW / b.tabs.length;
+    const show = (i: number): void => {
+      panels.forEach((p, pi) => { if (p) p.node.visible = pi === i; });
+      marks.forEach((m, mi) => {
+        m.label.style.fill = mi === i ? t.color.text : t.color.textDim;
+        m.rule.visible = mi === i;
+      });
+    };
+    const open = (i: number): void => {
+      opts.tabState?.set(b.id, i);
+      if (relayout) relayout();
+      else show(i);
+    };
+    const marks = b.tabs.map((tab, i) => {
+      const cx = -innerW / 2 + i * tabW + tabW / 2;
+      const label = new Text({
+        text: tr(tab.label),
+        style: { fontFamily: t.type.family, fontSize: 13, fill: t.color.textDim, fontWeight: '800', letterSpacing: 0.4 },
+      });
+      label.anchor.set(0.5);
+      label.position.set(cx, -totalH / 2 + stripH / 2 - 3);
+      const rule = new Graphics().rect(cx - tabW / 2 + 6, -totalH / 2 + stripH - 6, tabW - 12, 3).fill({ color: t.color.accent });
+      const hit = new Graphics().rect(cx - tabW / 2, -totalH / 2, tabW, stripH).fill({ color: 0xffffff, alpha: 0.001 });
+      hit.eventMode = 'static';
+      hit.cursor = 'pointer';
+      hit.on('pointertap', () => open(i));
+      wrap.addChild(rule, label, hit);
+      return { label, rule };
+    });
+    wrap.addChild(new Graphics().rect(-innerW / 2, -totalH / 2 + stripH - 5, innerW, 1).fill({ color: t.color.textDim, alpha: 0.25 }));
+    panels.forEach((p) => {
+      if (!p) return;
+      p.node.position.set(0, -totalH / 2 + stripH + p.height / 2);
+      wrap.addChild(p.node);
+    });
+    show(active);
+    return wrap;
+  };
+
+  /** Side-by-side columns of blocks; narrow bodies stack them instead. */
+  const columnsNode = (b: Extract<BlockSpec, { kind: 'columns' }>): Container => {
+    const wrap = new Container();
+    const cols = b.children.length || 1;
+    const gap = 18;
+    const stack = innerW / cols < 180; // too narrow to read side by side
+    const width = stack ? bodyW : (innerW - gap * (cols - 1)) / cols + PAD * 2;
+    const built = b.children.map((child) => nested(child, width));
+    if (stack) {
+      const totalH = built.reduce((a, p) => a + p.height, 0);
+      let cy = -totalH / 2;
+      for (const p of built) {
+        p.node.position.set(0, cy + p.height / 2);
+        wrap.addChild(p.node);
+        cy += p.height;
+      }
+      return wrap;
+    }
+    const totalH = built.reduce((a, p) => Math.max(a, p.height), 0);
+    const colW = width - PAD * 2;
+    built.forEach((p, i) => {
+      p.node.position.set(-innerW / 2 + i * (colW + gap) + colW / 2, -totalH / 2 + p.height / 2);
+      wrap.addChild(p.node);
+    });
+    wrap.addChild(new Graphics().rect(-innerW / 2, -totalH / 2, innerW, totalH).fill({ color: 0xffffff, alpha: 0 }));
+    return wrap;
+  };
+
   const walk = (bs: BlockSpec[]): void => {
     for (const b of bs) {
       switch (b.kind) {
@@ -219,37 +361,91 @@ export function buildBlockColumn(
           placeAuto(legal(tr(b.text)));
           break;
         case 'divider':
-          placeAuto(dividerNode(innerW, ui), 10);
+          placeAuto(dividerNode(innerW, uiT), 10);
           break;
         case 'callout':
-          placeAuto(calloutNode(b, ui, innerW));
+          placeAuto(calloutNode(b, uiT, innerW));
           break;
         case 'stat-grid':
-          placeAuto(statGridNode(b, ui, innerW));
+          placeAuto(statGridNode(b, uiT, innerW));
           break;
+        // The per-mode RTP / max-win grid, read straight off the declared facts so
+        // the canvas menu can never disagree with the DOM one.
+        case 'mode-stats': {
+          const items = [...modeStatsItems(ui.facts.get(), tr), ...(b.extras ?? []).map((e) => ({ label: tr(e.label), value: tr(e.value) }))];
+          if (items.length) placeAuto(statGridNode({ kind: 'stat-grid', id: `${b.id}-grid`, items }, uiT, innerW));
+          break;
+        }
         case 'steps':
           placeAuto(body(b.items.map((s, i) => `${b.ordered ? `${i + 1}.` : '•'}  ${tr(s)}`).join('\n')));
           break;
         case 'table':
-          placeAuto(tableNode(b, ui, innerW));
+          placeAuto(tableNode(b, uiT, innerW));
           break;
         case 'cards':
-          placeAuto(cardsNode(b, ui, innerW));
+          placeAuto(cardsNode(b, uiT, innerW));
           break;
         case 'paytable':
-          placeAuto(paytableNode(b, ui, innerW));
+          placeAuto(paytableNode(b, uiT, innerW));
           break;
         case 'paylines':
-          placeAuto(paylinesNode(b, ui, innerW));
+          placeAuto(paylinesNode(b, uiT, innerW));
           break;
         case 'media':
-          placeAuto(mediaNode(b, ui, innerW));
+          placeAuto(mediaNode(b, uiT, innerW));
+          break;
+        case 'grid':
+          placeAuto(gridNode(b, uiT, innerW));
+          break;
+        case 'symbols':
+          placeAuto(symbolsNode(b, uiT, innerW));
+          break;
+        case 'kv':
+          placeAuto(kvNode(b, uiT, innerW));
+          break;
+        case 'meter':
+          placeAuto(meterNode(b, uiT, innerW));
+          break;
+        case 'badges':
+          placeAuto(badgesNode(b, uiT, innerW));
+          break;
+        case 'quote':
+          placeAuto(quoteNode(b, uiT, innerW));
+          break;
+        case 'gallery':
+          placeAuto(galleryNode(b, uiT, innerW));
+          break;
+        case 'timeline':
+          placeAuto(timelineNode(b, uiT, innerW));
+          break;
+        case 'compare':
+          placeAuto(compareNode(b, uiT, innerW));
+          break;
+        case 'link':
+          placeAuto(linkNode(b, uiT, innerW), 8);
+          break;
+        case 'spacer':
+          placeAuto(spacerNode(b, innerW), 0);
+          break;
+        case 'tabs':
+          placeAuto(tabsNode(b), 12);
+          break;
+        // No re-layout pass exists on canvas, so a collapsed section could never
+        // push the rows under it down: on Pixi an accordion reads as its sections.
+        case 'accordion':
+          for (const it of b.items) {
+            placeAuto(subheading(it.title), 8);
+            walk(it.children);
+          }
+          break;
+        case 'columns':
+          placeAuto(columnsNode(b), 12);
           break;
         case 'image': {
           let iw = b.width || 64;
           let ih = b.height || 64;
           if (iw > innerW) { ih = Math.round((ih * innerW) / iw); iw = innerW; } // fit the menu width
-          placeAuto(imageBoxNode(b.src, iw, ih, ui));
+          placeAuto(imageBoxNode(b.src, iw, ih, uiT));
           break;
         }
         default: {
@@ -279,394 +475,4 @@ export function buildBlockColumn(
   walk(blocks);
 
   return { content, views, height: y + PAD, innerW };
-}
-
-/**
- * A left-aligned paragraph supporting **bold** inline runs (and `\n` breaks),
- * word-wrapped to `width`, centred vertically around local 0. Pure Pixi Text, so
- * it's deterministic (no HTMLText). Bold runs use the strong text colour.
- */
-function richParagraphNode(s: string, ui: OpenUI, width: number, style: TextStyleOptions): Container {
-  const t = ui.theme;
-  const c = new Container();
-  const lineH = typeof style.lineHeight === 'number' ? style.lineHeight : 22;
-  const dim = style.fill;
-  const runs: Array<{ text: string; bold: boolean }> = [];
-  const re = /\*\*(.+?)\*\*/g;
-  let last = 0;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(s)) !== null) {
-    if (m.index > last) runs.push({ text: s.slice(last, m.index), bold: false });
-    runs.push({ text: m[1]!, bold: true });
-    last = re.lastIndex;
-  }
-  if (last < s.length) runs.push({ text: s.slice(last), bold: false });
-
-  let x = 0;
-  let line = 0;
-  const x0 = -width / 2;
-  for (const run of runs) {
-    for (const w of run.text.split(/(\n|\s+)/).filter((p) => p.length)) {
-      if (w === '\n') { x = 0; line += 1; continue; }
-      const isSpace = /^\s+$/.test(w);
-      if (isSpace && x === 0) continue;
-      const txt = new Text({ text: w, style: { ...style, fontWeight: run.bold ? '800' : style.fontWeight ?? '400', fill: run.bold ? t.color.text : dim } });
-      txt.anchor.set(0, 0);
-      if (!isSpace && x > 0 && x + txt.width > width) { x = 0; line += 1; }
-      txt.position.set(x0 + x, line * lineH);
-      c.addChild(txt);
-      x += txt.width;
-    }
-  }
-  const totalH = (line + 1) * lineH;
-  for (const ch of c.children) ch.y -= totalH / 2;
-  return c;
-}
-
-function calloutNode(b: Extract<BlockSpec, { kind: 'callout' }>, ui: OpenUI, innerW: number): Container {
-  const t = ui.theme;
-  const tone = b.tone === 'warning' ? '#ffb020' : t.color.accent;
-  const c = new Container();
-  const padX = 16;
-  const padY = 12;
-  const textW = innerW - padX * 2 - 4;
-  const title = b.title
-    ? new Text({ text: ui.t(b.title), style: { fontFamily: t.type.family, fontSize: 14, fill: tone, fontWeight: '800', letterSpacing: 0.3 } })
-    : null;
-  title?.anchor.set(0, 0);
-  const bodyNode = richParagraphNode(ui.t(b.text), ui, textW, { fontFamily: t.type.family, fontSize: 14, fill: t.color.text, lineHeight: 20 });
-  const bodyH = bodyNode.height;
-  const titleH = title ? title.height + 6 : 0;
-  const h = padY * 2 + titleH + bodyH;
-  const x = -innerW / 2;
-  const bg = new Graphics()
-    .roundRect(x, -h / 2, innerW, h, 10)
-    .fill({ color: tone, alpha: 0.08 })
-    .roundRect(x, -h / 2, innerW, h, 10)
-    .stroke({ width: 1.5, color: tone, alpha: 0.5 })
-    .roundRect(x, -h / 2, 4, h, 2)
-    .fill({ color: tone });
-  c.addChild(bg);
-  if (title) {
-    title.position.set(x + padX, -h / 2 + padY);
-    c.addChild(title);
-  }
-  bodyNode.position.set(x + padX + textW / 2, -h / 2 + padY + titleH + bodyH / 2);
-  c.addChild(bodyNode);
-  return c;
-}
-
-function statGridNode(b: Extract<BlockSpec, { kind: 'stat-grid' }>, ui: OpenUI, innerW: number): Container {
-  const t = ui.theme;
-  const c = new Container();
-  const rowH = 30;
-  const totalH = Math.max(b.items.length * rowH, rowH);
-  b.items.forEach((it, i) => {
-    const cy = -totalH / 2 + rowH / 2 + i * rowH;
-    if (i > 0) {
-      c.addChild(new Graphics().moveTo(-innerW / 2, cy - rowH / 2).lineTo(innerW / 2, cy - rowH / 2).stroke({ width: 1, color: t.color.textDim, alpha: 0.18 }));
-    }
-    const label = new Text({ text: ui.t(it.label), style: { fontFamily: t.type.family, fontSize: 14, fill: t.color.textDim } });
-    label.anchor.set(0, 0.5);
-    label.position.set(-innerW / 2, cy);
-    const value = new Text({ text: ui.t(it.value), style: { fontFamily: t.type.family, fontSize: 14, fill: t.color.text, fontWeight: '700' } });
-    value.anchor.set(1, 0.5);
-    value.position.set(innerW / 2, cy);
-    c.addChild(label, value);
-  });
-  return c;
-}
-
-/** A thin full-width rule used to separate sections (e.g. before legal copy). */
-function dividerNode(innerW: number, ui: OpenUI): Container {
-  const c = new Container();
-  c.addChild(new Graphics().rect(-innerW / 2, -0.5, innerW, 1).fill({ color: ui.theme.color.textDim, alpha: 0.3 }));
-  return c;
-}
-
-/** A generic table: an optional bold header row + body rows of cells. First column
- *  left-aligned (labels); every cell flows through `ui.t`. */
-function tableNode(b: Extract<BlockSpec, { kind: 'table' }>, ui: OpenUI, innerW: number): Container {
-  const t = ui.theme;
-  const c = new Container();
-  const head = b.columns && b.columns.length ? [b.columns] : [];
-  const allRows = [...head, ...b.rows];
-  const cols = Math.max(1, b.columns?.length ?? b.rows[0]?.length ?? 1);
-  const colW = innerW / cols;
-  const rowH = 30;
-  const totalH = Math.max(allRows.length * rowH, rowH);
-  const left = -innerW / 2;
-  allRows.forEach((row, ri) => {
-    const cy = -totalH / 2 + rowH / 2 + ri * rowH;
-    const isHeader = head.length > 0 && ri === 0;
-    if (ri > 0) {
-      c.addChild(new Graphics().moveTo(left, cy - rowH / 2).lineTo(innerW / 2, cy - rowH / 2).stroke({ width: 1, color: t.color.textDim, alpha: 0.18 }));
-    }
-    for (let ci = 0; ci < cols; ci++) {
-      const raw = row[ci] ?? '';
-      const cx = left + ci * colW + 8;
-      const fill = isHeader ? t.color.text : ci === 0 ? t.color.text : t.color.accent;
-      const weight = isHeader ? '800' : ci === 0 ? '700' : '700';
-      const txt = new Text({ text: ui.t(raw), style: { fontFamily: t.type.family, fontSize: 13, fill, fontWeight: weight } });
-      txt.anchor.set(0, 0.5);
-      txt.position.set(cx, cy);
-      c.addChild(txt);
-    }
-  });
-  return c;
-}
-
-/** A row of feature cards (icon on top + bold title + dim text), wrapping to fit. */
-function cardsNode(b: Extract<BlockSpec, { kind: 'cards' }>, ui: OpenUI, innerW: number): Container {
-  const t = ui.theme;
-  const c = new Container();
-  const n = b.items.length || 1;
-  const gap = 12;
-  const cols = Math.max(1, Math.min(n, Math.floor((innerW + gap) / (150 + gap))));
-  const cardW = (innerW - gap * (cols - 1)) / cols;
-  const rows = Math.ceil(n / cols);
-  const cardH = 132;
-  const totalH = rows * cardH + (rows - 1) * gap;
-  b.items.forEach((it, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const cardX = -innerW / 2 + col * (cardW + gap);
-    const cardY = -totalH / 2 + row * (cardH + gap);
-    const card = new Container();
-    card.addChild(
-      new Graphics()
-        .roundRect(0, 0, cardW, cardH, 12)
-        .fill({ color: t.color.surfaceAlt, alpha: 0.6 })
-        .roundRect(0, 0, cardW, cardH, 12)
-        .stroke({ width: 1, color: t.color.textDim, alpha: 0.15 }),
-    );
-    if (it.icon) {
-      const icon = imageBoxNode(it.icon, 44, 44, ui);
-      icon.position.set(cardW / 2, 34);
-      card.addChild(icon);
-    }
-    const title = new Text({ text: ui.t(it.title), style: { fontFamily: t.type.family, fontSize: 14, fill: t.color.text, fontWeight: '800' } });
-    title.anchor.set(0.5, 0);
-    title.position.set(cardW / 2, it.icon ? 64 : 14);
-    card.addChild(title);
-    if (it.text) {
-      const para = richParagraphNode(ui.t(it.text), ui, cardW - 20, { fontFamily: t.type.family, fontSize: 12, fill: t.color.textDim, lineHeight: 16 });
-      para.position.set(cardW / 2, (it.icon ? 96 : 46) + para.height / 2);
-      card.addChild(para);
-    }
-    card.position.set(cardX, cardY);
-    c.addChild(card);
-  });
-  return c;
-}
-
-/** Image + text side-by-side (image left or right), vertically centered. */
-function mediaNode(b: Extract<BlockSpec, { kind: 'media' }>, ui: OpenUI, innerW: number): Container {
-  const t = ui.theme;
-  const c = new Container();
-  const imgW = Math.min(b.width ?? 200, Math.round(innerW * 0.4));
-  const imgH = b.width && b.height ? Math.round((imgW * b.height) / b.width) : Math.round(imgW * 0.62);
-  const gap = 18;
-  const textW = innerW - imgW - gap;
-  const side = b.side ?? 'left';
-  const imgX = side === 'left' ? -innerW / 2 + imgW / 2 : innerW / 2 - imgW / 2;
-  const textCx = side === 'left' ? -innerW / 2 + imgW + gap + textW / 2 : -innerW / 2 + textW / 2;
-
-  const title = b.title
-    ? new Text({ text: ui.t(b.title), style: { fontFamily: t.type.family, fontSize: 15, fill: t.color.text, fontWeight: '800' } })
-    : null;
-  title?.anchor.set(0, 0);
-  const para = richParagraphNode(ui.t(b.text), ui, textW, { fontFamily: t.type.family, fontSize: 14, fill: t.color.textDim, lineHeight: 19 });
-  const titleH = title ? title.height + 8 : 0;
-  const textH = titleH + para.height;
-  const h = Math.max(imgH, textH);
-
-  const img = imageBoxNode(b.src, imgW, imgH, ui);
-  img.position.set(imgX, 0);
-  c.addChild(img);
-  if (title) {
-    title.position.set(textCx - textW / 2, -textH / 2);
-    c.addChild(title);
-  }
-  para.position.set(textCx, -textH / 2 + titleH + para.height / 2);
-  c.addChild(para);
-  // reserve the full height so placeAuto spaces the next block correctly
-  c.addChild(new Graphics().rect(-innerW / 2, -h / 2, 1, h).fill({ color: 0xffffff, alpha: 0 }));
-  return c;
-}
-
-/** A sized box that holds the image's intended footprint while it loads, then
- *  renders the image RAW (no imposed border/rounding — designers style their own
- *  art). Loads via an `Image` element + `Texture.from` so ANY URL/format works
- *  (incl. extensionless/SVG hosts like placehold.co) with CORS. */
-function imageBoxNode(src: string, w: number, h: number, ui: OpenUI): Container {
-  const t = ui.theme;
-  const box = new Container();
-  // a faint, un-framed loading placeholder (removed once the image paints)
-  const placeholder = new Graphics().rect(-w / 2, -h / 2, w, h).fill({ color: t.color.surfaceAlt, alpha: 0.5 });
-  box.addChild(placeholder);
-  if (typeof Image !== 'undefined') {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      if (box.destroyed) return;
-      try {
-        const sp = new Sprite(Texture.from(img));
-        sp.anchor.set(0.5);
-        sp.width = w;
-        sp.height = h;
-        box.addChild(sp);
-        placeholder.visible = false; // show the raw image, not over a placeholder box
-      } catch {
-        /* keep the placeholder if the texture can't be created */
-      }
-    };
-    img.onerror = () => {
-      /* keep the placeholder box (it shows the intended size) */
-    };
-    img.src = src;
-  }
-  return box;
-}
-
-/** The 40-line paylines matrix: a wrapped flow of little REELS×ROWS masks, each with the
- *  cell that line pays on lit. Plain black-and-white (lit #111 / unlit #e2e5ea), no outlines
- *  or rounding, an index number under each — matches the reference design. */
-function paylinesNode(b: Extract<BlockSpec, { kind: 'paylines' }>, ui: OpenUI, innerW: number): Container {
-  const t = ui.theme;
-  const c = new Container();
-  const GAP_X = 12;
-  const ITEM_MIN = 76;
-  const cols = Math.max(1, Math.floor((innerW + GAP_X) / (ITEM_MIN + GAP_X)));
-  const itemW = (innerW - GAP_X * (cols - 1)) / cols;
-  const cellGap = 2;
-  const gridW = Math.min(72, itemW);
-  const cell = (gridW - cellGap * (b.reels - 1)) / b.reels;
-  const drawnW = cell * b.reels + cellGap * (b.reels - 1);
-  const drawnH = cell * b.rows + cellGap * (b.rows - 1);
-  const labelH = 16;
-  const itemH = drawnH + 5 + labelH;
-  const gridRows = Math.ceil(b.lines.length / cols);
-  const totalH = gridRows * itemH + (gridRows - 1) * GAP_X;
-
-  b.lines.forEach((line, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const itemCx = -innerW / 2 + col * (itemW + GAP_X) + itemW / 2;
-    const gy0 = -totalH / 2 + row * (itemH + GAP_X);
-    const gx0 = itemCx - drawnW / 2;
-    const g = new Graphics();
-    for (let r = 0; r < b.rows; r++) {
-      for (let re = 0; re < b.reels; re++) {
-        g.rect(gx0 + re * (cell + cellGap), gy0 + r * (cell + cellGap), cell, cell).fill({ color: line[re] === r ? 0x111111 : 0xe2e5ea });
-      }
-    }
-    const idx = new Text({ text: String(i + 1), style: { fontFamily: t.type.family, fontSize: 11, fill: t.color.textDim, fontWeight: '700' } });
-    idx.anchor.set(0.5, 0);
-    idx.position.set(itemCx, gy0 + drawnH + 5);
-    c.addChild(g, idx);
-  });
-  c.addChild(new Graphics().rect(-innerW / 2, -totalH / 2, 1, totalH).fill({ color: 0xffffff, alpha: 0 }));
-  return c;
-}
-
-type PaytableBlock = Extract<BlockSpec, { kind: 'paytable' }>;
-
-/** Paytable: a multi-column symbol grid (icon/name + tiered payouts) when
- *  `columns > 1` (the reference design), else a single-column list. */
-function paytableNode(b: PaytableBlock, ui: OpenUI, innerW: number): Container {
-  const want = Math.max(1, b.columns ?? 1);
-  const fit = Math.max(1, Math.floor(innerW / 170)); // auto-reduce to fit narrow menus
-  const cols = Math.max(1, Math.min(want, fit, b.rows.length || 1));
-  return cols <= 1 ? paytableList(b, ui, innerW) : paytableGrid(b, ui, innerW, cols);
-}
-
-function paytableList(b: PaytableBlock, ui: OpenUI, innerW: number): Container {
-  const t = ui.theme;
-  const c = new Container();
-  const rowH = 44;
-  const totalH = Math.max(b.rows.length * rowH, rowH);
-  const hasIcons = b.rows.some((r) => r.icon);
-  const left = -innerW / 2;
-  const symbolX = left + (hasIcons ? 48 : 4);
-  b.rows.forEach((r, i) => {
-    const cy = -totalH / 2 + rowH / 2 + i * rowH;
-    if (i > 0) {
-      c.addChild(new Graphics().moveTo(left, cy - rowH / 2).lineTo(innerW / 2, cy - rowH / 2).stroke({ width: 1, color: t.color.textDim, alpha: 0.15 }));
-    }
-    if (r.icon) {
-      const icon = imageBoxNode(r.icon, 36, 36, ui);
-      icon.position.set(left + 22, cy);
-      c.addChild(icon);
-    }
-    const sym = new Text({ text: ui.t(r.symbol ?? ''), style: { fontFamily: t.type.family, fontSize: 15, fill: t.color.text, fontWeight: '700' } });
-    sym.anchor.set(0, 0.5);
-    sym.position.set(symbolX, cy);
-    const pay = new Text({ text: r.payouts, style: { fontFamily: t.type.family, fontSize: 14, fill: t.color.accent, fontWeight: '700' } });
-    pay.anchor.set(1, 0.5);
-    pay.position.set(innerW / 2, cy);
-    c.addChild(sym, pay);
-  });
-  return c;
-}
-
-function paytableGrid(b: PaytableBlock, ui: OpenUI, innerW: number, cols: number): Container {
-  const c = new Container();
-  const cellW = innerW / cols;
-  const gridRows = Math.ceil(b.rows.length / cols);
-  const lineH = 17;
-  const maxLines = b.rows.reduce((m, r) => Math.max(m, (r.payouts || '').split('\n').length), 1);
-  const cellH = Math.max(48, 14 + maxLines * lineH);
-  const totalH = gridRows * cellH;
-  b.rows.forEach((r, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const cell = paytableCell(r, ui, cellW, lineH);
-    cell.position.set(-innerW / 2 + col * cellW + cellW / 2, -totalH / 2 + row * cellH + cellH / 2);
-    c.addChild(cell);
-  });
-  return c;
-}
-
-/** One symbol cell: an icon (or bold name) on the left, the tiered payouts on the
- *  right — each line "label: value" with the tier label bold (matching the design). */
-function paytableCell(r: PaytableBlock['rows'][number], ui: OpenUI, cellW: number, lineH: number): Container {
-  const t = ui.theme;
-  const cell = new Container();
-  const lx = -cellW / 2 + 10;
-  let leftW = 0;
-  if (r.icon) {
-    const icon = imageBoxNode(r.icon, 40, 40, ui);
-    icon.position.set(lx + 20, 0);
-    cell.addChild(icon);
-    leftW = 52;
-  } else if (r.symbol) {
-    const sym = new Text({ text: ui.t(r.symbol), style: { fontFamily: t.type.family, fontSize: 14, fontWeight: '800', fill: t.color.text } });
-    sym.anchor.set(0, 0.5);
-    sym.position.set(lx, 0);
-    cell.addChild(sym);
-    leftW = sym.width + 14;
-  }
-  const lines = (r.payouts || '').split('\n');
-  const blockH = lines.length * lineH;
-  const px = lx + leftW;
-  lines.forEach((ln, j) => {
-    const ly = -blockH / 2 + lineH / 2 + j * lineH;
-    const ci = ln.indexOf(':');
-    if (ci >= 0) {
-      const label = new Text({ text: ln.slice(0, ci + 1), style: { fontFamily: t.type.family, fontSize: 13, fontWeight: '800', fill: t.color.text } });
-      label.anchor.set(0, 0.5);
-      label.position.set(px, ly);
-      const val = new Text({ text: ln.slice(ci + 1), style: { fontFamily: t.type.family, fontSize: 13, fontWeight: '700', fill: t.color.accent } });
-      val.anchor.set(0, 0.5);
-      val.position.set(px + label.width + 4, ly);
-      cell.addChild(label, val);
-    } else {
-      const txt = new Text({ text: ln, style: { fontFamily: t.type.family, fontSize: 13, fontWeight: '700', fill: t.color.accent } });
-      txt.anchor.set(0, 0.5);
-      txt.position.set(px, ly);
-      cell.addChild(txt);
-    }
-  });
-  return cell;
 }

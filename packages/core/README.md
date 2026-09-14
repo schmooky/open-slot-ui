@@ -24,6 +24,11 @@ pnpm add @open-slot-ui/core
   (a bad value is reported and ignored — see the never-reject boundary in the Charter).
 - **Introspection** — `window.__OPENUI__` reports every control's state, interactability
   and bounds, so end-to-end tests never read a pixel.
+- **`BlockSpec`** — the 36-kind vocabulary the info window's rules, paytable and settings
+  are written in (headings, tables, symbol tables, reel grids, tabs, accordions, columns,
+  meters, timelines, galleries…). `parseBlocks` reads the same tree from **XML or JSON**,
+  `renderBlocksHtml` + `BLOCK_CSS` render it, `validateSpec` checks it and `auditRules`
+  proves it actually explains every declared game mode.
 
 ## Usage
 
