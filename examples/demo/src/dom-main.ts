@@ -2,7 +2,7 @@ import { Application } from 'pixi.js';
 import { mountDomHud } from '@open-slot-ui/dom';
 import { resolveBetLadder } from '@open-slot-ui/core';
 import type { UISpec } from '@open-slot-ui/core';
-import { buildReels } from './reels';
+import { buildReels, evaluate } from './reels';
 import { RULES_BLOCKS, FACTS } from './content';
 
 /**
@@ -33,9 +33,13 @@ async function main(): Promise<void> {
   await app.init({ resizeTo: window, backgroundAlpha: 0, antialias: true, autoDensity: true, resolution: Math.min(devicePixelRatio || 1, 2) });
   document.getElementById('GameWrapper')!.appendChild(app.canvas);
 
-  const reels = buildReels();
+  const reels = buildReels(app);
   app.stage.addChild(reels.container);
-  const layout = (): void => reels.layout(app.screen.width, app.screen.height);
+
+  /** The bar reserves a strip at the bottom of the screen; ask the DOM how tall it is. */
+  const barHeight = (): number => document.querySelector('.UiUserPanelWrapper')?.getBoundingClientRect().height ?? 0;
+  // The bar reserves a strip at the bottom; the reels get everything above it.
+  const layout = (): void => reels.layout(app.screen.width, app.screen.height, barHeight());
   app.renderer.on('resize', layout);
   layout();
 
@@ -47,9 +51,7 @@ async function main(): Promise<void> {
     ],
     onBuy: (id, cost) => {
       ui.balance.set(Math.round((ui.balance.get() - cost) * 100) / 100);
-      hud.setFreeSpins(id === 'super-spins' ? 15 : 10);
-      hud.setHudState('featurePlay');
-      hud.setTotalWin(0);
+      void runBonus(id === 'super-spins' ? 15 : 10);
     },
   });
   const ui = hud.ui;
@@ -72,13 +74,18 @@ async function main(): Promise<void> {
       return;
     }
     hud.setWin(0);
+    ui.clearFeedback(); // the "press play" hint has done its job
     hud.setHudState('play');
     ui.spin.busy();
     ui.balance.set(snap(ui.balance.get() - stake));
-    await reels.spin(app, ui.turboBase.isOn);
-    const MULTS = [0, 0, 0, 0.5, 1, 2, 5, 12, 25];
-    const win = snap(stake * (MULTS[Math.floor(Math.random() * MULTS.length)] ?? 0));
-    if (win > 0) ui.balance.set(snap(ui.balance.get() + win));
+    // TURBO comes from the ☰ menu's own switch — the reels take the faster profile.
+    const grid = await reels.spin(ui.turboBase.isOn);
+    const line = evaluate(grid);
+    const win = snap(stake * line.win);
+    if (win > 0) {
+      ui.balance.set(snap(ui.balance.get() + win));
+      reels.celebrate(line.cells);
+    }
     hud.setWin(win);
     hud.setHudState(win > 0 ? 'winPresentation' : 'result');
     history.unshift({ date: new Date().toLocaleTimeString(), bet: money(stake), win: money(win), won: win > 0 });
@@ -88,7 +95,42 @@ async function main(): Promise<void> {
     hud.setHudState('idle');
   }
 
+  /**
+   * A bonus PLAYS ITSELF — that is why the reference hides the action panel while
+   * `data-state` is `featurePlay-freespins`. So the host has to drive it: spin, tally,
+   * count down, and hand the bar back when the last free spin lands.
+   */
+  async function runBonus(spins: number): Promise<void> {
+    hud.setTotalWin(0);
+    hud.setFreeSpins(spins);
+    hud.setHudState('featureEnter');
+    await wait(500);
+    hud.setHudState('featurePlay');
+    let total = 0;
+    while (ui.spin.freeSpins.get() > 0) {
+      const stake = ui.betStepper.value;
+      ui.spin.busy();
+      const grid = await reels.spin(true); // a bonus always runs at turbo pace
+      const line = evaluate(grid);
+      const win = snap(stake * line.win * 2); // free spins pay double in this demo
+      total = snap(total + win);
+      if (win > 0) {
+        ui.balance.set(snap(ui.balance.get() + win));
+        reels.celebrate(line.cells);
+      }
+      hud.setTotalWin(total);
+      hud.setFreeSpins(ui.spin.freeSpins.get() - 1); // the counter on the bar
+      ui.spin.idle();
+      await wait(260);
+    }
+    hud.setHudState('featureExit');
+    hud.showFeedback(`Bonus paid ${money(total)}`, { tone: 'good', ms: 3200 });
+    await wait(1200);
+    hud.setHudState('idle'); // the bar comes back: action panel, buy coin and all
+  }
+
   ui.on('spinRequested', () => void playSpin());
+  ui.on('skipRequested', () => reels.skip()); // the slam-stop button
   ui.on('autoplayStarted', async () => {
     while (ui.autoplay.isActive) {
       await playSpin();

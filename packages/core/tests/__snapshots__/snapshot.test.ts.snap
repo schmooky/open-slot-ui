@@ -138,13 +138,13 @@ exports[`OpenUI.snapshot() > matches the documented initial control surface 1`] 
     "id": "super-turbo-base",
     "interactable": true,
     "role": "switch",
-    "state": "on",
+    "state": "off",
   },
   {
     "id": "super-turbo-bonus",
     "interactable": true,
     "role": "switch",
-    "state": "on",
+    "state": "off",
   },
   {
     "id": "total-win",
@@ -162,13 +162,13 @@ exports[`OpenUI.snapshot() > matches the documented initial control surface 1`] 
     "id": "turbo-base",
     "interactable": true,
     "role": "switch",
-    "state": "on",
+    "state": "off",
   },
   {
     "id": "turbo-bonus",
     "interactable": true,
     "role": "switch",
-    "state": "on",
+    "state": "off",
   },
   {
     "id": "win",

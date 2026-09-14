@@ -48,6 +48,9 @@ importers:
       gsap:
         specifier: ^3.13.0
         version: 3.15.0
+      pixi-reels:
+        specifier: ^2.8.0
+        version: 2.8.0(gsap@3.15.0)(pixi.js@8.19.0)
       pixi.js:
         specifier: ^8.6.6
         version: 8.19.0
@@ -2017,6 +2020,16 @@ packages:
   pirates@4.0.7:
     resolution: {integrity: sha512-TfySrs/5nm8fQJDcBDuUng3VOUKsd7S+zqvbOTiGXHfxX4wK31ard+hoNuvkicM/2YFzlpDgABOevKSsB4G/FA==}
     engines: {node: '>= 6'}
+
+  pixi-reels@2.8.0:
+    resolution: {integrity: sha512-rJ7tnNuZbuTYZhppWTPWICn4oIyf5NqAvbMpSK8H0VqEpUwC5k6qkBKoyqr5z1sVuYOaikfecpKzvTJyFHKgEg==}
+    peerDependencies:
+      '@esotericsoftware/spine-pixi-v8': ~4.2.110
+      gsap: ^3.15.0
+      pixi.js: ^8.18.1
+    peerDependenciesMeta:
+      '@esotericsoftware/spine-pixi-v8':
+        optional: true
 
   pixi.js@8.19.0:
     resolution: {integrity: sha512-pq1O6emA/GFjjeF+8d3Pb5t7knD8FsnfWGqQcRjYjsqFZ7QdzG1XgjLDUu0DFJRbafjV5+g8iNLFBx0b9649lg==}
@@ -4800,6 +4813,11 @@ snapshots:
   picomatch@4.0.4: {}
 
   pirates@4.0.7: {}
+
+  pixi-reels@2.8.0(gsap@3.15.0)(pixi.js@8.19.0):
+    dependencies:
+      gsap: 3.15.0
+      pixi.js: 8.19.0
 
   pixi.js@8.19.0:
     dependencies:

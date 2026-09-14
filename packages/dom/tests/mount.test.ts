@@ -116,3 +116,62 @@ describe('feature flags', () => {
     expect(id('PlaceBetBtn')).not.toBeNull();
   });
 });
+
+describe('the ☰ menu behaves the way the design does', () => {
+  it('the TURBO row toggles the feature for both scopes, and the accordion follows', () => {
+    const turbo = id('TurboToggle')!;
+    const accordion = turbo.closest('.Accordion')!;
+    // turbo starts off, so the row is collapsed and marked off
+    id('MainMenuToggle')!.click();
+    expect(hud.ui.turboBase.isOn).toBe(false);
+    expect(accordion.classList.contains('is-open')).toBe(false);
+    expect(turbo.classList.contains('turbo-off')).toBe(true);
+
+    turbo.click(); // one tap turns turbo ON for base AND bonus
+    expect(hud.ui.turboBase.isOn).toBe(true);
+    expect(hud.ui.turboBonus.isOn).toBe(true);
+    expect(accordion.classList.contains('is-open')).toBe(true);
+    expect(turbo.classList.contains('turbo-on')).toBe(true);
+
+    turbo.click(); // …and back off
+    expect(hud.ui.turboBase.isOn).toBe(false);
+    expect(accordion.classList.contains('is-open')).toBe(false);
+  });
+
+  it('a scope switch adjusts one half and keeps the shared turbo control honest', () => {
+    id<HTMLInputElement>('TurboBonusGameToggler')!.click(); // bonus only
+    expect(hud.ui.turboBonus.isOn).toBe(true);
+    expect(hud.ui.turboBase.isOn).toBe(false);
+    expect(hud.ui.turbo.isOn).toBe(true); // a game reading the shared control sees turbo
+
+    id<HTMLInputElement>('TurboBonusGameToggler')!.click();
+    expect(hud.ui.turbo.isOn).toBe(false); // nothing left on
+  });
+
+  it('SOUND is the master: with it off, MUSIC refuses to toggle', () => {
+    id('SoundToggle')!.click(); // sound off
+    expect(hud.ui.sfxSlider.value.get()).toBe(0);
+    const before = hud.ui.musicSlider.value.get();
+    id('MusicToggle')!.click();
+    expect(hud.ui.musicSlider.value.get()).toBe(before); // refused, as the CSS implies
+    id('SoundToggle')!.click(); // sound back on
+    id('MusicToggle')!.click();
+    expect(hud.ui.musicSlider.value.get()).toBe(0); // now it takes
+  });
+
+  it('tapping the sheet itself closes the menu', () => {
+    id('MainMenuToggle')!.click();
+    expect(hud.ui.mainMenuPanel.isOpen).toBe(true);
+    id('MainMenu')!.click();
+    expect(hud.ui.mainMenuPanel.isOpen).toBe(false);
+  });
+
+  it('an autoplay run puts the HUD in the state the stylesheet dims rows from', () => {
+    const root = document.querySelector<HTMLElement>('.HacksawCasinoUiContainer')!;
+    expect(root.dataset.state).toBe('idle');
+    hud.ui.autoplay.begin(10);
+    expect(root.dataset.state).toBe('autoplay');
+    hud.ui.autoplay.stop();
+    expect(root.dataset.state).toBe('idle');
+  });
+});

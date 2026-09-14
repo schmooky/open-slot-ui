@@ -321,10 +321,12 @@ export class OpenUI {
 
     // Turbo scopes: the reference's TURBO / SUPER TURBO™ rows are accordions holding a
     // BASE GAME and a BONUS GAME switch, so a player can keep the bonus at full speed.
-    this.turboBase = new ToggleControl({ id: 'turbo-base', layout: { anchor: 'center' }, on: true }, this.bus);
-    this.turboBonus = new ToggleControl({ id: 'turbo-bonus', layout: { anchor: 'center' }, on: true }, this.bus);
-    this.superTurboBase = new ToggleControl({ id: 'super-turbo-base', layout: { anchor: 'center' }, on: true }, this.bus);
-    this.superTurboBonus = new ToggleControl({ id: 'super-turbo-bonus', layout: { anchor: 'center' }, on: true }, this.bus);
+    // Every speed scope starts OFF: turbo is something a player asks for, and a game
+    // that boots already in turbo has made that choice for them.
+    this.turboBase = new ToggleControl({ id: 'turbo-base', layout: { anchor: 'center' } }, this.bus);
+    this.turboBonus = new ToggleControl({ id: 'turbo-bonus', layout: { anchor: 'center' } }, this.bus);
+    this.superTurboBase = new ToggleControl({ id: 'super-turbo-base', layout: { anchor: 'center' } }, this.bus);
+    this.superTurboBonus = new ToggleControl({ id: 'super-turbo-bonus', layout: { anchor: 'center' } }, this.bus);
     this.stopOnFeature = new ToggleControl({ id: 'stop-on-feature', layout: { anchor: 'center' }, on: false }, this.bus);
 
     for (const c of [

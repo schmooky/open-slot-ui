@@ -5,7 +5,7 @@ import type { UISpec, CurrencySpec, ThemePreset, JurisdictionConfig } from '@ope
 import { MESSAGES } from './locales';
 import { RULES_BLOCKS, FEATURES, FACTS } from './content';
 import { mountHarness } from './harness';
-import { buildReels } from './reels';
+import { buildReels, evaluate } from './reels';
 
 /**
  * The open-ui EXAMPLE CLIENT — a throwaway host "game" (a shuffling pip grid) with
@@ -203,7 +203,7 @@ async function main(): Promise<void> {
     ]).catch(() => undefined);
   }
 
-  const reels = buildReels();
+  const reels = buildReels(app);
   app.stage.addChild(reels.container);
 
   // Money math snaps float noise at 8 dp — NEVER to the display decimals: a $0.01 bet
@@ -311,12 +311,15 @@ async function main(): Promise<void> {
     hud.setHudState(inBonus ? 'featurePlay' : 'play');
     ui.spin.busy();
     if (stake > 0) ui.balance.set(snap(ui.balance.get() - stake));
-    await reels.spin(app, turbo);
-    // A dice-cascade-style multiplier table INCLUDING the sub-unit ×0.2 face — at the
-    // $0.01 minimum bet that's a true $0.002 win, shown in full by auto-precision.
-    const MULTS = [0.2, 0.5, 1, 2, 5, 12, 25];
-    const win = Math.random() < 0.45 ? snap(effectiveBet() * MULTS[Math.floor(Math.random() * MULTS.length)]!) : 0;
-    if (win > 0) ui.balance.set(snap(ui.balance.get() + win));
+    // TURBO is the HUD's switch; the reels take the faster speed profile from it.
+    const grid = await reels.spin(turbo);
+    // The demo's paytable: 3+ matching on the centre row, wilds standing in.
+    const line = evaluate(grid);
+    const win = snap(effectiveBet() * line.win);
+    if (win > 0) {
+      ui.balance.set(snap(ui.balance.get() + win));
+      reels.celebrate(line.cells);
+    }
     hud.setWin(win); // counts up on the bar
     hud.setHudState(inBonus ? 'featurePlay' : win > 0 ? 'winPresentation' : 'result');
     history.unshift({ date: new Date().toLocaleTimeString(), bet: money(stake), win: money(win), won: win > 0 });
@@ -423,7 +426,8 @@ async function main(): Promise<void> {
   });
 
   // center the reels on resize
-  const layoutReels = (): void => reels.layout(app.screen.width, app.screen.height);
+  // The ribbon reserves a strip at the bottom; the reels fill what is left above it.
+  const layoutReels = (): void => reels.layout(app.screen.width, app.screen.height, hud.pixi.barHeight);
   app.renderer.on('resize', () => {
     layoutReels();
   });

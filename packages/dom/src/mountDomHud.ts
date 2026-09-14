@@ -217,11 +217,22 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
   disposers.push(on(window, 'resize', syncScreen), on(window, 'orientationchange', syncScreen));
 
   const syncState = (): void => {
-    root.dataset.state = stateAttr(ui.hudState.get(), ui.spin.freeSpins.get());
+    // An autoplay RUN is a HUD state in its own right — the stylesheet dims the menu
+    // rows and the bet changers while one is going. The core knows autoplay is
+    // active, so the binding says so; a host that drives its own feature states
+    // still wins, since those are the states it sets.
+    const base = stateAttr(ui.hudState.get(), ui.spin.freeSpins.get());
+    const autoplaying = ui.autoplay.isActive && !base.startsWith('feature');
+    root.dataset.state = autoplaying ? 'autoplay' : base;
     toggleClass(root, 'is-locked', ui.locked.get());
   };
   syncState();
-  disposers.push(ui.hudState.subscribe(syncState), ui.spin.freeSpins.subscribe(syncState), ui.locked.subscribe(syncState));
+  disposers.push(
+    ui.hudState.subscribe(syncState),
+    ui.spin.freeSpins.subscribe(syncState),
+    ui.autoplay.state.subscribe(syncState),
+    ui.locked.subscribe(syncState),
+  );
 
   // Fullscreen: the markup only hints at it, so the binding owns the actual call.
   disposers.push(

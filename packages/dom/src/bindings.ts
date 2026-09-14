@@ -167,7 +167,9 @@ export function bindMainMenu(ui: OpenUI, ctx: BindContext): Dispose {
     const musicOn = ui.musicSlider.value.get() > 0;
     setIcon(sound?.querySelector('[class^=icon-]') ?? null, sfxOn ? 'icon-sound-on' : 'icon-sound-off');
     setIcon(music?.querySelector('[class^=icon-]') ?? null, musicOn ? 'icon-music-on' : 'icon-music-off');
+    toggleClass(sound, 'sound-on', sfxOn);
     toggleClass(sound, 'sound-off', !sfxOn);
+    toggleClass(music, 'music-on', musicOn);
     toggleClass(music, 'music-off', !musicOn);
 
     const turboOn = ui.turboBase.isOn || ui.turboBonus.isOn;
@@ -191,39 +193,74 @@ export function bindMainMenu(ui: OpenUI, ctx: BindContext): Dispose {
   };
   paint();
 
-  /** An accordion row: tapping the title opens its panel (and closes the other). */
-  const accordion = (row: HTMLElement | null): Dispose => {
-    const item = row?.closest('.Accordion') as HTMLElement | null;
-    return on(row, 'click', () => {
-      const open = item?.classList.contains('is-open');
-      for (const other of Array.from(r.querySelectorAll('.Accordion'))) other.classList.remove('is-open');
-      toggleClass(item, 'is-open', !open);
+  /**
+   * A TURBO / SUPER TURBO row. Tapping the title toggles the feature for BOTH
+   * scopes — the reference's own handler does exactly that — and the accordion
+   * FOLLOWS that state: on opens the panel with the BASE / BONUS switches, off
+   * collapses it. The switches inside then adjust one scope each.
+   */
+  const turboRow = (
+    title: HTMLElement | null,
+    base: OpenUI['turboBase'],
+    bonus: OpenUI['turboBonus'],
+  ): Dispose => {
+    const item = title?.closest('.Accordion') as HTMLElement | null;
+    return on(title, 'click', () => {
+      const next = !(base.isOn || bonus.isOn);
+      base.set(next);
+      bonus.set(next);
+      toggleClass(item, 'is-open', next);
+      syncTurbo();
     });
+  };
+
+  /** Keep the shared turbo control in step with the two ladders (a game reads it). */
+  const syncTurbo = (): void => {
+    const want = ui.turboBase.isOn || ui.turboBonus.isOn || ui.superTurboBase.isOn || ui.superTurboBonus.isOn;
+    if (ui.turbo.isOn !== want) ui.turbo.toggle();
+  };
+
+  /** Opening the menu re-syncs each accordion to what its feature is doing. */
+  const syncAccordions = (): void => {
+    for (const [title, on_] of [
+      [turbo, ui.turboBase.isOn || ui.turboBonus.isOn],
+      [superTurbo, ui.superTurboBase.isOn || ui.superTurboBonus.isOn],
+    ] as const) {
+      toggleClass(title?.closest('.Accordion') ?? null, 'is-open', on_);
+    }
   };
 
   const togglerBind = (id: string, control: { toggle(): void }): Dispose =>
     on($(r, id), 'change', () => {
       control.toggle();
-      // Keep the SHARED turbo control in step: a game that reads `ui.turbo.isOn`
-      // (or listens for `turboChanged`) keeps working, whichever row was tapped.
-      const wantTurbo = ui.turboBase.isOn || ui.turboBonus.isOn || ui.superTurboBase.isOn || ui.superTurboBonus.isOn;
-      if (ui.turbo.isOn !== wantTurbo) ui.turbo.toggle();
+      syncTurbo();
     });
 
   return all(
-    on(toggle, 'click', () => ui.mainMenuPanel.toggle()),
+    on(toggle, 'click', () => {
+      ui.mainMenuPanel.toggle();
+      if (ui.mainMenuPanel.isOpen) syncAccordions();
+    }),
+    // Tapping the sheet itself (not a row) closes it — the mobile menu is a
+    // full-screen scrim, and a scrim you cannot dismiss is a trap.
+    on($(r, 'MainMenu'), 'click', (e) => {
+      if (e.target === $(r, 'MainMenu')) ui.mainMenuPanel.closePanel();
+    }),
     on(sound, 'click', () => {
       const onNow = ui.sfxSlider.value.get() > 0;
       if (onNow) lastSfx = ui.sfxSlider.value.get();
       ui.sfxSlider.setNormalized(onNow ? 0 : lastSfx || 0.5);
     }),
     on(music, 'click', () => {
+      // SOUND is the master: with it off, the stylesheet dims MUSIC and takes its
+      // pointer events — so the handler must refuse too, or the two disagree.
+      if (ui.sfxSlider.value.get() <= 0) return;
       const onNow = ui.musicSlider.value.get() > 0;
       if (onNow) lastMusic = ui.musicSlider.value.get();
       ui.musicSlider.setNormalized(onNow ? 0 : lastMusic || 0.7);
     }),
-    accordion(turbo),
-    accordion(superTurbo),
+    turboRow(turbo, ui.turboBase, ui.turboBonus),
+    turboRow(superTurbo, ui.superTurboBase, ui.superTurboBonus),
     togglerBind('TurboBaseGameToggler', ui.turboBase),
     togglerBind('TurboBonusGameToggler', ui.turboBonus),
     togglerBind('SuperTurboBaseGameToggler', ui.superTurboBase),
