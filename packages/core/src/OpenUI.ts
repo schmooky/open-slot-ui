@@ -33,6 +33,8 @@ import {
 import { DictionaryTranslator, type Translator } from './i18n/translator';
 import { resolveCurrency } from './format/currency';
 import { mergeFacts, type GameFacts } from './spec/facts';
+import { defaultHudChrome, type HudChrome } from './chrome/hud';
+import { ToggleControl } from './controls/ToggleControl';
 
 export interface OpenUIOptions {
   theme?: Theme;
@@ -41,6 +43,44 @@ export interface OpenUIOptions {
   translator?: Translator;
   /** Start with audio muted (the icon reflects it). Unmute restores the volumes. */
   startMuted?: boolean;
+  /** The resolved ribbon chrome (which parts of the bar exist, how it docks). */
+  chrome?: HudChrome;
+}
+
+/**
+ * What the HUD is doing right now. The reference drives its whole bar off one such
+ * state — which controls show, what the round button is, whether the plate shrinks —
+ * so open-ui models it explicitly instead of leaving the renderer to infer it.
+ */
+export type HudState =
+  | 'idle'
+  | 'play'
+  | 'result'
+  | 'winPresentation'
+  | 'autoplay'
+  | 'autoplayEnd'
+  | 'featureEnter'
+  | 'featurePlay'
+  | 'featureExit'
+  | 'hidden';
+
+/** A one-line message on the strip under the bar ("PRESS PLAY TO SPIN!"). */
+export interface FeedbackMessage {
+  /** Literal text OR an i18n key (resolved by the view through `ui.t`). */
+  text: string;
+  tone: 'info' | 'good' | 'warn';
+  /** Bumped on every message so an identical text re-plays its animation. */
+  seq: number;
+}
+
+/** One settled round, as the history modal lists it. Strings — the host formats. */
+export interface HistoryRow {
+  date: string;
+  bet: string;
+  win: string;
+  roundId?: string;
+  /** Marks a winning round so the row can be emphasized. */
+  won?: boolean;
 }
 
 /**
@@ -50,6 +90,8 @@ export interface OpenUIOptions {
  */
 export class OpenUI {
   readonly theme: Theme;
+  /** Which parts of the ribbon exist + how it docks (resolved, always complete). */
+  readonly chrome: HudChrome;
   readonly layoutConfig: LayoutConfig;
   readonly bus = new EventBus<OpenUIEvents>();
   readonly screen: Signal<ScreenState>;
@@ -148,13 +190,39 @@ export class OpenUI {
   readonly rtp: ReadoutControl;
   readonly netPosition: ReadoutControl;
   readonly sessionTimer: ReadoutControl;
+  /** The round's WIN readout — the third value in the data panel. */
+  readonly win: ValueDisplay;
   /** Menu-style notice/error modal (content set via `showNotice`). */
   readonly noticePanel: PanelControl;
+  /** The fly-up main menu (☰) and the autoplay sheet — both panels, both bar-anchored. */
+  readonly mainMenuPanel: PanelControl;
+  readonly autoplayPanel: PanelControl;
+  /** The bet-history modal. */
+  readonly historyPanel: PanelControl;
+  /** Per-phase turbo scopes — the reference's TURBO / SUPER TURBO accordions. */
+  readonly turboBase: ToggleControl;
+  readonly turboBonus: ToggleControl;
+  readonly superTurboBase: ToggleControl;
+  readonly superTurboBonus: ToggleControl;
+  /** Autoplay's "stop when a feature is won" switch (the ADVANCED section). */
+  readonly stopOnFeature: ToggleControl;
+
+  /** What the HUD is doing — drives which controls the ribbon shows. */
+  readonly hudState = new Signal<HudState>('idle');
+  /** The one-line message under the bar. `null` = nothing showing. */
+  readonly feedback = new Signal<FeedbackMessage | null>(null);
+  /** Max win for the top overlay: the multiplier and (optionally) the odds. */
+  readonly maxWin = new Signal<{ multiplier?: number; odds?: string } | null>(null);
+  /** Rows for the history modal (the host fetches them from its RGS). */
+  readonly history = new Signal<HistoryRow[]>([]);
+  private feedbackSeq = 0;
+  private feedbackTimer: ReturnType<typeof setTimeout> | undefined;
 
   private readonly controls = new Map<string, Control>();
 
   constructor(opts: OpenUIOptions = {}) {
     this.theme = opts.theme ?? defaultTheme;
+    this.chrome = opts.chrome ?? defaultHudChrome;
     this.layoutConfig = opts.layout ?? defaultLayoutConfig;
     this.screen = new Signal<ScreenState>(computeScreen(1920, 1080, this.layoutConfig));
 
@@ -230,8 +298,31 @@ export class OpenUI {
     this.sessionTimer = new ReadoutControl({ id: 'session-timer', kind: 'duration', label: 'Session Time', layout: defaultLayout('session-timer') });
     this.netPosition = new ReadoutControl({ id: 'net-position', kind: 'currency', label: 'Net', currency: { code: 'USD', symbol: '$', display: 'symbol', position: 'prefix', decimals: 2 }, layout: defaultLayout('net-position') });
 
+    // The round's win — the third readout in the data panel. Starts at 0 and is set
+    // by the game each round (`hud.setWin`); the ribbon clears it on the next spin.
+    this.win = new ValueDisplay({
+      id: 'win',
+      label: 'openui.win',
+      layout: defaultLayout('win'),
+      currency: { code: 'USD', decimals: 2 },
+      initial: 0,
+    });
+
     // notice / error modal (rendered in the unified menu style)
     this.noticePanel = new PanelControl({ id: 'notice-panel', variant: 'modal', layout: { anchor: 'center' } }, this.bus);
+    // The two bar-anchored sheets + the history modal. They're PanelControls like any
+    // other, so open/close is state (testable, introspectable), not a view boolean.
+    this.mainMenuPanel = new PanelControl({ id: 'main-menu-panel', variant: 'popover', layout: { anchor: 'bottom-left' } }, this.bus);
+    this.autoplayPanel = new PanelControl({ id: 'autoplay-panel', variant: 'popover', layout: { anchor: 'bottom-right' } }, this.bus);
+    this.historyPanel = new PanelControl({ id: 'history-panel', variant: 'modal', layout: { anchor: 'center' } }, this.bus);
+
+    // Turbo scopes: the reference's TURBO / SUPER TURBO™ rows are accordions holding a
+    // BASE GAME and a BONUS GAME switch, so a player can keep the bonus at full speed.
+    this.turboBase = new ToggleControl({ id: 'turbo-base', layout: { anchor: 'center' }, on: true }, this.bus);
+    this.turboBonus = new ToggleControl({ id: 'turbo-bonus', layout: { anchor: 'center' }, on: true }, this.bus);
+    this.superTurboBase = new ToggleControl({ id: 'super-turbo-base', layout: { anchor: 'center' }, on: true }, this.bus);
+    this.superTurboBonus = new ToggleControl({ id: 'super-turbo-bonus', layout: { anchor: 'center' }, on: true }, this.bus);
+    this.stopOnFeature = new ToggleControl({ id: 'stop-on-feature', layout: { anchor: 'center' }, on: false }, this.bus);
 
     for (const c of [
       this.spin,
@@ -253,7 +344,16 @@ export class OpenUI {
       this.rtp,
       this.netPosition,
       this.sessionTimer,
+      this.win,
       this.noticePanel,
+      this.mainMenuPanel,
+      this.autoplayPanel,
+      this.historyPanel,
+      this.turboBase,
+      this.turboBonus,
+      this.superTurboBase,
+      this.superTurboBonus,
+      this.stopOnFeature,
     ]) {
       this.register(c);
     }
@@ -269,7 +369,7 @@ export class OpenUI {
 
     // the library owns this navigation (a biased, stateful UI)
     this.bus.on('buttonActivated', ({ id }) => {
-      if (id === 'settings') this.settingsPanel.toggle();
+      if (id === 'settings') this.mainMenuPanel.toggle();
       else if (id === 'bet-plus') {
         this.betStepper.inc();
       } else if (id === 'bet-minus') {
@@ -347,6 +447,47 @@ export class OpenUI {
    * control stays registered — still in `snapshot()` — but the view is not drawn.
    * Used by the responsive layer to drop controls on small screens.
    */
+  /**
+   * Show a one-line message on the strip under the bar. `text` is literal text OR an
+   * i18n key; the view resolves it, so a host can localize every message it raises.
+   * A message replaces whatever is showing and clears itself after `ms` (0 = sticky).
+   */
+  showFeedback(text: string, opts: { tone?: FeedbackMessage['tone']; ms?: number } = {}): void {
+    if (this.feedbackTimer) clearTimeout(this.feedbackTimer);
+    this.feedbackTimer = undefined;
+    this.feedback.set({ text, tone: opts.tone ?? 'info', seq: ++this.feedbackSeq });
+    const ms = opts.ms ?? 2400;
+    if (ms > 0 && typeof setTimeout === 'function') {
+      const seq = this.feedbackSeq;
+      this.feedbackTimer = setTimeout(() => {
+        if (this.feedback.get()?.seq === seq) this.feedback.set(null);
+      }, ms);
+    }
+  }
+
+  /** Clear the feedback strip. */
+  clearFeedback(): void {
+    if (this.feedbackTimer) clearTimeout(this.feedbackTimer);
+    this.feedbackTimer = undefined;
+    this.feedback.set(null);
+  }
+
+  /** Move the HUD state machine (idle → play → result → …). Drives the whole bar. */
+  setHudState(state: HudState): void {
+    if (this.hudState.get() === state) return;
+    this.hudState.set(state);
+  }
+
+  /** Set the max-win figures for the top overlay (`null` hides the widget). */
+  setMaxWin(multiplier?: number, odds?: string): void {
+    this.maxWin.set(multiplier == null && odds == null ? null : { multiplier, odds });
+  }
+
+  /** Replace the rows the history modal lists. */
+  setHistory(rows: HistoryRow[]): void {
+    this.history.set(Array.isArray(rows) ? rows.slice() : []);
+  }
+
   setHidden(id: string, hidden: boolean): void {
     if (!hidden && this.forceHidden.has(id)) return; // jurisdiction-locked: can't re-show
     const was = this.hidden.has(id);

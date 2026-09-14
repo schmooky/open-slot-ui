@@ -3,6 +3,8 @@ export * from './signal';
 export * from './events';
 export * from './types';
 export * from './theme/tokens';
+export * from './chrome/hud';
+export * from './chrome/ribbon';
 export * from './layout/screen';
 export * from './layout/anchor';
 export * from './layout/defaultLayouts';

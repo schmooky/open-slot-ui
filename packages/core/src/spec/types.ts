@@ -16,6 +16,7 @@ import type { OpenUIEvents } from '../types';
 import type { MenuSpec } from './menu';
 import type { JurisdictionConfig } from './jurisdiction';
 import type { GameFacts } from './facts';
+import type { HudChromeSpec } from '../chrome/hud';
 
 /** The reference-HUD control ids — typed so a typo is a compile error. */
 export type KnownControlId =
@@ -40,7 +41,16 @@ export type KnownControlId =
   | 'rtp'
   | 'net-position'
   | 'session-timer'
-  | 'notice-panel';
+  | 'notice-panel'
+  | 'win'
+  | 'main-menu-panel'
+  | 'autoplay-panel'
+  | 'history-panel'
+  | 'turbo-base'
+  | 'turbo-bonus'
+  | 'super-turbo-base'
+  | 'super-turbo-bonus'
+  | 'stop-on-feature';
 
 /** One issue from the never-throw validator. */
 export interface SpecIssue {
@@ -184,6 +194,13 @@ export interface PanelSpec {
 export interface UISpec {
   meta?: { id: string; version: number };
   theme?: ThemeChoice;
+  /**
+   * The ribbon HUD itself: where it docks, and WHICH PARTS EXIST. Every piece of the
+   * bar is a switch (`hud.features.buyFeature: false` drops the BUY BONUS pill and its
+   * modal, `history: false` drops the row and the window, and so on), so a game keeps
+   * the shipped look while carrying only the features it actually has.
+   */
+  hud?: HudChromeSpec;
   layout?: LayoutConfig;
   /** Balance + bet currency: a full spec, or a code string (e.g. `'JPY'`, `'XGC'`)
    *  auto-resolved (decimals, social coins) via the built-in currency table. */

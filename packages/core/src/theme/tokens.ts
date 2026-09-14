@@ -13,10 +13,28 @@ export interface Theme {
     text: string;
     textDim: string;
     disabled: string;
+    /** The ribbon's translucent plate. */
+    bar: string;
+    /** Hard edge drawn around the action box + the round button. */
+    edge: string;
+    /** Readout captions (BALANCE / BET / WIN). */
+    label: string;
+    /** BUY BONUS pill. */
+    featureBuy: string;
+    /** Text on the buy pill. */
+    featureBuyText: string;
+    /** Bonus/free-spins accent (grid cards, feature panel). */
+    bonus: string;
+    /** The fly-up menu + sheet background. */
+    menu: string;
+    /** A destructive / stop action (slam-stop, limits exceeded). */
+    danger: string;
   };
+  /** Plate + panel opacity — the ribbon is translucent over the reels. */
+  alpha: { bar: number; sheet: number; backdrop: number };
   radius: { pill: number; card: number };
   space: { sm: number; md: number; lg: number };
-  type: { family: string; size: { sm: number; md: number; lg: number } };
+  type: { family: string; size: { xs: number; sm: number; md: number; lg: number } };
   /** Motion durations in ms. */
   motion: { fast: number; base: number; slow: number };
 }
@@ -24,18 +42,27 @@ export interface Theme {
 /** Neutral reference theme. The real game theme is built on top of this. */
 export const defaultTheme: Theme = {
   color: {
-    accent: '#ffc935',
-    accentText: '#1a1a1a',
-    surface: '#161b22',
-    surfaceAlt: '#0b0e13',
-    text: '#ffffff',
-    textDim: '#7a8290',
-    disabled: '#3a3f47',
+    accent: '#ffc529',
+    accentText: '#000000',
+    surface: '#262626',
+    surfaceAlt: '#0d0d0d',
+    text: '#fafafa',
+    textDim: '#adb5bd',
+    disabled: '#4a4a4a',
+    bar: '#000000',
+    edge: '#000000',
+    label: '#adb5bd',
+    featureBuy: '#ff5e00',
+    featureBuyText: '#ffffff',
+    bonus: '#47b04b',
+    menu: '#0d0d0d',
+    danger: '#e03131',
   },
-  radius: { pill: 999, card: 16 },
+  alpha: { bar: 0.6, sheet: 0.96, backdrop: 0.65 },
+  radius: { pill: 999, card: 5 },
   space: { sm: 8, md: 16, lg: 24 },
-  type: { family: 'system-ui, sans-serif', size: { sm: 14, md: 18, lg: 28 } },
-  motion: { fast: 120, base: 200, slow: 360 },
+  type: { family: 'system-ui, sans-serif', size: { xs: 11, sm: 14, md: 18, lg: 28 } },
+  motion: { fast: 125, base: 200, slow: 360 },
 };
 
 export type DeepPartial<T> = {

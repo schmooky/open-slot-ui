@@ -9,6 +9,12 @@ exports[`OpenUI.snapshot() > matches the documented initial control surface 1`] 
     "state": "idle",
   },
   {
+    "id": "autoplay-panel",
+    "interactable": false,
+    "role": "dialog",
+    "state": "closed",
+  },
+  {
     "id": "balance",
     "interactable": false,
     "role": "status",
@@ -49,6 +55,18 @@ exports[`OpenUI.snapshot() > matches the documented initial control surface 1`] 
     "interactable": true,
     "role": "button",
     "state": "idle",
+  },
+  {
+    "id": "history-panel",
+    "interactable": false,
+    "role": "dialog",
+    "state": "closed",
+  },
+  {
+    "id": "main-menu-panel",
+    "interactable": false,
+    "role": "dialog",
+    "state": "closed",
   },
   {
     "id": "music",
@@ -111,6 +129,24 @@ exports[`OpenUI.snapshot() > matches the documented initial control surface 1`] 
     "state": "idle",
   },
   {
+    "id": "stop-on-feature",
+    "interactable": true,
+    "role": "switch",
+    "state": "off",
+  },
+  {
+    "id": "super-turbo-base",
+    "interactable": true,
+    "role": "switch",
+    "state": "on",
+  },
+  {
+    "id": "super-turbo-bonus",
+    "interactable": true,
+    "role": "switch",
+    "state": "on",
+  },
+  {
     "id": "total-win",
     "interactable": false,
     "role": "status",
@@ -121,6 +157,24 @@ exports[`OpenUI.snapshot() > matches the documented initial control surface 1`] 
     "interactable": true,
     "role": "switch",
     "state": "off",
+  },
+  {
+    "id": "turbo-base",
+    "interactable": true,
+    "role": "switch",
+    "state": "on",
+  },
+  {
+    "id": "turbo-bonus",
+    "interactable": true,
+    "role": "switch",
+    "state": "on",
+  },
+  {
+    "id": "win",
+    "interactable": false,
+    "role": "status",
+    "state": "idle",
   },
 ]
 `;

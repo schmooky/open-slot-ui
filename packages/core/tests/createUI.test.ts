@@ -21,7 +21,7 @@ describe('createUI (Charter B9, P6, P11)', () => {
   it('applies a theme preset + overrides', () => {
     const ui = createUI({ theme: { preset: 'default', overrides: { color: { accent: '#abc123' } } } });
     expect(ui.theme.color.accent).toBe('#abc123');
-    expect(ui.theme.color.text).toBe('#ffffff'); // default base preserved
+    expect(ui.theme.color.text).toBe('#fafafa'); // default base preserved
   });
 
   it('applies currency, bet ladder and autoplay options', () => {

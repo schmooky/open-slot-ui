@@ -11,6 +11,7 @@ import { DictionaryTranslator } from '../i18n/translator';
 import { validateSpec } from './validateSpec';
 import { installResponsive } from './responsive';
 import { resolveCurrency } from '../format/currency';
+import { resolveHudChrome } from '../chrome/hud';
 import { portraitDefaultLayouts } from '../layout/defaultLayouts';
 import { checkSocialPhrases } from './socialPhrases';
 import type { UISpec, HostHooks, TurboSpec, ResponsiveOverride } from './types';
@@ -49,13 +50,16 @@ export function createUI(spec: UISpec = {}, hooks: HostHooks = {}): OpenUI {
     : undefined;
   // Theme overrides are sanitized; any rejected value is reported, never fatal.
   const theme = resolveTheme(spec.theme, (i) => hooks.onDataIssue?.(i));
-  const ui = new OpenUI({ theme, layout: spec.layout, translator, startMuted: spec.audio?.startMuted });
+  // The ribbon's feature switchboard, resolved the same never-fatal way as the theme.
+  const chrome = resolveHudChrome(spec.hud, (i) => hooks.onDataIssue?.(i));
+  const ui = new OpenUI({ theme, chrome, layout: spec.layout, translator, startMuted: spec.audio?.startMuted });
 
   if (spec.currency) {
     const cur = typeof spec.currency === 'string' ? resolveCurrency(spec.currency) : spec.currency;
     ui.balance.setCurrency(cur);
     ui.bet.setCurrency(cur);
     ui.totalWin.setCurrency(cur); // bonus total-win formats like the money displays
+    ui.win.setCurrency(cur);
     ui.netPosition.setCurrency(cur);
   }
 
