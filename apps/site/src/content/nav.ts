@@ -47,7 +47,7 @@ export const RECIPES_NAV: NavSection[] = [
     title: 'Recipes',
     items: [
       { label: 'All recipes', href: '/recipes/' },
-      { label: 'Swap the spin button', href: '/recipes/swap-spin-button/' },
+      { label: 'Drop the parts you don’t have', href: '/recipes/drop-features/' },
       { label: 'Re-skin with tokens', href: '/recipes/theme-override/' },
       { label: 'Run an autoplay loop', href: '/recipes/autoplay-loop/' },
       { label: 'Drive it from a server', href: '/recipes/server-driven/' },

@@ -1,0 +1,73 @@
+---
+layout: ../../layouts/Docs.astro
+title: Drop the parts you don't have
+section: recipes
+eyebrow: Recipe
+description: Every part of the bar is a switch — turn off what your game doesn't have, and it is never built.
+---
+
+A game without a buy feature shouldn't ship a BUY BONUS pill, and one without a
+history endpoint shouldn't offer a HISTORY row that opens an empty window. So the
+ribbon is assembled from **feature flags**, and a flag that is off means the part
+is *never created* — not hidden-but-clickable.
+
+## The lean bar
+
+```ts
+const hud = mountHud(app, {
+  hud: {
+    features: {
+      buyFeature: false,      // no BUY BONUS pill, no buy sheet
+      history: false,         // no HISTORY row, no history window
+      autoplayAdvanced: false, // autoplay keeps the round list, drops the limits
+      superTurbo: false,
+      betProgress: false,     // no ladder bar under the bet
+      maxWin: false,          // nothing in the top overlay
+    },
+  },
+});
+```
+
+That leaves the ☰ menu (sound · music · turbo · info), BALANCE / BET / WIN, the
+bet changers, the round button and autoplay — the smallest bar that still plays.
+
+## Add back what the operator asks for
+
+Some flags start OFF because they need host plumbing, and turning one on is your
+promise to provide it:
+
+```ts
+hud: { features: { lobby: true, deposit: true, realMoney: true, promotion: true } }
+```
+
+Each of those rows just emits `buttonActivated` with its own id — `lobby`,
+`deposit`, `real-money` — and the host decides where the player goes:
+
+```ts
+hud.on('buttonActivated', ({ id }) => {
+  if (id === 'lobby') location.href = operator.lobbyUrl;
+});
+```
+
+## Try it before you write it
+
+The example client reads the flags from the URL, so you can see any bar without
+touching code:
+
+```
+localhost:5199/?off=buyFeature,history,autoplayAdvanced&dock=top&hudscale=1.2
+```
+
+A misspelled flag is reported to `onDataIssue` and ignored — `?off=nope` changes
+nothing, and nothing breaks (Charter&nbsp;P8/P11).
+
+## Swapping a control's renderer
+
+The bar draws its own parts, but the MENU and window content still render through
+the shared block renderer, so a host can substitute a view per control id:
+
+```ts
+mountHud(app, spec, {
+  controlSkins: { 'music': (control, ui, ticker) => new MyFancySlider(control, ui, ticker) },
+});
+```

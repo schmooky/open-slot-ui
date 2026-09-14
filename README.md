@@ -9,6 +9,11 @@ A **biased, themeable PixiJS UI library for slot games**. Mount the whole HUD on
 your existing Pixi scene in one call, then set how it looks and behaves with plain,
 typed, string-literal options.
 
+The HUD is **one docked ribbon**: the ☰ menu and the BALANCE / BET / WIN readouts on
+the left, a dark action box (bet · ▲▼ · the round button · autoplay) on the right,
+and the sheets and windows that open out of it — the menu, the autoplay panel, the
+buy sheet, history, rules and the notice modal.
+
 ```bash
 pnpm add @open-slot-ui/core @open-slot-ui/pixi pixi.js
 ```
@@ -17,15 +22,16 @@ pnpm add @open-slot-ui/core @open-slot-ui/pixi pixi.js
 import { mountHud } from '@open-slot-ui/pixi';
 
 const hud = mountHud(app, {
-  theme:    'neon',              // 'default' | 'midnight' | 'neon'
-  turbo:    { modes: 3 },        // 2-mode toggle or 3-mode switcher
-  autoplay: { mode: 'options' }, // 'options' drawer, or 'infinite'
-  spin:     { press: 'hold-to-spin' }, // 'tap', or hold-to-turbo-spin
+  hud:      { dock: 'bottom', features: { buyFeature: false } }, // which parts EXIST
+  autoplay: { mode: 'options' },        // 'options' panel, or 'infinite'
+  spin:     { press: 'hold-to-spin' },  // 'tap', or hold-to-turbo-spin
 });
 
 hud.on('spinRequested', () => game.spin()); // events out
 hud.ui.spin.busy();                          // commands in
 hud.setBalance(1234);
+hud.setWin(25);                              // the WIN readout counts up
+game.keepReelsAbove(hud.pixi.barHeight);     // the strip the bar reserves
 ```
 
 That's the whole integration. The HUD owns its layout, theming, animation,
@@ -56,12 +62,16 @@ See the doctrine in [CHARTER.md](./CHARTER.md).
 
 | Option | Values | What it does |
 | --- | --- | --- |
-| `theme` | `'default' \| 'midnight' \| 'neon'` | Re-skins the whole HUD by tokens. |
+| `hud.features` | ~30 booleans | Which parts of the bar EXIST — `buyFeature`, `history`, `autoplayAdvanced`, `betProgress`, `clock`, `maxWin`, … A part that is off is never built. |
+| `hud.dock` | `'bottom' \| 'top'` | Which edge the ribbon docks to (the whole bar mirrors). |
+| `hud.scale` · `hud.maxWidth` | `0.5..2` · rem | One knob scales the whole bar; the desktop plate's width cap. |
+| `hud.reveal` | `'drop' \| 'rotate' \| 'spin' \| 'twist' \| 'none'` | How a changed readout animates in. |
+| `theme` | `'default'` or safe overrides | Re-skins the bar, sheets and windows together, by tokens. |
 | `turbo.modes` | `2 \| 3 \| string[]` | 2-mode toggle or 3-mode (off/turbo/super) switcher. |
-| `autoplay.mode` | `'options' \| 'infinite'` | A bottom drawer to pick a count, or one-tap infinite. |
+| `autoplay` | `{ mode, options, lossLimits, winLimits }` | The panel's round list and its responsible-gambling stops. |
 | `spin.press` | `'tap' \| 'hold-to-spin'` | One spin per tap, or turbo-spin while held. |
 | `responsive` | `{ mobile, tablet, desktop, portrait, landscape }` | Reflow / hide controls per device & orientation. |
-| `menu` | `{ settings, paytable, rules }` | One scrollable ☰ menu — Settings → Paytable → Rules. |
+| `menu` | `{ settings, paytable, rules }` | The scrollable INFO window — Settings → Paytable → Rules. |
 | `locale` | `{ messages, locale }` | i18n — safe key fall-through, with an auto Language switch. |
 | `currency`, `betLadder`, `controls` | … | Money, formatting, per-control overrides. |
 
@@ -100,21 +110,21 @@ hud.showError('Session expired.', {           // …or your exact text + custom 
 | `disabled{Turbo,SuperTurbo,Autoplay,Slamstop,Spacebar,BuyFeature,Fullscreen}` | hides / locks the control (resize-proof) |
 | `display{RTP,NetPosition,SessionTimer}` | reveals the matching readout |
 | `socialCasino` · social coins (XGC→GC, XSC→SC) · zero-decimal currencies (JPY…) | currency table + `resolveCurrency` |
-| Autoplay **loss-limit** + **single-win stop** + stop-anytime | in the picker; enforced via `reportRound` |
+| Autoplay **loss-limit** + **single-win stop** + stop-anytime | in the panel's ADVANCED half (presets + a CUSTOM chip); enforced via `reportRound` |
 | Slam-stop disabled | the spin button dims + locks during the spin |
 | Insufficient funds / session expired / gambling-limit / maintenance / location | `hud.showRgsError(code)` — localizable defaults, per-call overridable, custom action buttons |
-| Master mute + fullscreen | black-and-white icon controls at the screen edge |
+| Master mute + fullscreen | SOUND / MUSIC rows in the ☰ menu; fullscreen in the top overlay |
 | Keyboard spin (Space/Enter, gated by `disabledSpacebar`) · replay mode · reality-check (RTS 13) | built in — `realityCheck`, `setReplay`, keyboard handler |
 | Bet ladder + stake from RGS limits · `currency: 'JPY'` shorthand · never celebrate a win ≤ stake | `buildBetLadder` / `clampBet` / `resolveCurrency` / `winTier` helpers |
 
-Put the readouts in a thin strip with **`statusBar: 'top' | 'bottom'`** (otherwise
-they sit at screen corners). `minimumRoundDuration` is surfaced as
-`ui.minimumRoundDuration` for the **game** to enforce — open-ui never throttles the
-round. Slide the whole interactive HUD in/out with **`hud.showControls()` /
-`hud.hideControls()`** — bottom controls drop, top ones rise behind the plaque (pure
-translation, non-interactive while moving). Choose how it first appears at mount with
+The compliance readouts (RTP · session · net) live in the **top overlay**, opposite
+the bar — `hud.dock: 'top'` moves the bar up and the overlay down, so the two never
+collide. `minimumRoundDuration` is surfaced as `ui.minimumRoundDuration` for the
+**game** to enforce — open-ui never throttles the round. Slide the whole HUD in/out
+with **`hud.showControls()` / `hud.hideControls()`** (pure translation,
+non-interactive while moving), and choose how it first appears with
 **`intro: 'shown' | 'hidden' | 'slide-in'`**. Try the flags live:
-`localhost:5199/?juris=rtp,net,timer,noturbo,noslam&statusbar=top&intro=slide-in`
+`localhost:5199/?juris=rtp,net,timer,noturbo,noslam&off=buyFeature,history&intro=slide-in`
 (press **H** to slide the HUD).
 
 ## Repo layout
@@ -140,7 +150,7 @@ pnpm --dir apps/site dev               # the docs site → http://localhost:5210
 ```
 
 The example client reads its config from the URL, so you can see any permutation —
-e.g. `localhost:5199/?theme=neon&turbo=3&autoplay=infinite&spin=hold`.
+e.g. `localhost:5199/?off=buyFeature,history&dock=top&autoplay=infinite&spin=hold`.
 
 ## License
 

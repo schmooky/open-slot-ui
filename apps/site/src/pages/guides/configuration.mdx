@@ -3,7 +3,7 @@ layout: ../../layouts/Docs.astro
 title: Configuration
 section: guides
 eyebrow: Start here
-description: One JSON spec sets how the whole HUD looks and behaves — theme, turbo modes, autoplay style, spin behavior and per-device layout. Every option is a string literal, so a typo is a compile error.
+description: One JSON spec sets how the whole HUD looks and behaves — which parts of the bar exist, the theme, autoplay style, spin behavior and per-device layout. Every option is a string literal, so a typo is a compile error.
 ---
 
 The whole HUD is one **`UISpec`** — a plain, JSON-serializable object you pass to
@@ -12,11 +12,10 @@ default. It's fully typed, so your editor autocompletes the options and a typo
 won't compile.
 
 ```ts
-import { mountHud } from '@open-ui/pixi';
+import { mountHud } from '@open-slot-ui/pixi';
 
 const hud = mountHud(app, {
-  theme: 'midnight',
-  turbo:    { modes: 3 },
+  hud:      { dock: 'bottom', features: { promotion: false } },
   autoplay: { mode: 'options' },
   spin:     { press: 'hold-to-spin' },
 });
@@ -24,17 +23,50 @@ const hud = mountHud(app, {
 
 `mountHud()` with no spec gives you the reference HUD. Everything below is opt-in.
 
+## The bar — `hud`
+
+open-ui renders **one docked ribbon**: the ☰ menu and the BALANCE / BET / WIN
+readouts on the left, a dark action box (the bet, the ▲▼ changers, the round
+button and autoplay) on the right, and the sheets that fly up out of it.
+
+```ts
+hud: {
+  dock: 'bottom',            // or 'top' — the whole bar mirrors
+  scale: 1,                  // 0.5..2 — one knob scales the WHOLE bar
+  maxWidth: 52.5,            // rem; the desktop plate's cap
+  reveal: 'drop',            // how a changed readout animates in
+  winRepresentation: 'ticker',
+  features: { buyFeature: false, history: false },
+}
+```
+
+### Every part is a switch
+
+A feature that is **off is never created** — not hidden-but-clickable. Unknown
+flags are reported to `onDataIssue` and ignored.
+
+| Group | Flags |
+| --- | --- |
+| Data panel | `menu` · `balance` · `betReadout` · `win` · `freeRounds` · `featurePanel` |
+| ☰ menu rows | `sound` · `music` · `turbo` · `superTurbo` · `history` · `info` · `lobby` · `realMoney` · `deposit` |
+| Action box | `betWidget` · `betChangers` · `betProgress` · `autoplay` · `autoplayAdvanced` · `buyFeature` · `promotion` · `stopRound` |
+| Overlays | `feedback` · `clock` · `rtp` · `maxWin` · `sessionBar` · `fullscreen` · `branding` |
+
+The bar reserves a strip the reels must stay clear of — read it with
+`hud.pixi.barHeight` (it updates on every resize).
+
 ## Theme
 
 ```ts
-theme: 'default' | 'midnight' | 'neon'
-// or, to tweak a preset (overrides are a SAFE, curated subset):
-theme: { preset: 'neon', overrides: { color: { accent: '#ff4d6d' }, radius: { card: 20 } } }
+theme: 'default'
+// or, to tweak it (overrides are a SAFE, curated subset):
+theme: { overrides: { color: { accent: '#ff4d6d' }, radius: { card: 20 } } }
 ```
 
-Three presets ship in the box. Overrides are limited to colours, corner radii and
-the font family, and every value is validated — a bad colour falls back to the
-token, so a theme can restyle the HUD but **cannot break it**. See
+One preset ships in the box — near-black with a yellow accent. Overrides are
+limited to colours, corner radii and the font family, and every value is
+validated: a bad colour falls back to the token, so a theme can restyle the HUD
+(bar, sheets and windows together) but **cannot break it**. See
 [Theming](/guides/theming/).
 
 ## Turbo — 2-mode or 3-mode
