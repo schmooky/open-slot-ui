@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>open-ui · DOM renderer</title>
+    <style>
+      html, body { margin: 0; height: 100%; width: 100%; overflow: hidden; -webkit-user-select: none; user-select: none; }
+      body { background: #14161a; font-family: system-ui, sans-serif; }
+      canvas { display: block; }
+      /* The game sits behind the HUD, exactly as in a real client. */
+      #GameWrapper { position: fixed; inset: 0; }
+    </style>
+  </head>
+  <body data-theme="default">
+    <div class="HacksawCasinoGameContainer" id="GameWrapper"></div>
+    <script type="module" src="/src/dom-main.ts"></script>
+  </body>
+</html>

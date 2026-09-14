@@ -1,0 +1,61 @@
+{
+  "name": "@open-slot-ui/dom",
+  "version": "0.14.0",
+  "description": "DOM view + controller binding for open-ui \u2014 mount the HUD as real HTML, dressed by your own stylesheet, driven by the headless core.",
+  "keywords": [
+    "slot",
+    "slots",
+    "igaming",
+    "casino",
+    "game-ui",
+    "hud",
+    "dom",
+    "html",
+    "typescript"
+  ],
+  "license": "MIT",
+  "author": "schmooky and the open-ui contributors",
+  "homepage": "https://github.com/schmooky/open-slot-ui#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/schmooky/open-slot-ui.git",
+    "directory": "packages/dom"
+  },
+  "bugs": {
+    "url": "https://github.com/schmooky/open-slot-ui/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "source": "./src/index.ts",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@open-slot-ui/core": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5"
+  }
+}

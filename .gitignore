@@ -18,3 +18,7 @@ examples/demo/screenshots
 .DS_Store
 Archive.zip
 *.tgz
+
+# The reference SKIN used by the DOM demo is the game studio's own stylesheet +
+# icon font — wired up locally, never committed.
+examples/demo/public/skin/

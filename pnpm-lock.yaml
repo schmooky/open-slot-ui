@@ -39,6 +39,9 @@ importers:
       '@open-slot-ui/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@open-slot-ui/dom':
+        specifier: workspace:*
+        version: link:../../packages/dom
       '@open-slot-ui/pixi':
         specifier: workspace:*
         version: link:../../packages/pixi
@@ -67,6 +70,16 @@ importers:
       vitest:
         specifier: ^3.0.5
         version: 3.2.6(@types/debug@4.1.13)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)
+
+  packages/dom:
+    dependencies:
+      '@open-slot-ui/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      tsup:
+        specifier: ^8.3.5
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.15)(typescript@5.9.3)
 
   packages/pixi:
     dependencies:
