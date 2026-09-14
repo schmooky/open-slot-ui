@@ -307,3 +307,31 @@ describe('an active bet modifier says so on the bar', () => {
     expect(id('FeatureBuyToggle')!.textContent).toBe('BUY BONUS');
   });
 });
+
+describe('a window locks the game behind it', () => {
+  it('you cannot spin while the rules are open', () => {
+    expect(hud.ui.locked.get()).toBe(false);
+    expect(hud.ui.spin.interactable).toBe(true);
+
+    hud.ui.settingsPanel.openPanel();
+    expect(hud.ui.locked.get()).toBe(true);
+    expect(hud.ui.spin.interactable).toBe(false);
+
+    let spins = 0;
+    hud.on('spinRequested', () => spins++);
+    id('PlaceBetBtn')!.click();
+    expect(spins).toBe(0); // the press is refused, not queued
+
+    hud.ui.settingsPanel.closePanel();
+    expect(hud.ui.locked.get()).toBe(false);
+    expect(hud.ui.spin.interactable).toBe(true);
+  });
+
+  it('overlapping windows cannot leave the lock stuck on', () => {
+    hud.ui.settingsPanel.openPanel();
+    hud.ui.historyPanel.openPanel(); // the core closes the first as it opens this
+    expect(hud.ui.locked.get()).toBe(true);
+    hud.ui.historyPanel.closePanel();
+    expect(hud.ui.locked.get()).toBe(false);
+  });
+});

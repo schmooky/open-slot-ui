@@ -57,6 +57,28 @@ test.describe('the HUD fits the window', () => {
     }
   });
 
+  test('the buy sheet SCROLLS where the design clips it', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'runs once; the viewport is what matters');
+    // Short and wide: the touch channel, where the skin clips the card list and the
+    // reference scrolls it with its own JS. Every card must stay reachable.
+    await page.setViewportSize({ width: 700, height: 380 });
+    await page.goto('/');
+    await page.waitForFunction(() => !!(window as unknown as { ui?: unknown }).ui);
+    await page.locator('#FeatureBuyToggle').click();
+    await page.waitForTimeout(500);
+
+    const scrolled = await page.evaluate(() => {
+      const el = document.querySelector<HTMLElement>('.FeatureBuy__items-container')!;
+      const overflows = el.scrollHeight > el.clientHeight + 2;
+      el.scrollTop = 99_999;
+      return { overflows, scrollTop: Math.round(el.scrollTop), align: getComputedStyle(el).alignItems };
+    });
+    expect(scrolled.overflows, 'the sheet should overflow at this size').toBe(true);
+    expect(scrolled.scrollTop, 'the card list does not scroll — cards below the fold are unreachable').toBeGreaterThan(0);
+    // centred content that overflows cannot be scrolled back to the top
+    expect(scrolled.align).not.toBe('center');
+  });
+
   test('it is centred when there is room, and only shrinks when there is not', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'runs once, on desktop');
     await page.goto('/');

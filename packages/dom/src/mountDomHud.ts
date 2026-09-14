@@ -301,6 +301,31 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
     }),
   );
 
+  // A window that is up locks the game behind it. The reference does this too: you
+  // cannot spin while the rules are open, and a spin that started under an open window
+  // would be a round the player never saw. The lock is ref-counted, so overlapping
+  // windows cannot leave it stuck on.
+  let heldLocks = 0;
+  const windows = [ui.settingsPanel, ui.historyPanel, buyPanel];
+  const syncWindowLock = (): void => {
+    const want = windows.some((w) => w.isOpen) ? 1 : 0;
+    while (heldLocks < want) {
+      ui.lock();
+      heldLocks++;
+    }
+    while (heldLocks > want) {
+      ui.unlock();
+      heldLocks--;
+    }
+  };
+  for (const w of windows) disposers.push(w.state.subscribe(syncWindowLock));
+  disposers.push(() => {
+    while (heldLocks > 0) {
+      ui.unlock();
+      heldLocks--;
+    }
+  });
+
   const progress = $(root, 'ProgressIndicator');
 
   return {
@@ -340,27 +365,28 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
  * clipped content reachable. Injected before the skin so the skin always wins.
  */
 const BEHAVIOUR_CSS = `
-/* The buy sheet's card list clips on the touch channel (the design fades its top and
-   bottom edges); without the reference's own scroller the cards below the fold are
-   unreachable, so let it scroll. */
-[data-layout-type="ribbon"][data-channel="mobile"] .FeatureBuyWindow .FeatureBuy__items-container,
-[data-layout-type="ribbon"][data-channel="mobile"] .FeatureBuyWindow .FeatureBuyItemList {
+/* The buy sheet's card list is CLIPPED by the design (it fades its top and bottom
+   edges) and the reference scrolls it with its own JS. Without that, every card below
+   the fold is unreachable. Two things are needed, not one: the container has to
+   scroll, AND it has to stop centring its content on the cross axis — a centred flex
+   child that overflows cannot be scrolled back to, which is why the cards were cut off
+   at the top as well as the bottom. */
+div[data-layout-type="ribbon"][data-channel="mobile"] .FeatureBuyWindow .FeatureBuy__items-container {
   overflow-y: auto;
+  align-items: flex-start;
   -webkit-overflow-scrolling: touch;
 }
+div[data-layout-type="ribbon"][data-channel="mobile"] .FeatureBuyWindow .FeatureBuyItemList {
+  align-content: flex-start;
+}
 /* Same for the history table and the info window on small screens. */
-[data-channel="mobile"] .BetHistory__table-container,
-[data-channel="mobile"] .GameInfo__body { overflow-y: auto; }
+div[data-channel="mobile"] .BetHistoryWindow .BetHistory__table-container,
+div[data-channel="mobile"] .GameInfoWindow .GameInfo__body { overflow-y: auto; }
 `;
 
 /** Load the skin: a `<link>`, a `<style>`, and (optionally) its icon `@font-face`. */
 function mountSkin(skin: DomSkin = {}, onLoad?: () => void): Dispose | undefined {
   const nodes: Element[] = [];
-  const behaviour = document.createElement('style');
-  behaviour.dataset.openui = 'behaviour';
-  behaviour.textContent = BEHAVIOUR_CSS;
-  document.head.appendChild(behaviour);
-  nodes.push(behaviour);
   if (skin.href) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
@@ -379,5 +405,12 @@ function mountSkin(skin: DomSkin = {}, onLoad?: () => void): Dispose | undefined
     document.head.appendChild(style);
     nodes.push(style);
   }
+  // LAST, so that where the binding and the skin tie on specificity, the binding wins
+  // — these rules only make clipped content reachable, never restyle it.
+  const behaviour = document.createElement('style');
+  behaviour.dataset.openui = 'behaviour';
+  behaviour.textContent = BEHAVIOUR_CSS;
+  document.head.appendChild(behaviour);
+  nodes.push(behaviour);
   return () => nodes.forEach((n) => n.remove());
 }
