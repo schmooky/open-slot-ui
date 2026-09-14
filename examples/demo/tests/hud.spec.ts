@@ -33,7 +33,7 @@ const boundsOf = (page: Page, id: string): Promise<Rect> =>
 test.describe('open-ui HUD — device screenshots', () => {
   for (const cfg of CONFIGS) {
     test(`renders the ${cfg.name} HUD`, async ({ page }, testInfo) => {
-      await page.goto(`/?${cfg.query}`);
+      await page.goto(`/canvas.html?${cfg.query}`);
       await waitForHud(page);
 
       // It actually mounted, and the reference controls are present.
@@ -47,7 +47,7 @@ test.describe('open-ui HUD — device screenshots', () => {
 
 test.describe('open-ui HUD — behavior via __OPENUI__', () => {
   test('the showcase config is applied end to end', async ({ page }) => {
-    await page.goto('/?bare=1&turbo=3&autoplay=infinite&spin=hold');
+    await page.goto('/canvas.html?bare=1&turbo=3&autoplay=infinite&spin=hold');
     await waitForHud(page);
     const state = await page.evaluate(() => {
       const ui = (window as unknown as { ui: { turbo: { modeCount: number }; autoplay: { mode: string }; spin: { holdToSpin: boolean } } }).ui;
@@ -57,7 +57,7 @@ test.describe('open-ui HUD — behavior via __OPENUI__', () => {
   });
 
   test('the menu is closed on load and does not cover the HUD (spin is clickable)', async ({ page }) => {
-    await page.goto('/?bare=1');
+    await page.goto('/canvas.html?bare=1');
     await waitForHud(page);
     // panel state is closed AND a real click reaches the spin button (a covering
     // menu overlay would eat the click — the regression we just fixed).
@@ -78,7 +78,7 @@ test.describe('open-ui HUD — behavior via __OPENUI__', () => {
   for (const currency of ['USD', 'BTC']) {
     test(`the readouts sit left of the round button (${currency})`, async ({ page }, testInfo) => {
       test.skip(testInfo.project.name !== 'desktop', 'bar geometry asserted on the desktop layout (phones reflow the bar)');
-      await page.goto(`/?bare=1&currency=${currency}`);
+      await page.goto(`/canvas.html?bare=1&currency=${currency}`);
       await waitForHud(page);
       const [balance, spin, bet, win] = await Promise.all([boundsOf(page, 'balance'), boundsOf(page, 'spin'), boundsOf(page, 'bet'), boundsOf(page, 'win')]);
       const TOL = 6;
@@ -91,7 +91,7 @@ test.describe('open-ui HUD — behavior via __OPENUI__', () => {
   }
 
   test('a spin locks the whole HUD (derived interactability)', async ({ page }) => {
-    await page.goto('/?bare=1');
+    await page.goto('/canvas.html?bare=1');
     await waitForHud(page);
     const locked = await page.evaluate(() => {
       const w = window as unknown as { ui: { spin: { busy(): void } }; __OPENUI__: { isInteractable(id: string): boolean } };
@@ -103,7 +103,7 @@ test.describe('open-ui HUD — behavior via __OPENUI__', () => {
   });
 
   test('intro=slide-in settles to an interactive, on-screen HUD', async ({ page }) => {
-    await page.goto('/?bare=1&intro=slide-in');
+    await page.goto('/canvas.html?bare=1&intro=slide-in');
     // wait for the slide-in to FINISH (controlsReady true) — proves it doesn't stall
     await page.waitForFunction(
       () => {
@@ -124,7 +124,7 @@ test.describe('open-ui HUD — behavior via __OPENUI__', () => {
   });
 
   test('intro=hidden starts off-screen + locked', async ({ page }) => {
-    await page.goto('/?bare=1&intro=hidden');
+    await page.goto('/canvas.html?bare=1&intro=hidden');
     await waitForHud(page);
     const r = await page.evaluate(() => {
       const api = (window as unknown as { __OPENUI__: { bounds(id: string): { y: number } } }).__OPENUI__;
@@ -140,7 +140,7 @@ test.describe('open-ui HUD — behavior via __OPENUI__', () => {
 test.describe('open-ui HUD — UI states', () => {
   test('autoplay drawer and settings menu', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'state shots captured on desktop only');
-    await page.goto('/?bare=1');
+    await page.goto('/canvas.html?bare=1');
     await waitForHud(page);
 
     await page.evaluate(() => (window as unknown as { ui: { autoplay: { press(): void } } }).ui.autoplay.press());

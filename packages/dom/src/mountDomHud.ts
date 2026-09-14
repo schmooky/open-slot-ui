@@ -59,6 +59,13 @@ export interface DomHudOptions {
   designWidth?: number;
   /** Clamp on the fit scale. Default `[0.7, 1.6]`. */
   scaleRange?: [number, number];
+  /**
+   * Force the channel the stylesheet lays out for. The reference takes this from the
+   * URL the operator opens the game with (`channel=desktop`), because it is a
+   * statement about the DEVICE, not about the window size — so a narrow desktop
+   * window is still a desktop. Default: auto (touch → mobile, else size).
+   */
+  channel?: 'desktop' | 'mobile';
 }
 
 /** What `mountDomHud` hands back: the core, the tree, and the day-to-day verbs. */
@@ -121,7 +128,10 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
 
   const disposers: Dispose[] = [];
   const disposersEarly = disposers;
-  const skin = mountSkin(opts.skin);
+  // The skin arrives as a <link>: until it loads, the tree measures NOTHING like its
+  // final size, so the fit has to run again once it lands (and whenever the bar's own
+  // box changes afterwards).
+  const skin = mountSkin(opts.skin, () => syncScreen());
   if (skin) disposers.push(skin);
 
   // Rows the game hasn't asked for never reach the DOM.
@@ -189,32 +199,81 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
 
   // ── the attributes the stylesheet lays out from ───────────────────────────
   const wrapper = $(root, 'UiWrapper');
-  const designWidth = opts.designWidth ?? 840;
-  const [minScale, maxScale] = opts.scaleRange ?? [0.7, 1.6];
+  const [minScale] = opts.scaleRange ?? [0.55, 1];
 
   const syncScreen = (): void => {
     const w = window.innerWidth;
     const h = window.innerHeight;
     ui.setScreen(w, h);
+    // Touch decides the channel; size only breaks the tie for genuinely small
+    // screens. A 900×700 desktop window is not a phone, and dressing it as one is
+    // what makes a resized browser look broken.
     const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-    const channel = coarse || Math.min(w, h) <= 820 ? 'mobile' : 'desktop';
+    const channel = opts.channel ?? (coarse || Math.min(w, h) <= 600 ? 'mobile' : 'desktop');
     root.dataset.channel = channel;
     root.dataset.orientation = w >= h ? 'landscape' : 'portrait';
-
-    // The bar is authored at `designWidth`; scale it to the viewport, keeping it
-    // centred. On the touch channel the stylesheet already spans the full width.
-    if (wrapper) {
-      if (channel === 'desktop') {
-        const k = Math.min(maxScale, Math.max(minScale, w / (designWidth * 1.35)));
-        const shift = (w / k - designWidth) / 2;
-        wrapper.style.transform = `scale(${k.toFixed(4)}) translateX(${shift.toFixed(2)}px)`;
-      } else {
-        wrapper.style.transform = '';
-      }
-    }
+    fitBar(w);
   };
+
+  /**
+   * Fit the bar to the window.
+   *
+   * Two things to get right, and I got both wrong first time. The bar is WIDER than
+   * its plate — the buy coin hangs outside it (`right: 100%`) — so the box to fit is
+   * the plate plus its overhangs, not the plate. And it must never scale UP: blowing
+   * the bar past its design size is what pushed that coin off the left edge.
+   */
+  const fitBar = (viewportWidth: number): void => {
+    if (!wrapper) return;
+    wrapper.style.removeProperty('transform');
+    wrapper.style.removeProperty('left');
+    if (root.dataset.channel !== 'desktop') return; // the touch bar is already fluid
+
+    const plate = root.querySelector<HTMLElement>('.UiRibbonUserPanel__container');
+    if (!plate) return;
+    const wrapRect = wrapper.getBoundingClientRect();
+    const box = plate.getBoundingClientRect();
+    let left = box.left;
+    let right = box.right;
+    for (const sel of ['.ToggleButton__container--feature-buy', '.ToggleButton__container--feature-promotion']) {
+      const node = root.querySelector<HTMLElement>(sel);
+      if (!node || !node.offsetParent) continue;
+      const b = node.getBoundingClientRect();
+      if (b.width === 0) continue;
+      left = Math.min(left, b.left);
+      right = Math.max(right, b.right);
+    }
+    // Offsets from the wrapper's own left edge, which is what we get to move.
+    const offLeft = left - wrapRect.left;
+    const needed = right - left;
+    if (needed <= 0) return;
+
+    const margin = 16;
+    const k = Math.max(minScale, Math.min(1, (viewportWidth - margin * 2) / needed));
+    // Scaling happens about the wrapper's bottom-left (the stylesheet's own origin),
+    // so place that edge such that the scaled BOX lands centred.
+    wrapper.style.left = `${Math.round((viewportWidth - needed * k) / 2 - offLeft * k)}px`;
+    if (k < 0.999) wrapper.style.transform = `scale(${k.toFixed(4)})`;
+  };
+
   syncScreen();
   disposers.push(on(window, 'resize', syncScreen), on(window, 'orientationchange', syncScreen));
+  // Late layout — a web font landing, a feature flag flipping, the buy pill appearing
+  // — changes the width the bar needs; re-fit rather than trusting the first pass.
+  if (typeof ResizeObserver === 'function' && wrapper) {
+    let fitting = false;
+    const ro = new ResizeObserver(() => {
+      if (fitting) return; // our own transform must not feed the loop
+      fitting = true;
+      requestAnimationFrame(() => {
+        fitBar(window.innerWidth);
+        fitting = false;
+      });
+    });
+    const plate = root.querySelector('.UiRibbonUserPanel__container');
+    if (plate) ro.observe(plate);
+    disposers.push(() => ro.disconnect());
+  }
 
   const syncState = (): void => {
     // An autoplay RUN is a HUD state in its own right — the stylesheet dims the menu
@@ -275,14 +334,38 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
   };
 }
 
+/**
+ * A handful of rules for behaviour the REFERENCE implemented in JavaScript, which a
+ * binding has to supply some other way. Nothing here restyles anything: it only makes
+ * clipped content reachable. Injected before the skin so the skin always wins.
+ */
+const BEHAVIOUR_CSS = `
+/* The buy sheet's card list clips on the touch channel (the design fades its top and
+   bottom edges); without the reference's own scroller the cards below the fold are
+   unreachable, so let it scroll. */
+[data-layout-type="ribbon"][data-channel="mobile"] .FeatureBuyWindow .FeatureBuy__items-container,
+[data-layout-type="ribbon"][data-channel="mobile"] .FeatureBuyWindow .FeatureBuyItemList {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+/* Same for the history table and the info window on small screens. */
+[data-channel="mobile"] .BetHistory__table-container,
+[data-channel="mobile"] .GameInfo__body { overflow-y: auto; }
+`;
+
 /** Load the skin: a `<link>`, a `<style>`, and (optionally) its icon `@font-face`. */
-function mountSkin(skin?: DomSkin): Dispose | undefined {
-  if (!skin) return undefined;
+function mountSkin(skin: DomSkin = {}, onLoad?: () => void): Dispose | undefined {
   const nodes: Element[] = [];
+  const behaviour = document.createElement('style');
+  behaviour.dataset.openui = 'behaviour';
+  behaviour.textContent = BEHAVIOUR_CSS;
+  document.head.appendChild(behaviour);
+  nodes.push(behaviour);
   if (skin.href) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = skin.href;
+    if (onLoad) link.addEventListener('load', onLoad, { once: true });
     document.head.appendChild(link);
     nodes.push(link);
   }

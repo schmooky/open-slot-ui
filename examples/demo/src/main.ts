@@ -331,6 +331,11 @@ async function main(): Promise<void> {
     }
     // feed the settled round to the HUD → net-position readout + autoplay RG limits
     ui.reportRound(win, stake);
+    // The round ENDS here, wherever it was started from — the spin button, autoplay,
+    // or the test harness. Leaving that to the caller is how a harness-driven spin
+    // ended up stranded in the slam-stop state.
+    ui.spin.idle();
+    hud.setHudState('idle');
   }
 
   // The bar's history window + max-win widget are host data — the demo fakes both.
@@ -346,10 +351,6 @@ async function main(): Promise<void> {
       return;
     }
     await playSpin();
-    ui.spin.stopState();
-    await wait(turboEngaged() ? 120 : 420);
-    ui.spin.idle();
-    hud.setHudState('idle');
   });
   ui.on('skipRequested', () => reels.skip());
 
@@ -362,8 +363,7 @@ async function main(): Promise<void> {
         ui.autoplay.stop();
         break;
       }
-      await playSpin();
-      ui.spin.idle();
+      await playSpin(); // playSpin ends the round itself
       await wait(turboEngaged() ? 120 : 240);
     }
   });
@@ -374,7 +374,6 @@ async function main(): Promise<void> {
     holding = true;
     while (holding) {
       await playSpin(true);
-      ui.spin.idle();
       await wait(90);
     }
   });
@@ -415,6 +414,9 @@ async function main(): Promise<void> {
     },
     // introspection for declarative assertions (no pixel-diff needed)
     snapshot: () => ({
+      // The reels are real, so a round takes real time — a test has to be able to
+      // wait for one rather than assume `spin` resolved it.
+      spinState: ui.spin.current,
       freeSpins: ui.spin.freeSpins.get(),
       balance: ui.balance.get(),
       bet: ui.bet.get(),

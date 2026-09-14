@@ -1,7 +1,7 @@
 import { Application } from 'pixi.js';
 import { mountDomHud } from '@open-slot-ui/dom';
-import { resolveBetLadder } from '@open-slot-ui/core';
-import type { UISpec } from '@open-slot-ui/core';
+import { resolveBetLadder, formatAmount } from '@open-slot-ui/core';
+import type { UISpec, CurrencySpec } from '@open-slot-ui/core';
 import { buildReels, evaluate } from './reels';
 import { RULES_BLOCKS, FACTS } from './content';
 
@@ -15,7 +15,24 @@ import { RULES_BLOCKS, FACTS } from './content';
 const q = new URLSearchParams(location.search);
 const skinHref = q.get('skin') ?? '/skin/ui.min.css';
 
-const LADDER = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100];
+/**
+ * Money shapes worth looking at: a 2-decimal major, a ZERO-decimal currency whose
+ * numbers run enormous (IRR), and crypto with a long fraction (mBTC / BTC). The bar
+ * has to hold all of them without the figures colliding.
+ *   /?currency=IRR&balance=98765432100&bet=5000000
+ */
+const CURRENCIES: Record<string, { spec: CurrencySpec; balance: number; ladder: number[] }> = {
+  USD: { spec: { code: 'USD', symbol: '$', display: 'symbol', position: 'prefix', decimals: 2 }, balance: 12345.67, ladder: [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100] },
+  EUR: { spec: { code: 'EUR', symbol: '€', display: 'symbol', position: 'prefix', decimals: 2, decimalChar: ',', separator: '.' }, balance: 12345.67, ladder: [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100] },
+  // Rial: no minor unit at all, and stakes in the millions.
+  IRR: { spec: { code: 'IRR', decimals: 0, separator: ',' }, balance: 987_654_321_000, ladder: [50_000, 100_000, 250_000, 500_000, 1_000_000, 5_000_000, 10_000_000] },
+  // Milli-bitcoin: five decimals, so the value is long rather than large.
+  mBTC: { spec: { code: 'mBTC', decimals: 5 }, balance: 1234.56789, ladder: [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1] },
+  BTC: { spec: { code: 'BTC', symbol: '₿', display: 'symbol', position: 'prefix', decimals: 8 }, balance: 1.23456789, ladder: [0.0001, 0.0005, 0.001, 0.005, 0.01] },
+};
+const money0 = CURRENCIES[q.get('currency') ?? 'USD'] ?? CURRENCIES.USD!;
+
+const LADDER = money0.ladder;
 
 /** Card art for the buy sheet. Inline SVG so the demo needs no files or network. */
 const featureArt = (label: string, color: string): string =>
@@ -66,8 +83,8 @@ const FEATURES = [
 
 
 const SPEC: UISpec = {
-  currency: { code: 'USD', symbol: '$', display: 'symbol', position: 'prefix', decimals: 2 },
-  betLadder: resolveBetLadder(LADDER, 1),
+  currency: money0.spec,
+  betLadder: resolveBetLadder(LADDER, LADDER[Math.min(3, LADDER.length - 1)]!),
   autoplay: { options: [10, 25, 50, 75, 100, 500, 1000], lossLimits: [5, 20, 50], winLimits: [10, 20, 75] },
   rtp: 96.1,
   game: { name: 'Scrolls of Fate', version: '1.0.0' },
@@ -106,7 +123,9 @@ async function main(): Promise<void> {
   });
   const ui = hud.ui;
 
-  hud.setBalance(12345.67);
+  hud.setBalance(Number(q.get('balance')) || money0.balance);
+  if (Number(q.get('bet'))) ui.bet.set(Number(q.get('bet')));
+  if (Number(q.get('win'))) hud.setWin(Number(q.get('win')));
   hud.setMaxWin(5000, '1 in 1,250,000');
   hud.setHistory([]);
   ui.showFeedback('press_play', { ms: 0 });
@@ -115,7 +134,7 @@ async function main(): Promise<void> {
   const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
   const snap = (n: number): number => Math.round(n * 100) / 100;
   const history: Array<{ date: string; bet: string; win: string; won: boolean }> = [];
-  const money = (n: number): string => `$${n.toFixed(2)}`;
+  const money = (n: number): string => formatAmount(n, ui.bet.currency.get());
 
   async function playSpin(): Promise<void> {
     const stake = ui.betStepper.value;

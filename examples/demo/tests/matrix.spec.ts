@@ -25,7 +25,7 @@ test('device matrix screenshots', async ({ page }, testInfo) => {
   mkdirSync(dir, { recursive: true });
   const base = `${md.device} - ${md.orientation}`.replace(/[^\w.\- ]/g, '');
 
-  await page.goto('/?bare=1');
+  await page.goto('/canvas.html?bare=1');
   await waitForHud(page);
   await page.screenshot({ path: `${dir}${base} - 1 hud.png` });
 

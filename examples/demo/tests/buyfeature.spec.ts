@@ -20,7 +20,7 @@ const open = (page: Page): Promise<void> =>
 test.describe('buy-feature sheet', () => {
   test('opens from the bar as state, locks the HUD, and the backdrop closes it', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'runs once, on desktop');
-    await page.goto('/?bare=1');
+    await page.goto('/canvas.html?bare=1');
     await waitForHud(page);
 
     // closed on load; the BUY BONUS pill opens it — as STATE, not as a pixel

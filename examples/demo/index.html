@@ -2,23 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no" />
     <title>open-ui · example client</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
     <style>
-      html, body {
-        margin: 0; height: 100%; overflow: hidden; font-family: system-ui, sans-serif;
-        /* Light grey stage so the HUD's shading, drop shadows and black pills read. */
-        background:
-          radial-gradient(120% 90% at 50% -10%, #f2f3f5, rgba(0,0,0,0) 55%),
-          linear-gradient(180deg, #dcdee2 0%, #c9ccd2 60%, #babdc4 100%);
-      }
+      html, body { margin: 0; height: 100%; width: 100%; overflow: hidden; -webkit-user-select: none; user-select: none; }
+      body { background: #14161a; font-family: system-ui, sans-serif; }
       canvas { display: block; }
+      /* The game sits behind the HUD, exactly as in a real client. */
+      #GameWrapper { position: fixed; inset: 0; }
     </style>
   </head>
-  <body>
-    <script type="module" src="/src/main.ts"></script>
+  <body data-theme="default">
+    <div class="HacksawCasinoGameContainer" id="GameWrapper"></div>
+    <script type="module" src="/src/dom-main.ts"></script>
   </body>
 </html>

@@ -49,7 +49,7 @@ const snap = async (page: Page): Promise<Snapshot> => (await cmd(page, 'snapshot
 async function boot(page: Page): Promise<string> {
   const dir = ROOT;
   mkdirSync(dir, { recursive: true });
-  await page.goto('/?builtin=1&bare=1'); // ONE structural url; all state via the harness
+  await page.goto('/canvas.html?builtin=1&bare=1'); // ONE structural url; all state via the harness
   await page.waitForFunction(() => !!(window as unknown as { ui?: unknown }).ui);
   await cmd(page, 'reset');
   return dir;
@@ -65,16 +65,21 @@ test.describe('declarative HUD states (postMessage harness)', () => {
   });
 
   test('enter bonus → FS coin + total-win, then it COUNTS DOWN and EXITS (never stuck)', async ({ page }, info) => {
+    test.slow(); // five REAL reel spins; the emulated devices need the room
     const dir = await boot(page);
     await cmd(page, 'enterBonus', 5);
     await cmd(page, 'setTotalWin', 25.5);
     expect((await snap(page)).freeSpins).toBe(5);
     await page.screenshot({ path: `${dir}${info.project.name} - 2 bonus (5 fs).png` });
 
-    // spin through the whole bonus — the count must decrement to 0 and exit to base play
-    for (let i = 0; i < 5; i++) await cmd(page, 'spin');
-    const after = await snap(page);
-    expect(after.freeSpins).toBe(0); // ← proves it is NOT stuck in FS
+    // Spin through the whole bonus — the count must decrement to 0 and exit to base
+    // play. The reels are real now, so a spin takes real time: poll for the outcome
+    // instead of assuming the command resolved it.
+    for (let i = 0; i < 5; i++) {
+      await cmd(page, 'spin');
+      await expect.poll(async () => (await snap(page)).spinState, { timeout: 20_000 }).toBe('idle');
+    }
+    await expect.poll(async () => (await snap(page)).freeSpins, { timeout: 20_000 }).toBe(0); // ← not stuck in FS
     await page.screenshot({ path: `${dir}${info.project.name} - 3 bonus exited.png` });
   });
 

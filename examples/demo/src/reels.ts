@@ -102,7 +102,11 @@ export function buildReels(app: Application): Slot {
       // The play area is everything the HUD did not reserve, less a margin so the
       // message strip above the bar has air and the reels never sit under it.
       const play = Math.max(120, height - barHeight - 28);
-      const scale = Math.min((width * 0.66) / gridW, (play * 0.86) / gridH);
+      // A tall screen should be filled across its WIDTH, a wide one across its HEIGHT
+      // — one pair of factors cannot do both, and using the wide pair on a tablet is
+      // what leaves the reels stranded in the middle of all that space.
+      const tall = width / play < 1.1;
+      const scale = Math.min((width * (tall ? 0.94 : 0.66)) / gridW, (play * (tall ? 0.55 : 0.86)) / gridH);
       container.scale.set(scale);
       container.x = (width - gridW * scale) / 2;
       container.y = Math.max(8, (play - gridH * scale) / 2);
