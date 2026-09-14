@@ -36,8 +36,12 @@ export interface Slot {
   readonly container: Container;
   /** Fit + centre the reels in the play area above the HUD bar. */
   layout(width: number, height: number, barHeight?: number): void;
-  /** Spin, land on a random grid, and resolve with what landed. */
-  spin(turbo?: boolean): Promise<string[][]>;
+  /**
+   * Spin, land on a random grid, and resolve with what landed. `onResult` fires the
+   * moment the target grid is known — in a real client, when the RGS answered. That
+   * is the beat the HUD flips its round button from "spinning" to "slam to stop".
+   */
+  spin(turbo?: boolean, onResult?: (grid: string[][]) => void): Promise<string[][]>;
   /** Slam-stop: land the in-flight spin right now. */
   skip(): void;
   /** Play the win animation on every cell of a winning line. */
@@ -104,12 +108,15 @@ export function buildReels(app: Application): Slot {
       container.y = Math.max(8, (play - gridH * scale) / 2);
     },
 
-    async spin(turbo = false) {
+    async spin(turbo = false, onResult) {
       set.setSpeed(turbo ? SpeedPresets.TURBO.name : SpeedPresets.NORMAL.name);
       const spinning = set.spin();
-      // A real game asks its RGS here; the demo rolls its own grid.
+      // A real game asks its RGS here; the demo rolls its own grid, after a beat, so
+      // the HUD's pending phase is visible instead of being skipped.
+      await new Promise((r) => setTimeout(r, turbo ? 120 : 420));
       const grid: string[][] = Array.from({ length: REELS }, () => Array.from({ length: ROWS }, randomSymbol));
       set.setResult(grid.map((visible) => ({ visible })));
+      onResult?.(grid);
       await spinning;
       return grid;
     },

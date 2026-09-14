@@ -108,19 +108,36 @@ export function bindActions(ui: OpenUI, ctx: BindContext): Dispose {
   const inc = $(r, 'BetAmountIncrease');
   const dec = $(r, 'BetAmountDecrease');
 
-  /** Exactly one round button shows at a time — the reference swaps them by class. */
+  /**
+   * The round button is ONE button in three phases, and the stylesheet owns the swap:
+   *
+   *   idle            place-bet, lit.
+   *   spinning        still place-bet, but the ActionPanel wears `disabled-slam-stop`,
+   *                   which dims the arrow to 50% and keeps the stop button hidden —
+   *                   the round is out with the server and there is nothing to slam yet.
+   *   slam available  `disabled-slam-stop` comes off; `[data-state=play]` then displays
+   *                   stop-round, and place-bet drops its `is-visible`.
+   *
+   * A jurisdiction that forbids slam-stop (`disabledSlamstop`) simply never leaves the
+   * middle phase — which is exactly what that class name says.
+   */
+  const actionPanel = r.querySelector<HTMLElement>('.ActionPanel');
+
   const paint = (): void => {
-    const spinning = ui.spin.current === 'spinning';
-    const canSlam = ui.spin.current === 'stop';
+    const state = ui.spin.current;
+    const pending = state === 'spinning';
+    const canSlam = state === 'stop' && ui.spin.allowSlamStop.get();
     const auto = ui.autoplay.isActive;
-    // One round button at a time, and while the autoplay panel is up it is START —
-    // the reference swaps the same circle rather than adding a second button.
     const picking = ui.autoplayPanel.isOpen && !auto;
-    setVisible(play, !auto && !canSlam && !picking);
-    setVisible(stopRound, !auto && canSlam && !picking);
+
+    toggleClass(actionPanel, 'disabled-slam-stop', !canSlam);
+    setVisible(play, !auto && !picking && !canSlam);
+    setVisible(stopRound, !auto && !picking && canSlam);
     setVisible(startAuto, picking);
     setVisible(stopAuto, auto);
-    setDisabled(play, !ui.spin.interactable || spinning);
+    // Dimming is the stylesheet's job; interactability is the core's. A pending round
+    // must not re-fire, so the button refuses the press as well as looking spent.
+    setDisabled(play, !ui.spin.interactable || pending);
     setDisabled(inc, !ui.betPlus.interactable);
     setDisabled(dec, !ui.betMinus.interactable);
     const n = ui.autoplay.count.get();
@@ -138,6 +155,7 @@ export function bindActions(ui: OpenUI, ctx: BindContext): Dispose {
     ui.autoplay.state.subscribe(paint),
     ui.autoplay.count.subscribe(paint),
     ui.autoplayPanel.state.subscribe(paint),
+    ui.spin.allowSlamStop.subscribe(paint),
     ui.betStepper.index.subscribe(paint),
     ui.locked.subscribe(paint),
   );

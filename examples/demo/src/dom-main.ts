@@ -79,7 +79,9 @@ async function main(): Promise<void> {
     ui.spin.busy();
     ui.balance.set(snap(ui.balance.get() - stake));
     // TURBO comes from the ☰ menu's own switch — the reels take the faster profile.
-    const grid = await reels.spin(ui.turboBase.isOn);
+    // The round button goes dim on press and only becomes STOP once the result is
+    // in — the same three-phase behaviour the reference has.
+    const grid = await reels.spin(ui.turboBase.isOn, () => ui.spin.stopState());
     const line = evaluate(grid);
     const win = snap(stake * line.win);
     if (win > 0) {
@@ -110,7 +112,7 @@ async function main(): Promise<void> {
     while (ui.spin.freeSpins.get() > 0) {
       const stake = ui.betStepper.value;
       ui.spin.busy();
-      const grid = await reels.spin(true); // a bonus always runs at turbo pace
+      const grid = await reels.spin(true); // a bonus always runs at turbo pace, and is not slammable
       const line = evaluate(grid);
       const win = snap(stake * line.win * 2); // free spins pay double in this demo
       total = snap(total + win);

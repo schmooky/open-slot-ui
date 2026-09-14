@@ -175,3 +175,42 @@ describe('the ☰ menu behaves the way the design does', () => {
     expect(root.dataset.state).toBe('idle');
   });
 });
+
+describe('the round button is one button in three phases', () => {
+  const panel = (): HTMLElement => document.querySelector<HTMLElement>('.ActionPanel')!;
+  const visible = (x: string): boolean => id(x)!.classList.contains('is-visible');
+
+  it('press dims it, the result turns it into STOP, the round hands it back', () => {
+    // idle: the play button, and slam-stop is off (there is nothing to slam)
+    expect(visible('PlaceBetBtn')).toBe(true);
+    expect(visible('StopBtn')).toBe(false);
+    expect(panel().classList.contains('disabled-slam-stop')).toBe(true);
+
+    // pressed, waiting on the server: STILL the play button — dimmed by the
+    // stylesheet, and refusing a second press — with no stop button beside it
+    hud.ui.spin.busy();
+    expect(visible('PlaceBetBtn')).toBe(true);
+    expect(visible('StopBtn')).toBe(false);
+    expect(id<HTMLButtonElement>('PlaceBetBtn')!.disabled).toBe(true);
+    expect(panel().classList.contains('disabled-slam-stop')).toBe(true);
+
+    // the result arrived: now it CAN be slammed, so the button becomes STOP
+    hud.ui.spin.stopState();
+    expect(visible('PlaceBetBtn')).toBe(false);
+    expect(visible('StopBtn')).toBe(true);
+    expect(panel().classList.contains('disabled-slam-stop')).toBe(false);
+
+    hud.ui.spin.idle();
+    expect(visible('PlaceBetBtn')).toBe(true);
+    expect(visible('StopBtn')).toBe(false);
+  });
+
+  it('a jurisdiction that forbids slam-stop never reaches the STOP phase', () => {
+    hud.ui.spin.allowSlamStop.set(false);
+    hud.ui.spin.busy();
+    hud.ui.spin.stopState();
+    expect(visible('StopBtn')).toBe(false);
+    expect(visible('PlaceBetBtn')).toBe(true);
+    expect(panel().classList.contains('disabled-slam-stop')).toBe(true);
+  });
+});

@@ -312,7 +312,8 @@ async function main(): Promise<void> {
     ui.spin.busy();
     if (stake > 0) ui.balance.set(snap(ui.balance.get() - stake));
     // TURBO is the HUD's switch; the reels take the faster speed profile from it.
-    const grid = await reels.spin(turbo);
+    // Dim on press, STOP once the result lands — the reference's three phases.
+    const grid = await reels.spin(turbo, () => ui.spin.stopState());
     // The demo's paytable: 3+ matching on the centre row, wilds standing in.
     const line = evaluate(grid);
     const win = snap(effectiveBet() * line.win);
