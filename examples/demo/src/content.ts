@@ -1,5 +1,4 @@
 import { parseBlocks, type BlockSpec, type GameFacts } from '@open-slot-ui/core';
-import rulesXml from './rules.xml?raw';
 
 /**
  * The RULES section content, PARSED FROM MARKUP (`rules.xml`) — the single source
@@ -29,10 +28,14 @@ import rulesXml from './rules.xml?raw';
  * everything it shows. Exported, because the canvas example's menu (main.ts) draws
  * its banner and paytable icons from the same stand-ins.
  */
-export const art = (w: number, h: number, label: string, bg = '#2a2f3a', fg = '#ffd166'): string =>
-  `data:image/svg+xml;utf8,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" rx="${Math.min(w, h) * 0.08}" fill="${bg}"/><text x="${w / 2}" y="${h / 2}" dominant-baseline="central" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="${Math.min(w, h) * 0.34}" fill="${fg}">${label}</text></svg>`,
+export const art = (w: number, h: number, label: string, bg = '#2a2f3a', fg = '#ffd166'): string => {
+  // Fit the label to the box: a bold sans glyph is roughly 0.62em wide, so a long
+  // word has to come down in size or it runs out of both sides of the tile.
+  const size = Math.min(h * 0.34, (w * 0.86) / Math.max(1, label.length * 0.62));
+  return `data:image/svg+xml;utf8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" rx="${Math.min(w, h) * 0.08}" fill="${bg}"/><text x="${w / 2}" y="${h / 2}" dominant-baseline="central" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="${size.toFixed(1)}" fill="${fg}">${label}</text></svg>`,
   )}`;
+};
 
 /**
  * Resolve this demo's `art:LABEL|bg|fg|WxH` image scheme to inline SVG.
@@ -71,12 +74,20 @@ function resolveBlockArt(blocks: BlockSpec[]): BlockSpec[] {
   return walkValue(blocks) as BlockSpec[];
 }
 
-const parsed = parseBlocks(rulesXml);
-// The parser never throws; a typo in the rules file surfaces here instead of
-// silently dropping a section.
-if (parsed.issues.length) console.warn('[demo] rules.xml:', parsed.issues);
-
-export const RULES_BLOCKS: BlockSpec[] = resolveBlockArt(parsed.blocks);
+/**
+ * Parse `rules.xml` into blocks, with this example's art resolved.
+ *
+ * The markup is passed IN rather than imported here, so this module stays plain
+ * TypeScript — the page bundles it with Vite's `?raw`, and a script (the design
+ * specimen) reads the same file off disk.
+ */
+export function buildRules(xml: string): BlockSpec[] {
+  const parsed = parseBlocks(xml);
+  // The parser never throws; a typo in the rules file surfaces here instead of
+  // silently dropping a section.
+  if (parsed.issues.length) console.warn('[demo] rules.xml:', parsed.issues);
+  return resolveBlockArt(parsed.blocks);
+}
 
 /**
  * Drop blocks by id, ANYWHERE in the document — a block can sit inside a tab, an

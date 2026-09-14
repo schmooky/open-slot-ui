@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:visual": "playwright test",
-    "matrix": "playwright test -c playwright.matrix.config.ts && node scripts/montage.mjs"
+    "matrix": "playwright test -c playwright.matrix.config.ts && node scripts/montage.mjs",
+    "specimen": "node scripts/specimen.mjs"
   },
   "dependencies": {
     "@open-slot-ui/core": "workspace:*",
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.50.0",
+    "jiti": "^2.7.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.7"
   }

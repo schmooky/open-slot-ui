@@ -208,8 +208,14 @@ pnpm typecheck                # all packages
 pnpm build                    # build both libraries
 
 pnpm --dir examples/demo test:visual   # Playwright device screenshots → screenshots/
+pnpm --dir examples/demo specimen      # the rules blocks on their own page → screenshots/specimen.html
 pnpm --dir apps/site dev               # the docs site → http://localhost:5210
 ```
+
+The **specimen** is the design view of the block vocabulary: the example's own
+`rules.xml`, rendered on the default light card with nothing else around it — the
+quickest way to judge spacing and colour while changing `BLOCK_CSS`, and a
+reference for anyone writing a skin.
 
 The example client reads its config from the URL, so you can see any permutation —
 e.g. `localhost:5199/?off=buyFeature,history&dock=top&autoplay=infinite&spin=hold`.

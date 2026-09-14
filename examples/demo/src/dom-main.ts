@@ -3,7 +3,11 @@ import { mountDomHud } from '@open-slot-ui/dom';
 import { resolveBetLadder, formatAmount } from '@open-slot-ui/core';
 import type { UISpec, CurrencySpec } from '@open-slot-ui/core';
 import { buildReels, evaluate } from './reels';
-import { RULES_BLOCKS, FACTS, dropBlocks } from './content';
+import rulesXml from './rules.xml?raw';
+import { buildRules, FACTS, dropBlocks } from './content';
+
+/** The rules, parsed from the markup file at boot — see content.ts. */
+const RULES_BLOCKS = buildRules(rulesXml);
 
 /**
  * The DOM-renderer example: the same headless core, the same fake game — but the HUD

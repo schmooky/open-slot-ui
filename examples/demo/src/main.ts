@@ -3,7 +3,11 @@ import { mountHud, mountBuyFeatureModal } from '@open-slot-ui/pixi';
 import { resolveBetLadder } from '@open-slot-ui/core';
 import type { UISpec, CurrencySpec, ThemePreset, JurisdictionConfig } from '@open-slot-ui/core';
 import { MESSAGES } from './locales';
-import { RULES_BLOCKS, FEATURES, FACTS, dropBlocks, art } from './content';
+import rulesXml from './rules.xml?raw';
+import { buildRules, FEATURES, FACTS, dropBlocks, art } from './content';
+
+/** The rules, parsed from the markup file at boot — see content.ts. */
+const RULES_BLOCKS = buildRules(rulesXml);
 import { mountHarness } from './harness';
 import { buildReels, evaluate } from './reels';
 

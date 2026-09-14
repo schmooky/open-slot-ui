@@ -89,6 +89,9 @@ describe('the wider block vocabulary', () => {
       { kind: 'table', id: 'tb', rows: [['a', 'b']] },
       { kind: 'steps', id: 'st', items: ['a'] },
       { kind: 'callout', id: 'co', tone: 'warning', text: 'x' },
+      { kind: 'callout', id: 'co2', tone: 'bonus', title: 'T', text: 'x' },
+      { kind: 'callout', id: 'co3', text: 'x' },
+      { kind: 'media', id: 'md2', src: 'a.png', text: 'x', side: 'right' },
       { kind: 'stat-grid', id: 'sg', items: [{ label: 'a', value: 'b' }] },
       { kind: 'media', id: 'md', src: 'a.png', text: 'x', title: 't' },
       { kind: 'cards', id: 'cd', items: [{ icon: 'a.png', title: 't', text: 'x' }] },
@@ -211,7 +214,10 @@ describe('the validator knows the wider vocabulary', () => {
       expect(block, `no sample for "${kind}"`).toBeTruthy();
       // Interactive kinds are rendered by the control layer, not by the HTML pass.
       if (['slider', 'toggle', 'button', 'select', 'stepper', 'value'].includes(kind)) continue;
-      expect(html([block as BlockSpec]).trim(), `"${kind}" renders nothing`).not.toBe('');
+      // A heading is a section header: on its own, with nothing under it, it is
+      // deliberately dropped — so it is checked WITH the block it introduces.
+      const doc = kind === 'heading' ? [block as BlockSpec, { kind: 'text', id: 'under', text: 'x' } as BlockSpec] : [block as BlockSpec];
+      expect(html(doc).trim(), `"${kind}" renders nothing`).not.toBe('');
     }
   });
 });
@@ -268,5 +274,29 @@ describe('host data can never break out of an attribute', () => {
     expect(out).toContain('&#39;');
     // a nonsense column count is clamped, never pasted into the style attribute
     expect(out).toContain('--cols:6');
+  });
+});
+
+describe('a section with nothing in it', () => {
+  it('is dropped, so a heading never introduces a blank space', () => {
+    // The Settings section of a composed menu is all interactive controls, which the
+    // control layer draws — this HTML pass would otherwise emit its heading alone.
+    const out = html([
+      { kind: 'heading', id: 'settings', text: 'Settings' },
+      { kind: 'slider', id: 'music', label: 'Music' },
+      { kind: 'heading', id: 'rules', text: 'Rules' },
+      { kind: 'text', id: 'r', text: 'Three scatters start the round.' },
+    ]);
+    expect(out).not.toContain('Settings');
+    expect(out).toContain('Rules');
+    expect(out).toContain('Three scatters');
+  });
+
+  it('keeps a section whose content is only an image', () => {
+    const out = html([
+      { kind: 'heading', id: 'h', text: 'Symbols' },
+      { kind: 'image', id: 'i', src: 'a.png' },
+    ]);
+    expect(out).toContain('Symbols');
   });
 });

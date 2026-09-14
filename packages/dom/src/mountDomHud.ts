@@ -375,8 +375,46 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
  * needs is its six colour properties, which are mapped here onto the skin's so the
  * blocks inherit the game's palette instead of a second one.
  */
+/**
+ * Scope a stylesheet under a prefix, so it can out-specify the skin it lands in.
+ *
+ * The skin styles its own info window with selectors like
+ * `[data-channel="mobile"] .GameInfoWindow .GameInfo__body p` — three classes and
+ * an element. A bare `.ohm-body p` loses that cascade no matter how late it is
+ * injected, and the blocks inherit the skin's paragraph margins instead of their
+ * own rhythm. Prefixing every rule fixes the specificity honestly, rather than by
+ * sprinkling `!important` through the vocabulary's stylesheet.
+ *
+ * Comments are dropped first: they are for whoever reads the source, and a comma
+ * inside one would split a selector list.
+ */
+function scopeCss(css: string, prefix: string): string {
+  return css
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    // After a `}` — the previous rule — or a `{`, which is the FIRST rule inside an
+    // at-rule block such as `@container`. Preludes containing `@` are skipped, so
+    // the at-rule itself is left alone while the rules inside it are prefixed.
+    .replace(/(^|[{}])([^{}@]+)\{/g, (_m, brace: string, selectors: string) =>
+      `${brace}${selectors.split(',').map((sel) => `${prefix} ${sel.trim()}`).join(',')}{`,
+    );
+}
+
+/**
+ * The rules BLOCK vocabulary, inside the skin's own info window.
+ *
+ * A skin styles ITS markup — a body of paragraphs — and knows nothing of what a tab
+ * strip, a symbol table or a reel grid is, so those blocks would land in the window
+ * as naked HTML. `BLOCK_CSS` is the vocabulary's own stylesheet; all it needs is its
+ * six colour properties, mapped here onto the skin's so the blocks wear the game's
+ * palette instead of a second one.
+ *
+ * The gutter is the one thing added on top: the skin pads this body for a column of
+ * paragraphs and leaves the left edge flush, and a table or a card sitting against
+ * the window edge reads as broken.
+ */
+const BLOCK_SCOPE = 'div[data-channel] .GameInfoWindow';
 const BLOCKS_CSS_SCOPED = `
-.GameInfo__body {
+${BLOCK_SCOPE} .GameInfo__body {
   --accent: var(--hg-bg-accent, #ffc529);
   --accent-text: var(--hg-text-color-inverse, #000);
   --surface: var(--hg-bg-secondary, #2a2a2a);
@@ -384,8 +422,9 @@ const BLOCKS_CSS_SCOPED = `
   --text: var(--hg-text-color, #fafafa);
   --text-dim: var(--hg-text-color-secondary, #adb5bd);
 }
-.GameInfo__body *, .GameInfo__body *::before, .GameInfo__body *::after { box-sizing: border-box; }
-${BLOCK_CSS}`;
+${BLOCK_SCOPE} .GameInfo__body *, ${BLOCK_SCOPE} .GameInfo__body *::before, ${BLOCK_SCOPE} .GameInfo__body *::after { box-sizing: border-box; }
+${BLOCK_SCOPE} .GameInfo__body.ohm-body { padding-left: clamp(14px, 3vw, 26px); padding-right: clamp(10px, 2vw, 18px); }
+${scopeCss(BLOCK_CSS, BLOCK_SCOPE)}`;
 
 const BEHAVIOUR_CSS = `
 /* The buy sheet's card list is CLIPPED by the design (it fades its top and bottom

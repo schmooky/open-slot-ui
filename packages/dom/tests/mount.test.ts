@@ -335,3 +335,51 @@ describe('a window locks the game behind it', () => {
     expect(hud.ui.locked.get()).toBe(false);
   });
 });
+
+describe('the rules blocks, inside the skin’s info window', () => {
+  const blockStyle = (): string =>
+    [...document.querySelectorAll('style[data-openui="behaviour"]')].map((s) => s.textContent ?? '').join('\n');
+
+  it('injects the block stylesheet, scoped so it out-specifies the skin', () => {
+    const css = blockStyle();
+    expect(css).toContain('.ohm-tabs');
+    // Every rule is prefixed — a bare `.ohm-…` selector would lose to the skin's
+    // own `[data-channel] .GameInfoWindow .GameInfo__body p`.
+    const selectors = [...css.matchAll(/(^|[{}])\s*([^{}@]+?)\s*\{/g)].map((m) => m[2] as string);
+    const bare = selectors.filter((sel) => sel.split(',').some((s) => s.trim().startsWith('.ohm-')));
+    expect(bare, `unscoped selectors: ${bare.join(' | ')}`).toEqual([]);
+  });
+
+  it('prefixes the rules INSIDE a container query too', () => {
+    const css = blockStyle();
+    const at = css.slice(css.indexOf('@container'));
+    expect(at).toContain('@container ohm');
+    // the first rule after the at-rule's `{` is the one a naive prefixer misses
+    const firstInner = at.slice(at.indexOf('{') + 1).trim();
+    expect(firstInner.startsWith('div[data-channel]')).toBe(true);
+  });
+
+  it('gives the block body a gutter and makes it a query container', () => {
+    const css = blockStyle();
+    expect(css).toContain('.GameInfo__body.ohm-body');
+    expect(css).toContain('container-type: inline-size');
+  });
+
+  it('renders the rules into the window with the block classes', () => {
+    hud.dispose();
+    hud = mountDomHud({
+      currency: { code: 'USD', decimals: 2 },
+      game: { name: 'Test Game' },
+      rules: [
+        { kind: 'heading', id: 'h', text: 'Rules' },
+        { kind: 'badges', id: 'b', items: [{ text: '20 lines' }] },
+        { kind: 'tabs', id: 't', tabs: [{ id: 'a', label: 'A', children: [{ kind: 'text', id: 'x', text: 'Pays left to right.' }] }] },
+      ],
+    });
+    const body = id('GameInfoBody');
+    expect(body!.className).toContain('ohm-body');
+    expect(body!.querySelector('.ohm-badges')).not.toBeNull();
+    expect(body!.querySelector('.ohm-tabs')).not.toBeNull();
+    expect(body!.textContent).toContain('Pays left to right.');
+  });
+});
