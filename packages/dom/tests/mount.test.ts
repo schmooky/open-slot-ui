@@ -214,3 +214,55 @@ describe('the round button is one button in three phases', () => {
     expect(panel().classList.contains('disabled-slam-stop')).toBe(true);
   });
 });
+
+describe('the buy sheet', () => {
+  const FEATURES = [
+    { id: 'fs', name: 'Free Spins', variant: 'buy' as const, cost: 100, description: 'Ten of them.', volatility: 'Volatility: High' },
+    { id: 'ante', name: 'Ante Bet', variant: 'boost' as const, cost: 0.25 },
+  ];
+
+  beforeEach(() => {
+    hud.dispose();
+    hud = mountDomHud({ betLadder: { levels: [1, 2, 5], index: 0 }, currency: { code: 'USD', symbol: '$', display: 'symbol', position: 'prefix', decimals: 2 } }, { features: FEATURES });
+  });
+
+  it('sizes its own grid and prices every card off the bet', () => {
+    // the stylesheet widths the grid from this attribute
+    expect(id('FeatureBuyWindow')!.dataset.totalItemCount).toBe('2');
+    const prices = Array.from(document.querySelectorAll('.FeatureBuyGridCard__description--value')).map((e) => e.textContent);
+    expect(prices).toEqual(['$100.00', '$1.25']); // a buy is cost × bet; a boost adds to 1
+    // …and the card carries the title, the odds line and the volatility line
+    expect(document.querySelector('.FeatureBuyGridCard__title')!.textContent).toBe('Free Spins');
+    expect(document.querySelector('.FeatureBuyGridCard__description')!.textContent).toBe('Ten of them.');
+    expect(document.querySelector('.FeatureBuyGridCard__description--volatility')!.textContent).toBe('Volatility: High');
+  });
+
+  it("the sheet's own BET selector drives the SAME bet as the bar, and re-prices", () => {
+    id('FeatureBuyAmountIncrease')!.click();
+    expect(hud.ui.betStepper.value).toBe(2);
+    expect(id('FeatureBuyAmountValue')!.textContent).toBe('$2.00');
+    expect(id('BetAmountValue')!.textContent).toBe('$2.00'); // the bar moved too
+    const prices = Array.from(document.querySelectorAll('.FeatureBuyGridCard__description--value')).map((e) => e.textContent);
+    expect(prices).toEqual(['$200.00', '$2.50']);
+  });
+
+  it('nothing is bought until OK — BACK returns to the grid', () => {
+    let bought: Array<[string, number]> = [];
+    hud.dispose();
+    hud = mountDomHud({ betLadder: { levels: [1, 2, 5], index: 0 }, currency: { code: 'USD', symbol: '$', display: 'symbol', position: 'prefix', decimals: 2 } }, { features: FEATURES, onBuy: (id_, cost) => bought.push([id_, cost]) });
+
+    document.querySelector<HTMLElement>('.FeatureBuyGridCard__button')!.click();
+    expect(id('FeatureBuyConfirmBody')!.classList.contains('is-visible')).toBe(true);
+    expect(id('FeatureBuyBody')!.classList.contains('is-visible')).toBe(false);
+    expect(id('FeatureBuyConfirmTitle')!.textContent).toBe('Free Spins');
+    expect(bought).toEqual([]); // still nothing
+
+    id('FeatureBuyConfirmBackButton')!.click();
+    expect(id('FeatureBuyBody')!.classList.contains('is-visible')).toBe(true);
+    expect(bought).toEqual([]);
+
+    document.querySelector<HTMLElement>('.FeatureBuyGridCard__button')!.click();
+    id('FeatureBuyConfirmButton')!.click();
+    expect(bought).toEqual([['fs', 100]]); // …and only now
+  });
+});

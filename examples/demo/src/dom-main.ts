@@ -17,6 +17,54 @@ const skinHref = q.get('skin') ?? '/skin/ui.min.css';
 
 const LADDER = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100];
 
+/** Card art for the buy sheet. Inline SVG so the demo needs no files or network. */
+const featureArt = (label: string, color: string): string =>
+  `data:image/svg+xml;utf8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}"/><stop offset="1" stop-color="#1b1e24"/></linearGradient></defs><rect width="160" height="120" rx="10" fill="url(#g)"/><text x="80" y="74" text-anchor="middle" font-family="system-ui,sans-serif" font-size="44" font-weight="800" fill="#fff">${label}</text></svg>`,
+  )}`;
+
+const FEATURES = [
+  {
+    id: 'free-spins',
+    name: 'Free Spins',
+    variant: 'buy' as const,
+    cost: 100,
+    image: featureArt('10', '#ff8b02'),
+    description: '10 free spins with every win doubled.',
+    volatility: 'Volatility: High',
+    confirm: 'Buying Free Spins costs {{price}} and starts the round immediately.',
+  },
+  {
+    id: 'super-spins',
+    name: 'Super Spins',
+    variant: 'buy' as const,
+    cost: 300,
+    image: featureArt('15', '#ec752f'),
+    description: '15 free spins, and wilds stay put.',
+    volatility: 'Volatility: Very high',
+    confirm: 'Buying Super Spins costs {{price}} and starts the round immediately.',
+  },
+  {
+    id: 'ante',
+    name: 'Ante Bet',
+    variant: 'boost' as const,
+    cost: 0.25,
+    image: featureArt('+25%', '#19c858'),
+    description: 'Doubles the chance of triggering the bonus.',
+    volatility: 'Volatility: Medium',
+  },
+  {
+    id: 'double-chance',
+    name: 'Double Chance',
+    variant: 'boost' as const,
+    cost: 0.5,
+    image: featureArt('×2', '#0bbb46'),
+    description: 'Two shots at the bonus on every spin.',
+    volatility: 'Volatility: High',
+  },
+];
+
+
 const SPEC: UISpec = {
   currency: { code: 'USD', symbol: '$', display: 'symbol', position: 'prefix', decimals: 2 },
   betLadder: resolveBetLadder(LADDER, 1),
@@ -45,11 +93,13 @@ async function main(): Promise<void> {
 
   const hud = mountDomHud(SPEC, {
     skin: { href: skinHref, font: { family: 'icomoon', src: '/skin/ui/fonts/icons/icomoon.woff2' } },
-    features: [
-      { id: 'free-spins', name: 'Free Spins', variant: 'buy', cost: 100 },
-      { id: 'super-spins', name: 'Super Spins', variant: 'buy', cost: 300 },
-    ],
+    features: FEATURES,
     onBuy: (id, cost) => {
+      // A boost is a per-spin surcharge, not a purchase — the demo just notes it.
+      if (id === 'ante' || id === 'double-chance') {
+        hud.showFeedback(`${id === 'ante' ? 'Ante bet' : 'Double chance'} activated`, { tone: 'good' });
+        return;
+      }
       ui.balance.set(Math.round((ui.balance.get() - cost) * 100) / 100);
       void runBonus(id === 'super-spins' ? 15 : 10);
     },

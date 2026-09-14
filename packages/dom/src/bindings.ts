@@ -4,13 +4,32 @@ import { label } from './i18n';
 
 export type Dispose = () => void;
 
+/** One card in the buy sheet. Everything but `id`/`name`/`cost` is optional. */
+export interface BuyFeature {
+  id: string;
+  /** Card title (literal text or an i18n key). */
+  name: string;
+  /** `'buy'` costs `cost × bet` once; `'boost'` is a per-spin surcharge you activate. */
+  variant: 'buy' | 'boost';
+  /** Price as a multiple of the bet. */
+  cost: number;
+  /** Card art (the reference ships a PNG per feature). */
+  image?: string;
+  /** The line under the title — "Each spin has a 1 in 990 chance of…". */
+  description?: string;
+  /** The italic line under that — "Volatility: Extreme". */
+  volatility?: string;
+  /** The confirm step's body text. `{{price}}` interpolates. */
+  confirm?: string;
+}
+
 /** Everything a binding may need beyond the core itself. */
 export interface BindContext {
   root: HTMLElement;
   /** The `.MainPanel` element — the reference hangs its open/closed classes here. */
   panel: HTMLElement | null;
   /** Buy-feature cards the host offers (empty = no buy sheet content). */
-  features: Array<{ id: string; name: string; variant: 'buy' | 'boost'; cost: number; image?: string }>;
+  features: BuyFeature[];
   onBuy?: (id: string, cost: number) => void;
   /** The composed INFO content (settings → paytable → rules), rendered into the window. */
   infoBlocks?: BlockSpec[];
@@ -492,35 +511,87 @@ export function bindWindows(ui: OpenUI, ctx: BindContext): Dispose {
   }
   text($(r, 'GameInfoGameName'), ui.gameInfo.name ?? '');
 
-  // The buy sheet's grid: one card per feature the host offers.
+  // ── the buy sheet ────────────────────────────────────────────────────────
+  // Three parts, all of them the reference's: a BET selector that drives the same
+  // bet the bar does, the grid of cards, and a confirm step in front of the buy.
+  const buyWindow = $(r, 'FeatureBuyWindow');
   const buyBody = $(r, 'FeatureBuyBody');
+  const confirmBody = $(r, 'FeatureBuyConfirmBody');
+  let confirming: BuyFeature | undefined;
+
+  /** The skin sizes several things off text length; the reference tags them so. */
+  const charcount = (el: HTMLElement | null): void => {
+    if (el) el.dataset.charcount = String((el.textContent ?? '').trim().length);
+  };
+
+  /** What a feature costs at the current bet: a buy is its multiple, a boost adds to 1. */
+  const priceOf = (feat: BuyFeature): number => (feat.variant === 'buy' ? feat.cost : 1 + feat.cost) * ui.betStepper.value;
+
   const paintBuy = (): void => {
-    if (!buyBody || !ctx.features.length) return;
-    const bet = ui.betStepper.value;
-    buyBody.innerHTML = `<div class="FeatureBuy__items-container"><ul class="FeatureBuyItemList">${ctx.features
+    if (!buyWindow || !buyBody || !ctx.features.length) return;
+    // The stylesheet widths the grid off this — without it the cards have no room.
+    buyWindow.dataset.totalItemCount = String(ctx.features.length);
+
+    const betValue = $(r, 'FeatureBuyAmountValue');
+    text(betValue, formatAmount(ui.bet.get(), ui.bet.currency.get()));
+    charcount(betValue);
+    charcount($(r, 'FeatureBuyAmountLabel'));
+    setDisabled($(r, 'FeatureBuyAmountIncrease'), !ui.betPlus.interactable);
+    setDisabled($(r, 'FeatureBuyAmountDecrease'), !ui.betMinus.interactable);
+
+    const holder = $(r, 'FeatureBuyAmountHolder');
+    buyBody.textContent = '';
+    if (holder) buyBody.appendChild(holder); // the BET selector sits above the grid
+    const items = ctx.features
       .map((feat) => {
-        const price = money(ui, feat.variant === 'buy' ? feat.cost * bet : (1 + feat.cost) * bet);
-        return `<li class="FeatureBuyItem"><div class="FeatureBuyGridCard" data-grid-card-type="${feat.variant === 'buy' ? 'grid-card-feature-spins' : 'grid-card-bonus'}" data-feature="${escapeHtml(feat.id)}">
-          <div class="FeatureBuyGridCard__inner">
+        const price = escapeHtml(money(ui, priceOf(feat)));
+        const cta = label(ui, feat.variant === 'buy' ? 'feature_buy_action_uc' : 'activate_uc');
+        return `<li class="FeatureBuyItem"><div class="FeatureBuyGridCard" data-grid-card-type="${feat.variant === 'buy' ? 'grid-card-bonus' : 'grid-card-feature-spins'}">
+          <div class="FeatureBuyGridCard__inner"><div class="FeatureBuyGridCard__content">
+            <h3 class="FeatureBuyGridCard__title">${escapeHtml(label(ui, feat.name))}</h3>
+            ${feat.description ? `<span class="FeatureBuyGridCard__description">${escapeHtml(label(ui, feat.description))}</span>` : ''}
+            ${feat.volatility ? `<span class="FeatureBuyGridCard__description--volatility">${escapeHtml(label(ui, feat.volatility))}</span>` : ''}
             <div class="FeatureBuyGridCard__img-container"><div class="FeatureBuyGridCard__img-wrapper">${feat.image ? `<img class="FeatureBuyGridCard__image" src="${escapeHtml(feat.image)}" alt="">` : ''}</div></div>
-            <div class="FeatureBuyGridCard__content">
-              <div class="FeatureBuyGridCard__title">${escapeHtml(label(ui, feat.name))}</div>
-              <div class="FeatureBuyGridCard__description FeatureBuyGridCard__description--value">${escapeHtml(price)}</div>
-            </div>
-            <div class="FeatureBuyGridCard__cta-container"><button class="Button FeatureBuyGridCard__button" data-feature="${escapeHtml(feat.id)}">${escapeHtml(label(ui, 'feature_buy_action_uc'))}</button></div>
-          </div></div></li>`;
+            <p class="FeatureBuyGridCard__description--value" data-feature-betcost-value="true" data-feature-betcost-multiplier="${feat.cost}" data-charcount="${price.length}">${price}</p>
+          </div>
+          <div class="FeatureBuyGridCard__cta-container"><button class="FeatureBuyGridCard__button" data-feature-buy-id-cta="${escapeHtml(feat.id)}">${escapeHtml(cta)}</button></div>
+        </div></div></li>`;
       })
-      .join('')}</ul></div>`;
+      .join('');
+    buyBody.appendChild(el(`<div class="FeatureBuy__items-container"><ul class="FeatureBuyItemList">${items}</ul></div>`));
+
     for (const btn of Array.from(buyBody.querySelectorAll<HTMLElement>('.FeatureBuyGridCard__button'))) {
       btn.addEventListener('click', () => {
-        const feat = ctx.features.find((x) => x.id === btn.dataset.feature);
-        if (!feat) return;
-        ctx.buyPanel.closePanel();
-        ctx.onBuy?.(feat.id, feat.variant === 'buy' ? feat.cost * ui.betStepper.value : (1 + feat.cost) * ui.betStepper.value);
+        confirming = ctx.features.find((x) => x.id === btn.dataset.featureBuyIdCta);
+        paintConfirm();
       });
     }
   };
+
+  /** The confirm step: nothing is bought until OK — the reference gates every buy. */
+  const paintConfirm = (): void => {
+    const feat = confirming;
+    setVisible(buyBody, !feat);
+    setVisible(confirmBody, !!feat);
+    if (!feat || !confirmBody) return;
+    confirmBody.dataset.featureBuyConfirm = feat.id;
+    const title = $(r, 'FeatureBuyConfirmTitle');
+    text(title, label(ui, feat.name));
+    charcount(title);
+    const img = $<HTMLImageElement>(r, 'FeatureBuyConfirmImage');
+    if (img) {
+      img.src = feat.image ?? '';
+      img.style.display = feat.image ? '' : 'none';
+    }
+    const price = money(ui, priceOf(feat));
+    text($(r, 'FeatureBuyConfirmValue'), feat.confirm ? '' : price);
+    const msg = $(r, 'FeatureBuyConfirmLabel');
+    text(msg, feat.confirm ? label(ui, feat.confirm, { price }) : label(ui, 'feature_buy_confirm'));
+    charcount(msg);
+  };
+
   paintBuy();
+  paintConfirm();
 
   // The history table is host data (`hud.setHistory`), rendered into the reference's
   // own table body.
@@ -588,13 +659,36 @@ export function bindWindows(ui: OpenUI, ctx: BindContext): Dispose {
     on($(r, 'FeatureBuyToggle'), 'click', () => {
       // The button announces itself (a game may want to know), then opens the sheet.
       ui.bus.emit('buttonActivated', { id: 'bonus' });
+      confirming = undefined;
+      paintConfirm();
       ctx.buyPanel.openPanel();
+    }),
+    // The sheet's own BET selector drives the SAME bet as the bar — pressing + here
+    // moves the ladder, and every card re-prices off it.
+    on($(r, 'FeatureBuyAmountIncrease'), 'click', () => ui.betPlus.activate()),
+    on($(r, 'FeatureBuyAmountDecrease'), 'click', () => ui.betMinus.activate()),
+    on($(r, 'FeatureBuyConfirmBackButton'), 'click', () => {
+      confirming = undefined;
+      paintConfirm();
+    }),
+    on($(r, 'FeatureBuyConfirmButton'), 'click', () => {
+      const feat = confirming;
+      confirming = undefined;
+      paintConfirm();
+      if (!feat) return;
+      ctx.buyPanel.closePanel();
+      ctx.onBuy?.(feat.id, priceOf(feat));
+    }),
+    // The sheet repaints off the BET DISPLAY, not just the ladder index: the value it
+    // shows is the same one the bar shows, and that lands a tick after the index moves.
+    ui.bet.value.subscribe(() => {
+      paintBuy();
+      if (confirming) paintConfirm();
     }),
     ui.noticePanel.state.subscribe(paintDialog),
     ui.noticeBlocks.subscribe(paintDialog),
     ui.history.subscribe(paintHistory),
     ui.feedback.subscribe(paintFeedback),
-    ui.betStepper.index.subscribe(paintBuy),
     ui.locale.subscribe(() => {
       paintFeedback();
       paintBuy();

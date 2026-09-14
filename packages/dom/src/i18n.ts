@@ -27,6 +27,7 @@ export const LABEL_KEYS: Readonly<Record<string, { openui?: string; en: string }
   deposit_uc: { openui: 'openui.deposit', en: 'DEPOSIT' },
   feature_buy_action_uc: { openui: 'openui.buyBonus', en: 'BUY BONUS' },
   feature_buy_confirm: { en: 'Will be subtracted from your balance' },
+  activate_uc: { openui: 'openui.activate', en: 'ACTIVATE' },
   feature_buy_uc: { openui: 'openui.buyFeature.title', en: 'BONUS BUY' },
   feature_spins_active_uc: { en: 'FEATURE SPINS ACTIVATED' },
   free_round_uc: { openui: 'openui.freeRounds', en: 'FREE ROUND' },
