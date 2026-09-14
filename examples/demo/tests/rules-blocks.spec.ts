@@ -85,6 +85,16 @@ test('the rules audit stays silent when every mode is explained', async ({ page 
   await expect(page.locator('#GameInfoBody .ohm-audit')).toHaveCount(0);
 });
 
+test('…and speaks up when a section is missing (?forget=1)', async ({ page }) => {
+  await page.goto('/?forget=1');
+  await page.waitForFunction(() => !!document.getElementById('GameInfoBody')?.innerHTML, undefined, { timeout: 25_000 });
+  await openInfo(page);
+  const audit = page.locator('#GameInfoBody .ohm-audit');
+  await expect(audit).toHaveCount(1);
+  await expect(audit).toContainText('Super Spins');
+  await expect(audit).toContainText('Ante Bet');
+});
+
 test.describe('on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 

@@ -182,6 +182,7 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
     onBuy: opts.onBuy,
     // The INFO window renders the SAME declarative blocks the canvas renderer does.
     infoBlocks: opts.info ?? composeMenu(spec.menu, { rulesFallback: spec.rules }),
+    rulesBlocks: spec.menu?.rules ?? spec.rules,
   };
   // The core keeps the buy button hidden until a game says it HAS something to buy —
   // handing over feature cards is that statement.

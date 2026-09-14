@@ -3,7 +3,7 @@ import { mountDomHud } from '@open-slot-ui/dom';
 import { resolveBetLadder, formatAmount } from '@open-slot-ui/core';
 import type { UISpec, CurrencySpec } from '@open-slot-ui/core';
 import { buildReels, evaluate } from './reels';
-import { RULES_BLOCKS, FACTS } from './content';
+import { RULES_BLOCKS, FACTS, dropBlocks } from './content';
 
 /**
  * The DOM-renderer example: the same headless core, the same fake game — but the HUD
@@ -92,6 +92,14 @@ const FEATURES = [
 ];
 
 
+/**
+ * `?forget=1` "forgets" declarations ON PURPOSE — the auto stats grid, two whole
+ * feature sections and the free-spins facts. The info window then opens with the
+ * rules audit listing exactly what a certifier would send back.
+ */
+const FORGOTTEN = new Set(['r-stats', 'r-f-ss-h', 'r-f-ss', 'r-f-ab-h', 'r-f-ab']);
+const forget = q.get('forget') === '1';
+
 const SPEC: UISpec = {
   currency: money0.spec,
   betLadder: resolveBetLadder(LADDER, LADDER[Math.min(3, LADDER.length - 1)]!),
@@ -99,8 +107,8 @@ const SPEC: UISpec = {
   rtp: 96.1,
   game: { name: 'open-slot-ui', version: '0.14.0' },
   hud: { features: { superTurbo: true, lobby: true } },
-  rules: RULES_BLOCKS,
-  facts: FACTS,
+  rules: forget ? dropBlocks(RULES_BLOCKS, FORGOTTEN) : RULES_BLOCKS,
+  facts: forget ? { ...FACTS, freeSpins: undefined } : FACTS,
 };
 
 async function main(): Promise<void> {

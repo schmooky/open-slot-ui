@@ -1,4 +1,14 @@
-import { formatAmount, renderBlocksHtml, factsVars, composeMenu, type OpenUI, type HudState, type BlockSpec } from '@open-slot-ui/core';
+import {
+  formatAmount,
+  renderBlocksHtml,
+  renderRulesAuditHtml,
+  auditRules,
+  factsVars,
+  composeMenu,
+  type OpenUI,
+  type HudState,
+  type BlockSpec,
+} from '@open-slot-ui/core';
 import { $, on, text, toggleClass, setVisible, setDisabled, setIcon, el } from './dom';
 import { label } from './i18n';
 
@@ -33,6 +43,8 @@ export interface BindContext {
   onBuy?: (id: string, cost: number) => void;
   /** The composed INFO content (settings → paytable → rules), rendered into the window. */
   infoBlocks?: BlockSpec[];
+  /** Just the RULES blocks, for the completeness audit shown above the info body. */
+  rulesBlocks?: BlockSpec[];
   /** Open/closed state for the buy sheet (its own control, so e2e can read it). */
   buyPanel: { isOpen: boolean; openPanel(): void; closePanel(): void; state: { subscribe(fn: () => void): Dispose } };
 }
@@ -546,7 +558,13 @@ export function bindWindows(ui: OpenUI, ctx: BindContext): Dispose {
     const paintInfo = (): void => {
       const vars = factsVars(ui.facts.get(), { 'game.name': ui.gameInfo.name ?? '', 'game.version': ui.gameInfo.version ?? '' });
       const trr = (key: string): string => ui.t(key, vars);
-      infoBody.innerHTML = renderBlocksHtml(blocks, trr, ui.facts.get());
+      // A rules document that does not explain everything the game declares says so,
+      // right where someone will read it — audited AS RENDERED, through the same
+      // translate-and-interpolate the blocks below go through.
+      const audit = ctx.rulesBlocks?.length
+        ? renderRulesAuditHtml(auditRules(ui.facts.get(), ctx.rulesBlocks, { resolve: trr }), trr)
+        : '';
+      infoBody.innerHTML = audit + renderBlocksHtml(blocks, trr, ui.facts.get());
     };
     paintInfo();
     disposers.push(ui.facts.subscribe(paintInfo));
