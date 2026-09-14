@@ -95,9 +95,35 @@ export function bindReadouts(ui: OpenUI, ctx: BindContext): Dispose {
     if (buy) buy.dataset.charcount = String((buy.textContent ?? '').trim().length);
   };
 
+  /**
+   * A live bet MODIFIER changes the whole bar, and the skin does almost all of it off
+   * one class: `bet-modifier-active` on the wrapper repaints the stake, the round
+   * button and the bet bar in the feature colour. What the binding adds is the banner
+   * naming the modifier, and turning the buy coin into DISABLE.
+   */
+  const wrapper = r.querySelector<HTMLElement>('.UiUserPanelWrapper');
+  const notice = $(r, 'FeatureBuyActiveModifierNotice');
+  const paintModifier = (): void => {
+    const mod = ui.betModifier.get();
+    toggleClass(wrapper, 'bet-modifier-active', !!mod);
+    setVisible(notice, !!mod);
+    if (notice) {
+      const span = notice.querySelector('span') ?? notice;
+      // "SUPER CORE FEATURESPINS™ ACTIVATED" — the reference's own sentence, with the
+      // modifier's name in it.
+      text(span as HTMLElement, mod ? label(ui, 'feature_active', { name: label(ui, mod.name).toUpperCase() }) : '');
+    }
+    const buy = $(r, 'FeatureBuyToggle');
+    if (buy) {
+      text(buy, label(ui, mod ? 'disable_uc' : 'feature_buy_action_uc'));
+      buy.dataset.charcount = String((buy.textContent ?? '').trim().length);
+    }
+  };
+
   const repaint = (): void => {
     paint();
     paintVisibility();
+    paintModifier();
   };
   repaint();
 
@@ -110,7 +136,8 @@ export function bindReadouts(ui: OpenUI, ctx: BindContext): Dispose {
     ui.spin.freeSpins.subscribe(repaint),
     ui.freeRounds.subscribe(repaint),
     ui.hudState.subscribe(repaint),
-    ui.locale.subscribe(paint),
+    ui.betModifier.subscribe(repaint),
+    ui.locale.subscribe(repaint),
   );
 }
 
@@ -685,6 +712,12 @@ export function bindWindows(ui: OpenUI, ctx: BindContext): Dispose {
     window_('BetHistoryWindow', ui.historyPanel, 'BetHistoryClose'),
     window_('FeatureBuyWindow', ctx.buyPanel, 'FeatureBuyClose'),
     on($(r, 'FeatureBuyToggle'), 'click', () => {
+      // While a modifier is on, the coin reads DISABLE and that is what it does —
+      // opening the sheet to buy a second one would be nonsense.
+      if (ui.betModifier.get()) {
+        ui.bus.emit('buttonActivated', { id: 'disable-modifier' });
+        return;
+      }
       // The button announces itself (a game may want to know), then opens the sheet.
       ui.bus.emit('buttonActivated', { id: 'bonus' });
       confirming = undefined;

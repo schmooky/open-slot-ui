@@ -266,3 +266,44 @@ describe('the buy sheet', () => {
     expect(bought).toEqual([['fs', 100]]); // …and only now
   });
 });
+
+describe('an active bet modifier says so on the bar', () => {
+  beforeEach(() => {
+    hud.dispose();
+    hud = mountDomHud(
+      { betLadder: { levels: [1, 2, 5], index: 0 }, currency: { code: 'USD', symbol: '$', display: 'symbol', position: 'prefix', decimals: 2 } },
+      { features: [{ id: 'ante', name: 'Ante Bet', variant: 'boost', cost: 0.25 }] },
+    );
+  });
+
+  const wrapper = (): HTMLElement => document.querySelector<HTMLElement>('.UiUserPanelWrapper')!;
+
+  it('banners the modifier, and turns the buy coin into DISABLE', () => {
+    expect(wrapper().classList.contains('bet-modifier-active')).toBe(false);
+    expect(id('FeatureBuyToggle')!.textContent).toBe('BUY BONUS');
+
+    hud.ui.setBetModifier({ id: 'ante', name: 'Ante Bet', cost: 0.25 });
+
+    // one class does most of it — the skin repaints the stake, the round button and
+    // the bet bar in the feature colour off this
+    expect(wrapper().classList.contains('bet-modifier-active')).toBe(true);
+    const notice = id('FeatureBuyActiveModifierNotice')!;
+    expect(notice.classList.contains('is-visible')).toBe(true);
+    expect(notice.textContent).toBe('ANTE BET ACTIVATED');
+    expect(id('FeatureBuyToggle')!.textContent).toBe('DISABLE');
+  });
+
+  it('the coin switches it OFF rather than opening the sheet', () => {
+    hud.ui.setBetModifier({ id: 'ante', name: 'Ante Bet', cost: 0.25 });
+    const seen: string[] = [];
+    hud.on('buttonActivated', ({ id: i }) => seen.push(i));
+
+    id('FeatureBuyToggle')!.click();
+    expect(seen).toEqual(['disable-modifier']); // not 'bonus'
+    expect(id('buy-feature-panel') === null || hud.ui.control('buy-feature-panel')?.current).not.toBe('open');
+
+    hud.ui.setBetModifier(null);
+    expect(wrapper().classList.contains('bet-modifier-active')).toBe(false);
+    expect(id('FeatureBuyToggle')!.textContent).toBe('BUY BONUS');
+  });
+});

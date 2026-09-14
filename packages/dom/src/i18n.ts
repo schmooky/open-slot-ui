@@ -30,6 +30,8 @@ export const LABEL_KEYS: Readonly<Record<string, { openui?: string; en: string }
   activate_uc: { openui: 'openui.activate', en: 'ACTIVATE' },
   feature_buy_uc: { openui: 'openui.buyFeature.title', en: 'BONUS BUY' },
   feature_spins_active_uc: { en: 'FEATURE SPINS ACTIVATED' },
+  feature_active: { en: '{{name}} ACTIVATED' },
+  disable_uc: { openui: 'openui.disable', en: 'DISABLE' },
   free_round_uc: { openui: 'openui.freeRounds', en: 'FREE ROUND' },
   free_spins_label_uc: { openui: 'openui.freeSpins', en: 'FREE SPINS' },
   game_info: { openui: 'openui.info', en: 'GAME INFO' },

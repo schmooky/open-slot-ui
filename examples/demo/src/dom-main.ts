@@ -122,12 +122,19 @@ async function main(): Promise<void> {
     skin: { href: skinHref, font: { family: 'icomoon', src: iconFont } },
     features: FEATURES,
     onBuy: (id, cost) => {
-      // A boost is a per-spin surcharge, not a purchase — the demo just notes it.
-      if (id === 'ante' || id === 'double-chance') {
-        hud.showFeedback(`${id === 'ante' ? 'Ante bet' : 'Double chance'} activated`, { tone: 'good' });
+      const feature = FEATURES.find((f) => f.id === id);
+      // A BOOST is not a purchase: it switches on a per-spin surcharge. The bar then
+      // says so — a banner names it, the coin becomes DISABLE, and the stake, round
+      // button and bet bar take the feature colour — and every spin costs the boosted
+      // amount until it is switched off.
+      if (feature?.variant === 'boost') {
+        ui.clearFeedback(); // the banner owns that line now
+        ui.setBetModifier({ id, name: feature.name, cost: feature.cost });
+        ui.bet.set(snap(baseBet() * (1 + feature.cost)));
+        ui.bet.setEmphasis(true);
         return;
       }
-      ui.balance.set(Math.round((ui.balance.get() - cost) * 100) / 100);
+      ui.balance.set(snap(ui.balance.get() - cost));
       void runBonus(id === 'super-spins' ? 15 : 10);
     },
   });
@@ -147,7 +154,7 @@ async function main(): Promise<void> {
   const money = (n: number): string => formatAmount(n, ui.bet.currency.get());
 
   async function playSpin(): Promise<void> {
-    const stake = ui.betStepper.value;
+    const stake = effectiveBet(); // the surcharge is part of what a spin costs
     if (ui.balance.get() < stake) {
       hud.showFeedback('insufficient_funds', { tone: 'warn' });
       return;
@@ -209,6 +216,27 @@ async function main(): Promise<void> {
     await wait(1200);
     hud.setHudState('idle'); // the bar comes back: action panel, buy coin and all
   }
+
+  /** The base ladder stake, before any modifier surcharge. */
+  function baseBet(): number {
+    return ui.betStepper.value;
+  }
+  /** …and what a spin actually costs with the modifier on. */
+  function effectiveBet(): number {
+    const mod = ui.betModifier.get();
+    return snap(baseBet() * (1 + (mod?.cost ?? 0)));
+  }
+  // Moving the ladder re-prices the boosted stake too.
+  ui.betStepper.index.subscribe(() => {
+    if (ui.betModifier.get()) queueMicrotask(() => ui.bet.set(effectiveBet()));
+  });
+  // The coin reads DISABLE while a modifier is on; this is what it does.
+  ui.on('buttonActivated', ({ id }: { id: string }) => {
+    if (id !== 'disable-modifier') return;
+    ui.setBetModifier(null);
+    ui.bet.set(baseBet());
+    ui.bet.setEmphasis(false);
+  });
 
   ui.on('spinRequested', () => void playSpin());
   ui.on('skipRequested', () => reels.skip()); // the slam-stop button

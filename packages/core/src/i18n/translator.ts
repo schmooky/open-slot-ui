@@ -60,6 +60,7 @@ export const openuiDefaults: Record<string, string> = {
   'openui.minBet': 'Min bet reached',
   'openui.buyBonus': 'Buy bonus',
   'openui.activate': 'Activate',
+  'openui.disable': 'Disable',
   'openui.maxWin': 'Max win',
   'openui.odds': 'Odds',
   'openui.date': 'Date',

@@ -73,6 +73,15 @@ export interface FeedbackMessage {
   seq: number;
 }
 
+/** A bet modifier the player switched on: a per-spin surcharge, named on the bar. */
+export interface BetModifier {
+  id: string;
+  /** Shown in the banner (literal text or an i18n key). */
+  name: string;
+  /** Surcharge as a multiple of the base bet — the stake becomes `(1 + cost) × bet`. */
+  cost: number;
+}
+
 /** One settled round, as the history modal lists it. Strings — the host formats. */
 export interface HistoryRow {
   date: string;
@@ -218,6 +227,13 @@ export class OpenUI {
   /** Operator FREE ROUNDS left (0 = none). While > 0 the bar shows the counter and
    *  the running total those rounds have won, as the reference does. */
   readonly freeRounds = new Signal<number>(0);
+  /**
+   * The bet MODIFIER currently switched on — a per-spin surcharge the player enabled
+   * (the reference's FeatureSpins™). While one is active the whole bar says so: a
+   * banner names it, the buy button becomes DISABLE, and the stake, the round button
+   * and the bet bar take the feature colour. `null` = ordinary play.
+   */
+  readonly betModifier = new Signal<BetModifier | null>(null);
   private feedbackSeq = 0;
   private feedbackTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -499,6 +515,15 @@ export class OpenUI {
   /** Set the max-win figures for the top overlay (`null` hides the widget). */
   setMaxWin(multiplier?: number, odds?: string): void {
     this.maxWin.set(multiplier == null && odds == null ? null : { multiplier, odds });
+  }
+
+  /**
+   * Switch a bet modifier on (or `null` to switch it off). The bar reports it; the
+   * GAME still owns what it costs and what it does — set `ui.bet` to the effective
+   * stake alongside this, the way a boosted round actually charges.
+   */
+  setBetModifier(modifier: BetModifier | null): void {
+    this.betModifier.set(modifier && typeof modifier.id === 'string' ? modifier : null);
   }
 
   /** Set the number of operator free rounds left (0 clears the counter). */
