@@ -527,6 +527,33 @@ export function bindWindows(ui: OpenUI, ctx: BindContext): Dispose {
   /** What a feature costs at the current bet: a buy is its multiple, a boost adds to 1. */
   const priceOf = (feat: BuyFeature): number => (feat.variant === 'buy' ? feat.cost : 1 + feat.cost) * ui.betStepper.value;
 
+  /**
+   * Fit the sheet to the window.
+   *
+   * The skin pins the desktop grid to a fixed width per card count
+   * (`[data-total-item-count="4"] → 1150px`), which assumes the wide frame the
+   * reference runs in. In a narrower window that spills off the right edge, taking
+   * the BET selector with it — so scale the whole sheet down to fit, the same way
+   * the bar does. It never scales up.
+   */
+  const fitSheet = (): void => {
+    if (!buyBody) return;
+    buyBody.style.removeProperty('transform');
+    if (ctx.root.dataset.channel !== 'desktop') return; // the touch sheet is already fluid
+    const box = buyBody.getBoundingClientRect();
+    if (box.width === 0) return;
+    const margin = 24;
+    const k = Math.min(1, (window.innerWidth - margin * 2) / box.width, (window.innerHeight - margin * 2) / box.height);
+    if (k >= 0.999) return;
+    // Scaling alone is not enough: a sheet wider than the window has already
+    // overflowed its centring, so shrinking about its own centre leaves it sitting
+    // off to one side. Put that centre back on the window's.
+    const dx = window.innerWidth / 2 - (box.left + box.width / 2);
+    const dy = window.innerHeight / 2 - (box.top + box.height / 2);
+    buyBody.style.transformOrigin = 'center center';
+    buyBody.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${k.toFixed(4)})`;
+  };
+
   const paintBuy = (): void => {
     if (!buyWindow || !buyBody || !ctx.features.length) return;
     // The stylesheet widths the grid off this — without it the cards have no room.
@@ -566,6 +593,7 @@ export function bindWindows(ui: OpenUI, ctx: BindContext): Dispose {
         paintConfirm();
       });
     }
+    requestAnimationFrame(fitSheet); // after the skin has laid the cards out
   };
 
   /** The confirm step: nothing is bought until OK — the reference gates every buy. */
@@ -662,7 +690,9 @@ export function bindWindows(ui: OpenUI, ctx: BindContext): Dispose {
       confirming = undefined;
       paintConfirm();
       ctx.buyPanel.openPanel();
+      requestAnimationFrame(fitSheet);
     }),
+    on(window, 'resize', fitSheet),
     // The sheet's own BET selector drives the SAME bet as the bar — pressing + here
     // moves the ladder, and every card re-prices off it.
     on($(r, 'FeatureBuyAmountIncrease'), 'click', () => ui.betPlus.activate()),

@@ -37,6 +37,26 @@ test.describe('the HUD fits the window', () => {
     }
   });
 
+  test('the buy sheet fits too — the skin pins its grid to a fixed width', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'runs once, on desktop');
+    await page.goto('/');
+    await page.waitForFunction(() => !!(window as unknown as { ui?: unknown }).ui);
+    await page.locator('#FeatureBuyToggle').click();
+    await page.waitForTimeout(400);
+
+    // [data-total-item-count="4"] asks for 1150px; these windows do not have it.
+    for (const width of [1400, 1200, 1000, 820]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.waitForTimeout(300);
+      const span = await page.evaluate(() => {
+        const cards = [...document.querySelectorAll('.FeatureBuyGridCard')].map((c) => c.getBoundingClientRect());
+        return { left: Math.min(...cards.map((c) => c.left)), right: Math.max(...cards.map((c) => c.right)) };
+      });
+      expect(span.left, `sheet overflows LEFT at ${width}px`).toBeGreaterThanOrEqual(-1);
+      expect(span.right, `sheet overflows RIGHT at ${width}px`).toBeLessThanOrEqual(width + 1);
+    }
+  });
+
   test('it is centred when there is room, and only shrinks when there is not', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'runs once, on desktop');
     await page.goto('/');
