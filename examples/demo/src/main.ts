@@ -1,12 +1,10 @@
 import { Application, Assets, Container, Graphics, Rectangle, Texture } from 'pixi.js';
-import { mountHud, svgSpinSkin, mountBuyFeatureModal } from '@open-slot-ui/pixi';
-import { loadBuiltinArt } from '@open-slot-ui/pixi/art';
+import { mountHud, mountBuyFeatureModal } from '@open-slot-ui/pixi';
 import { resolveBetLadder } from '@open-slot-ui/core';
 import type { UISpec, CurrencySpec, ThemePreset, JurisdictionConfig } from '@open-slot-ui/core';
 import { MESSAGES } from './locales';
 import { RULES_BLOCKS, FEATURES, FACTS } from './content';
 import { mountHarness } from './harness';
-import { gsap } from 'gsap';
 
 /**
  * The open-ui EXAMPLE CLIENT — a throwaway host "game" (a shuffling pip grid) with
@@ -198,7 +196,8 @@ async function main(): Promise<void> {
   // × a ×0.2 face is a real $0.002 win, and the HUD's auto-precision shows it in full.
   const snap = (x: number): number => Math.round(x * 1e8) / 1e8;
 
-  // ---- load the bundled SVG art ----
+  // The ribbon draws its own icons as vectors, so the demo loads only the art its
+  // MENU content uses (the slider tracks + the rules glyph).
   const load = async (src: string): Promise<Texture> => {
     const t = await Assets.load<Texture>({ src, data: { resolution: 3 } });
     t.source.autoGenerateMipmaps = true;
@@ -207,49 +206,15 @@ async function main(): Promise<void> {
     t.source.update();
     return t;
   };
-  const spinDefault = await load('/spin/default.svg');
-  const spinAuto = await load('/spin/auto.svg');
-  const rulesTex = await load('/icons/rules.svg');
-  const musicTrack = await load('/icons/slider-music-track.svg');
-  const soundTrack = await load('/icons/slider-sound-track.svg');
-  const turboTex = await load('/icons/turbo.svg');
-  const [turboOff, turboOn] = sliceRows(turboTex, 2);
-  const autoTex = await load('/icons/auto.svg');
-  const autoFrames = sliceRows(autoTex, 4);
-  const bonusTex = await load('/icons/bonus.svg');
-  const plusTex = await load('/icons/plus.svg');
-  const minusTex = await load('/icons/minus.svg');
-
-  // ?builtin=1 → the LIBRARY's built-in default art (tree-shakeable); else the demo's
-  // own host art. The built-in set still keeps the demo's non-button slider art.
-  const builtin = cfg.builtin ? await loadBuiltinArt() : undefined;
+  await load('/icons/rules.svg');
 
   // ---- mount the whole HUD in ONE call (Charter B9) ----
   // The library's white HTML info menu (Settings · Paytable · Rules + the rules
   // audit) mounts by default — no host menu code at all.
   const hud = mountHud(app, buildSpec(), {
     expose: true,
-    gsap, // enables the value counter's auto-downscale for wide currencies
-
     intro: cfg.intro, // ?intro=shown|hidden|slide-in
-
-    spinSkin: builtin ? builtin.spinSkin : () => svgSpinSkin({ default: spinDefault, auto: spinAuto }),
-    icons: builtin
-      ? { rules: rulesTex, sliderMusic: musicTrack, sliderSound: soundTrack, ...builtin.icons }
-      : {
-          // menu (☰), fullscreen + mute render as b&w "mono" glyph buttons like turbo —
-          // no settings art passed, so the library draws the mono ☰ (toggles to ✕).
-          rules: rulesTex,
-          sliderMusic: musicTrack,
-          sliderSound: soundTrack,
-          turboOff,
-          turboOn,
-          autoIdle: autoFrames[0],
-          autoActive: autoFrames[2],
-          bonus: bonusTex,
-          betPlus: plusTex,
-          betMinus: minusTex,
-        },
+    onBuy: () => ui.bus.emit('buttonActivated', { id: 'bonus' }),
   });
   const ui = hud.ui;
   // Buy-feature modal (opened by the bonus coin). Buying CLOSES it and the host
@@ -328,6 +293,8 @@ async function main(): Promise<void> {
   async function playSpin(turbo = turboEngaged()): Promise<void> {
     const inBonus = ui.spin.freeSpins.get() > 0;
     const stake = inBonus ? 0 : effectiveBet(); // free spins cost nothing; base spins stake the boosted bet
+    hud.setWin(0); // the WIN readout clears as the round starts
+    hud.setHudState(inBonus ? 'featurePlay' : 'play');
     ui.spin.busy();
     if (stake > 0) ui.balance.set(snap(ui.balance.get() - stake));
     await reels.spin(app, turbo);
@@ -336,6 +303,10 @@ async function main(): Promise<void> {
     const MULTS = [0.2, 0.5, 1, 2, 5, 12, 25];
     const win = Math.random() < 0.45 ? snap(effectiveBet() * MULTS[Math.floor(Math.random() * MULTS.length)]!) : 0;
     if (win > 0) ui.balance.set(snap(ui.balance.get() + win));
+    hud.setWin(win); // counts up on the bar
+    hud.setHudState(inBonus ? 'featurePlay' : win > 0 ? 'winPresentation' : 'result');
+    history.unshift({ date: new Date().toLocaleTimeString(), bet: money(stake), win: money(win), won: win > 0 });
+    hud.setHistory(history.slice(0, 40));
     if (inBonus) {
       hud.setTotalWin(snap(ui.totalWin.get() + win)); // running bonus tally
       hud.setFreeSpins(ui.spin.freeSpins.get() - 1); // decrement → auto-exits at 0
@@ -343,6 +314,12 @@ async function main(): Promise<void> {
     // feed the settled round to the HUD → net-position readout + autoplay RG limits
     ui.reportRound(win, stake);
   }
+
+  // The bar's history window + max-win widget are host data — the demo fakes both.
+  const history: Array<{ date: string; bet: string; win: string; won: boolean }> = [];
+  const money = (n: number): string => `${CURRENCIES[cfg.currency]!.spec.symbol ?? ''}${n.toFixed(2)}`;
+  hud.setMaxWin(5000, '1 in 1,250,000');
+  ui.showFeedback('openui.pressPlay', { ms: 0 });
 
   ui.on('spinRequested', async () => {
     // Stake Engine error UX: block + surface insufficient funds in a menu-style modal.
@@ -354,6 +331,7 @@ async function main(): Promise<void> {
     ui.spin.stopState();
     await wait(turboEngaged() ? 120 : 420);
     ui.spin.idle();
+    hud.setHudState('idle');
   });
   ui.on('skipRequested', () => reels.skip());
 
@@ -390,6 +368,7 @@ async function main(): Promise<void> {
   // the demo registers no extra key shortcuts.
 
   (window as unknown as Record<string, unknown>).ui = ui;
+  (window as unknown as Record<string, unknown>).app = app;
 
   // ---- declarative postMessage harness (drive any state without URL params) ----
   const startBal = CURRENCIES[cfg.currency]!.balance;
@@ -521,13 +500,6 @@ function buildReels(): {
 function drawPip(g: Graphics, color: number): void {
   g.clear();
   g.roundRect(-44, -44, 88, 88, 14).fill({ color });
-}
-
-/** Slice a vertically-stacked icon sheet (e.g. Menu = [☰, ✕]) into frames. */
-function sliceRows(tex: Texture, rows: number): Texture[] {
-  const src = tex.source;
-  const rh = src.height / rows;
-  return Array.from({ length: rows }, (_, i) => new Texture({ source: src, frame: new Rectangle(0, i * rh, src.width, rh) }));
 }
 
 void main();

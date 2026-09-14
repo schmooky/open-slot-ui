@@ -379,6 +379,19 @@ export class OpenUI {
       }
     });
 
+    // One sheet at a time: opening the ☰ menu closes the autoplay panel and vice
+    // versa, and either closes a window. The reference behaves this way and it is the
+    // library's call to make (a biased UI) — a game never has to police it.
+    const exclusive = [this.mainMenuPanel, this.autoplayPanel, this.historyPanel, this.settingsPanel];
+    for (const panel of exclusive) {
+      this.disposers.push(
+        panel.state.subscribe(() => {
+          if (!panel.isOpen) return;
+          for (const other of exclusive) if (other !== panel && other.isOpen) other.closePanel();
+        }),
+      );
+    }
+
     // bet stepper drives the bet value display + keeps +/- enabled within range
     this.bus.on('valueChanged', ({ id, value }) => {
       if (id === 'bet-stepper') this.bet.set(value);

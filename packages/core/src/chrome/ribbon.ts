@@ -92,9 +92,15 @@ export const RIBBON = Object.freeze({
   sheetW: 22,
 });
 
-/** Channel from the screen's device bucket: only a real desktop gets the pointer bar. */
+/**
+ * Which bar a screen gets. Phones are always the touch bar; a tablet gets it only in
+ * PORTRAIT, because a landscape tablet (and a 1366×768 laptop, which the short-edge
+ * breakpoint also calls a "tablet") has the width for the full pointer bar.
+ */
 export function channelFor(screen: ScreenState): HudChannel {
-  return screen.breakpoint === 'desktop' ? 'desktop' : 'mobile';
+  if (screen.breakpoint === 'desktop') return 'desktop';
+  if (screen.breakpoint === 'tablet') return screen.orientation === 'portrait' ? 'mobile' : 'desktop';
+  return 'mobile';
 }
 
 /**
@@ -122,7 +128,9 @@ export function barHeightFor(screen: ScreenState, chrome: HudChrome): number {
   const channel = channelFor(screen);
   const rem = remFor(screen, chrome, channel);
   if (channel === 'desktop') return RIBBON.barH * rem;
-  return screen.orientation === 'portrait' ? 9 * rem : 2.25 * rem;
+  // A landscape phone gets a thin strip — but not thinner than the readouts it holds,
+  // or the values clip off the bottom of the screen.
+  return screen.orientation === 'portrait' ? 9 * rem : 3.4 * rem;
 }
 
 /**
@@ -146,7 +154,9 @@ export function solveRibbon(screen: ScreenState, chrome: HudChrome, parts: Ribbo
   const panelW = channel === 'desktop' ? Math.min(u(chrome.maxWidth), w - u(2.4)) : w;
   const panelH = channel === 'desktop' ? u(RIBBON.panelH) : barH;
   const panelX = (w - panelW) / 2;
-  const panelY = top ? barY : barY + (barH - panelH);
+  // The plate is CENTRED in the strip, not flush with the edge: the round button is
+  // taller than the plate on purpose, and the slack is what it overflows into.
+  const panelY = barY + (barH - panelH) / 2;
   const panel = rect(panelX, panelY, panelW, panelH);
 
   const padX = u(RIBBON.padX);
@@ -165,9 +175,17 @@ export function solveRibbon(screen: ScreenState, chrome: HudChrome, parts: Ribbo
 
   // ── one row: [buy] [☰ | readouts] ......... [ bet | ▲▼ ◉ A ] ───────────────
   const rowMidY = contentY + contentH / 2;
+  // A phone in landscape gets a 2.25rem strip — far too thin to hold the action box,
+  // so the box FLOATS just above it (the reference does the same). Everywhere else the
+  // box sits on the plate and the round button overflows it top and bottom.
+  const floatAction = channel === 'mobile' && orientation === 'landscape';
+  const actionH = floatAction ? u(2.9) : contentH;
+  const actionY = floatAction ? (top ? bar.y + barH + u(0.4) : bar.y - actionH - u(0.4)) : contentY;
+  const actionMid = clamp(actionY + actionH / 2, roundR + u(0.2), h - roundR - u(0.2));
 
   // Right cluster — the action box. Sized to its contents so it never squeezes.
-  const hasBet = chrome.features.betWidget;
+  // The bet WIDGET is a desktop detail: a phone shows the bet once, in the strip.
+  const hasBet = chrome.features.betWidget && channel === 'desktop';
   const hasChangers = chrome.features.betChangers;
   const hasAuto = chrome.features.autoplay;
   const actionW =
@@ -177,32 +195,34 @@ export function solveRibbon(screen: ScreenState, chrome: HudChrome, parts: Ribbo
     roundR * 2 +
     (hasAuto ? u(RIBBON.gap) + iconR * 2 : 0) +
     u(RIBBON.gap);
-  const actionH = contentH;
   const actionX = contentX + contentW - actionW;
-  const actionPanel = rect(actionX, contentY, actionW, actionH);
+  const actionTop = actionMid - actionH / 2;
+  const actionPanel = rect(actionX, actionTop, actionW, actionH);
 
   let cx = actionX + u(RIBBON.gap) / 2;
-  const betWidget = rect(cx, contentY + u(0.2), hasBet ? u(RIBBON.betW) : 0, actionH - u(0.4));
+  const betWidget = rect(cx, actionTop + u(0.2), hasBet ? u(RIBBON.betW) : 0, actionH - u(0.4));
   if (hasBet) cx += u(RIBBON.betW) + u(RIBBON.gap);
-  const changers = rect(cx, contentY + u(0.15), hasChangers ? u(RIBBON.changersW) : 0, actionH - u(0.3));
+  const changers = rect(cx, actionTop + u(0.15), hasChangers ? u(RIBBON.changersW) : 0, actionH - u(0.3));
   if (hasChangers) cx += u(RIBBON.changersW) + u(RIBBON.gap);
-  const round = { x: cx + roundR, y: rowMidY, r: roundR };
+  const round = { x: cx + roundR, y: actionMid, r: roundR };
   cx += roundR * 2 + u(RIBBON.gap);
-  const autoplayButton = { x: cx + iconR, y: rowMidY, r: iconR };
+  const autoplayButton = { x: cx + iconR, y: actionMid, r: iconR };
 
   // Left cluster — buy pill, ☰, then the readouts.
   let lx = contentX;
-  const buyButton = rect(lx, rowMidY - u(RIBBON.buyH) / 2, parts.buy ? u(RIBBON.buyW) : 0, u(RIBBON.buyH));
+  const buyH = Math.min(u(RIBBON.buyH), contentH);
+  const buyButton = rect(lx, rowMidY - buyH / 2, parts.buy ? u(RIBBON.buyW) : 0, buyH);
   if (parts.buy) lx += u(RIBBON.buyW) + u(RIBBON.gap);
   const menuButton = { x: lx + iconR, y: rowMidY, r: iconR };
   lx += iconR * 2 + u(RIBBON.gap);
 
-  const itemsRoom = Math.max(0, actionX - lx - u(RIBBON.gap));
+  const itemsRoom = Math.max(0, (floatAction ? contentX + contentW : actionX) - lx - u(RIBBON.gap));
   const itemW = parts.items > 0 ? Math.min(u(RIBBON.itemW), itemsRoom / parts.items) : 0;
+  const itemH = Math.min(u(RIBBON.itemH), contentH);
   const items: Rect[] = [];
-  for (let i = 0; i < parts.items; i++) items.push(rect(lx + i * itemW, rowMidY - u(RIBBON.itemH) / 2, itemW, u(RIBBON.itemH)));
+  for (let i = 0; i < parts.items; i++) items.push(rect(lx + i * itemW, rowMidY - itemH / 2, itemW, itemH));
 
-  const promoButton = rect(actionX - u(RIBBON.gap) - (parts.promo ? u(2.4) : 0), rowMidY - u(1.2), parts.promo ? u(2.4) : 0, u(2.4));
+  const promoButton = rect(actionX - u(RIBBON.gap) - (parts.promo ? u(2.4) : 0), actionMid - u(1.2), parts.promo ? u(2.4) : 0, u(2.4));
 
   return {
     rem,
@@ -219,12 +239,23 @@ export function solveRibbon(screen: ScreenState, chrome: HudChrome, parts: Ribbo
     buyButton,
     promoButton,
     items,
-    feedback: { x: w / 2, y: top ? bar.y + barH + u(0.9) : bar.y - u(0.9), size: u(0.85) },
-    sheet: { x: w / 2, y: top ? bar.y + barH : bar.y, width: Math.min(u(RIBBON.sheetW), w - u(1.5)), up: !top },
+    // The message sits above the bar — or above the FLOATING action box, so a
+    // landscape phone never draws it under the round button.
+    feedback: {
+      x: w / 2,
+      y: top ? Math.max(bar.y + barH, actionTop + actionH) + u(0.9) : Math.min(bar.y, actionTop) - u(0.9),
+      size: u(0.85),
+    },
+    sheet: { x: w / 2, y: top ? bar.y + barH : Math.min(bar.y, actionTop), width: Math.min(u(RIBBON.sheetW), w - u(1.5)), up: !top },
   };
 }
 
-/** Phone portrait: readouts on top, the action box beneath — the reference's column. */
+/**
+ * Phone portrait: the readouts take a strip of their own and the action row sits
+ * beneath it — the reference's `flex-direction: column`. The bet WIDGET is dropped
+ * here (there is no room for two bet displays on a phone): the BET readout above is
+ * the bet, and the ▲▼ beside the round button change it.
+ */
 function solvePortrait(
   screen: ScreenState,
   chrome: HudChrome,
@@ -246,34 +277,34 @@ function solvePortrait(
 ): RibbonMetrics {
   const { rem, bar, panel, contentX, contentW, contentY, contentH, roundR, iconR, top } = ctx;
   const u = (n: number): number => n * rem;
-  const { width: w } = screen;
+  const { width: w, height: h } = screen;
 
-  // Row 1 — readouts (and the buy pill parked at the right end of the same row).
+  // Row 1 — the readouts, spread across the full width.
   const row1H = u(RIBBON.itemH);
   const row1Y = contentY;
-  const row1Mid = row1Y + row1H / 2;
-  const menuButton = { x: contentX + iconR, y: row1Mid, r: iconR };
-
-  let lx = contentX + iconR * 2 + u(RIBBON.gap);
-  const buyW = parts.buy ? u(RIBBON.buyW) : 0;
-  const itemsRoom = Math.max(0, contentX + contentW - lx - buyW - (parts.buy ? u(RIBBON.gap) : 0));
-  const itemW = parts.items > 0 ? itemsRoom / parts.items : 0;
+  const itemW = parts.items > 0 ? contentW / parts.items : 0;
   const items: Rect[] = [];
-  for (let i = 0; i < parts.items; i++) items.push(rect(lx + i * itemW, row1Y, itemW, row1H));
-  lx += itemsRoom + (parts.buy ? u(RIBBON.gap) : 0);
-  const buyButton = rect(lx, row1Mid - u(RIBBON.buyH) / 2, buyW, u(RIBBON.buyH));
+  for (let i = 0; i < parts.items; i++) items.push(rect(contentX + i * itemW, row1Y, itemW, row1H));
 
-  // Row 2 — the action box, full width, round button centred.
-  const row2Y = row1Y + row1H + u(0.25);
+  // Row 2 — ☰, the buy pill, then ▲▼ · round · autoplay on the right.
+  const row2Y = row1Y + row1H + u(0.2);
   const row2H = Math.max(u(3), contentY + contentH - row2Y);
-  const row2Mid = row2Y + row2H / 2;
+  const row2Mid = Math.min(row2Y + row2H / 2, h - roundR - u(0.2));
   const actionPanel = rect(contentX, row2Y, contentW, row2H);
 
-  const round = { x: contentX + contentW / 2, y: row2Mid, r: roundR };
-  const changers = rect(round.x - roundR - u(RIBBON.gap) - u(RIBBON.changersW), row2Y + u(0.1), chrome.features.betChangers ? u(RIBBON.changersW) : 0, row2H - u(0.2));
-  const betWidget = rect(contentX, row2Y + u(0.2), chrome.features.betWidget ? Math.max(u(5), changers.x - contentX - u(RIBBON.gap)) : 0, row2H - u(0.4));
+  // The round button overflows its row — but never far enough to cover the readout
+  // above it, so the WIN value stays legible while the button still reads as big.
+  const roundRP = Math.min(roundR, row2Mid - (row1Y + row1H) + u(0.35));
   const autoplayButton = { x: contentX + contentW - iconR, y: row2Mid, r: iconR };
-  const promoButton = rect(autoplayButton.x - iconR - u(RIBBON.gap) - (parts.promo ? u(2.2) : 0), row2Mid - u(1.1), parts.promo ? u(2.2) : 0, u(2.2));
+  const round = { x: autoplayButton.x - iconR - u(RIBBON.gap) - roundRP, y: row2Mid, r: roundRP };
+  const changersW = chrome.features.betChangers ? u(RIBBON.changersW) : 0;
+  const changers = rect(round.x - roundRP - u(RIBBON.gap) - changersW, row2Y + u(0.1), changersW, row2H - u(0.2));
+  const menuButton = { x: contentX + iconR, y: row2Mid, r: iconR };
+  const buyRoom = Math.max(0, changers.x - (menuButton.x + iconR) - u(RIBBON.gap) * 2);
+  const buyW = parts.buy ? Math.min(u(RIBBON.buyW), buyRoom) : 0;
+  const buyButton = rect(menuButton.x + iconR + u(RIBBON.gap), row2Mid - u(RIBBON.buyH) / 2, buyW, u(RIBBON.buyH));
+  const promoW = parts.promo ? u(2.2) : 0;
+  const promoButton = rect(buyButton.x + buyW + u(RIBBON.gap), row2Mid - promoW / 2, promoW, promoW);
 
   return {
     rem,
@@ -283,7 +314,8 @@ function solvePortrait(
     panel,
     actionPanel,
     round,
-    betWidget,
+    // No bet widget on a phone — the BET readout above is the one bet display.
+    betWidget: rect(contentX, row2Y, 0, 0),
     changers,
     menuButton,
     autoplayButton,

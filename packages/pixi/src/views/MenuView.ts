@@ -2,6 +2,7 @@ import { Container, Graphics, Text, Rectangle, type FederatedPointerEvent, type 
 import { type PanelControl, type Control, type BlockSpec, type OpenUI, type ScreenState } from '@open-slot-ui/core';
 import { ControlView } from './ControlView';
 import { buildBlockColumn, type ControlViewFactory } from './blockColumn';
+import { windowPalette, type WindowPalette } from '../chrome/palette';
 
 export interface MenuViewOptions {
   controlSkins?: Partial<Record<string, ControlViewFactory>>;
@@ -15,16 +16,8 @@ const MARGIN = 16;
 const HEADER_H = 62;
 const INSET = 24;
 
-/** The menu ships in ONE look — the light/default card — independent of the game
- *  theme, so it can never be switched to a dark variant (matches the notice modal). */
-const LIGHT = {
-  surface: '#ffffff',
-  surfaceAlt: '#eef1f6',
-  text: '#181b20',
-  textDim: '#5b6472',
-  border: '#000000',
-  accent: '#d99000',
-} as const;
+// The window palette is derived from the theme (see `chrome/palette`), so the menu
+// is the same near-black plate as the bar it opens from, with the same accent rule.
 
 /**
  * The unified MENU: one full-screen, scrollable sheet (Settings → Paytable →
@@ -48,6 +41,8 @@ export class MenuView extends ControlView {
   private readonly dropdownLayer = new Container();
   private childViews: ControlView[] = [];
 
+  /** The window palette, derived from the theme (see `chrome/palette`). */
+  private palette!: WindowPalette;
   private readonly titleKey: string;
   private readonly maxWidth: number;
   /** `ui` proxy with a light theme — feeds the shared block renderer dark-on-white. */
@@ -75,7 +70,9 @@ export class MenuView extends ControlView {
 
     // A light-themed view of `ui` (only `theme.color` swapped) so the shared block
     // renderer always paints the menu dark-on-white — the theme can't darken it.
-    const lightTheme = { ...ui.theme, color: { ...ui.theme.color, surface: LIGHT.surface, surfaceAlt: LIGHT.surfaceAlt, text: LIGHT.text, textDim: LIGHT.textDim, accent: LIGHT.accent } };
+    const PALETTE = windowPalette(ui.theme);
+    this.palette = PALETTE;
+    const lightTheme = { ...ui.theme, color: { ...ui.theme.color, surface: PALETTE.surface, surfaceAlt: PALETTE.surfaceAlt, text: PALETTE.text, textDim: PALETTE.textDim, accent: PALETTE.accent } };
     this.lightUi = new Proxy(ui, { get: (t, p) => (p === 'theme' ? lightTheme : Reflect.get(t, p)) }) as OpenUI;
 
     this.backdrop.eventMode = 'static';
@@ -83,7 +80,7 @@ export class MenuView extends ControlView {
 
     // The game title reads as a big centered logo over the sheet (no filled header band) —
     // matching the reference menu, where the name headlines the top of the card.
-    this.title = new Text({ text: ui.t(this.titleKey), style: { fontFamily: ui.theme.type.family, fontSize: 28, fill: LIGHT.text, fontWeight: '900', letterSpacing: 1 } });
+    this.title = new Text({ text: ui.t(this.titleKey), style: { fontFamily: ui.theme.type.family, fontSize: 28, fill: PALETTE.accent, fontWeight: '900', letterSpacing: 1 } });
     this.title.anchor.set(0.5, 0.5);
 
     this.buildClose();
@@ -115,11 +112,12 @@ export class MenuView extends ControlView {
   private buildClose(): void {
     const r = 22;
     // Solid black circle with a white ✕ (matches the notice modal).
-    const bg = new Graphics().circle(0, 0, r).fill({ color: LIGHT.border });
+    // A bare ✕ in the corner — the reference's window close, no button chrome.
+    const hit = new Graphics().circle(0, 0, r).fill({ color: 0xffffff, alpha: 0.0001 });
     const x = new Graphics()
-      .moveTo(-7, -7).lineTo(7, 7).moveTo(7, -7).lineTo(-7, 7)
-      .stroke({ width: 3, color: '#ffffff', cap: 'round' });
-    this.closeBtn.addChild(bg, x);
+      .moveTo(-8, -8).lineTo(8, 8).moveTo(8, -8).lineTo(-8, 8)
+      .stroke({ width: 3, color: this.palette.text, cap: 'round' });
+    this.closeBtn.addChild(hit, x);
     this.closeBtn.eventMode = 'static';
     this.closeBtn.cursor = 'pointer';
     this.closeBtn.hitArea = new Rectangle(-r, -r, r * 2, r * 2);
@@ -157,7 +155,7 @@ export class MenuView extends ControlView {
     const cx = (W - cardW) / 2;
     const cy = MARGIN;
     // Always the light card with a thin black border, small radius (never themed dark).
-    this.card.clear().roundRect(cx, cy, cardW, cardH, 8).fill({ color: LIGHT.surface }).stroke({ width: 1.5, color: LIGHT.border });
+    this.card.clear().roundRect(cx, cy, cardW, cardH, 8).fill({ color: this.palette.surface }).stroke({ width: 1.5, color: this.palette.border });
 
     // No filled header band — the title floats centered as a logo; the close hugs the corner.
     this.headerBar.clear();

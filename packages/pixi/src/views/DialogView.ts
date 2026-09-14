@@ -2,6 +2,7 @@ import { Container, Graphics, Text, Rectangle, type Ticker } from 'pixi.js';
 import { type PanelControl, type OpenUI, type BlockSpec, type Signal, type ScreenState, type NoticeAction } from '@open-slot-ui/core';
 import { ControlView } from './ControlView';
 import { buildBlockColumn, type ControlViewFactory } from './blockColumn';
+import { windowPalette, type WindowPalette } from '../chrome/palette';
 
 export interface DialogViewOptions {
   controlSkins?: Partial<Record<string, ControlViewFactory>>;
@@ -17,15 +18,8 @@ const ROW_GAP = 16;
 /** The Figma "default" modal is a WHITE card (independent of the dark game theme),
  *  matching the menu / buy-feature sheets: dark text on white, a black border, a
  *  black primary pill and a white outline secondary. */
-const LIGHT = {
-  surface: '#ffffff',
-  surfaceAlt: '#eef1f6',
-  text: '#181b20',
-  textDim: '#5b6472',
-  border: '#000000',
-  primary: '#0a0a0a',
-  primaryText: '#ffffff',
-} as const;
+// The notice/error modal uses the shared WINDOW palette (see `chrome/palette`) —
+// the same near-black plate with an accent rule as the bar and the menu.
 
 interface BuiltButton {
   node: Container;
@@ -43,6 +37,8 @@ interface BuiltButton {
  * The Stake Engine error/notice surface (`showError` / `showRgsError`).
  */
 export class DialogView extends ControlView {
+  /** The shared window palette, derived from the theme (see `chrome/palette`). */
+  private palette!: WindowPalette;
   private readonly backdrop = new Graphics();
   private readonly card = new Graphics();
   private readonly closeBtn = new Container();
@@ -70,7 +66,9 @@ export class DialogView extends ControlView {
 
     // A light-themed view of the same `ui` (only `theme.color` swapped) so the shared
     // block renderer paints dark text on the white card; everything else forwards.
-    const lightTheme = { ...ui.theme, color: { ...ui.theme.color, surface: LIGHT.surface, surfaceAlt: LIGHT.surfaceAlt, text: LIGHT.text, textDim: LIGHT.textDim } };
+    const PALETTE = windowPalette(ui.theme);
+    this.palette = PALETTE;
+    const lightTheme = { ...ui.theme, color: { ...ui.theme.color, surface: PALETTE.surface, surfaceAlt: PALETTE.surfaceAlt, text: PALETTE.text, textDim: PALETTE.textDim } };
     this.lightUi = new Proxy(ui, { get: (t, p) => (p === 'theme' ? lightTheme : Reflect.get(t, p)) }) as OpenUI;
 
     this.backdrop.eventMode = 'static';
@@ -105,7 +103,7 @@ export class DialogView extends ControlView {
   private buildClose(): void {
     const r = 22;
     // Figma: a solid black circle with a white ✕, sitting at the card's top-right.
-    const bg = new Graphics().circle(0, 0, r).fill({ color: LIGHT.primary });
+    const bg = new Graphics().circle(0, 0, r).fill({ color: this.palette.primary });
     const x = new Graphics().moveTo(-7, -7).lineTo(7, 7).moveTo(7, -7).lineTo(-7, 7).stroke({ width: 3, color: '#ffffff', cap: 'round' });
     this.closeBtn.addChild(bg, x);
     this.closeBtn.eventMode = 'static';
@@ -150,7 +148,7 @@ export class DialogView extends ControlView {
     this.backdrop.clear().rect(0, 0, W, H).fill({ color: 0x000000, alpha: 0.5 });
     this.backdrop.hitArea = new Rectangle(0, 0, W, H);
     // White card with a crisp black border (Figma "default" modal).
-    this.card.clear().roundRect(cx, cy, cardW, cardH, 14).fill({ color: LIGHT.surface }).stroke({ width: 2.5, color: LIGHT.border });
+    this.card.clear().roundRect(cx, cy, cardW, cardH, 14).fill({ color: this.palette.surface }).stroke({ width: 2.5, color: this.palette.border });
 
     const bodyH = cardH - (buttonsH ? ROW_GAP + buttonsH + INSET : INSET);
     this.content.x = cx + cardW / 2;
@@ -194,7 +192,7 @@ export class DialogView extends ControlView {
     const bg = new Graphics();
     const label = new Text({
       text: this.ui.t(action.label),
-      style: { fontFamily: t.type.family, fontSize: 18, fontWeight: '800', fill: variant === 'primary' ? LIGHT.primaryText : LIGHT.text, letterSpacing: 0.5 },
+      style: { fontFamily: t.type.family, fontSize: 18, fontWeight: '800', fill: variant === 'primary' ? this.palette.primaryText : this.palette.text, letterSpacing: 0.5 },
     });
     label.anchor.set(0.5);
     node.addChild(bg, label);
@@ -215,9 +213,9 @@ export class DialogView extends ControlView {
     bg.clear();
     // Figma: primary is a solid black pill; secondary is a white pill with a black border.
     if (variant === 'primary') {
-      bg.roundRect(-width / 2, -BTN_H / 2, width, BTN_H, BTN_H / 2).fill({ color: LIGHT.primary });
+      bg.roundRect(-width / 2, -BTN_H / 2, width, BTN_H, BTN_H / 2).fill({ color: this.palette.primary });
     } else {
-      bg.roundRect(-width / 2, -BTN_H / 2, width, BTN_H, BTN_H / 2).fill({ color: LIGHT.surface }).stroke({ width: 2.5, color: LIGHT.border });
+      bg.roundRect(-width / 2, -BTN_H / 2, width, BTN_H, BTN_H / 2).fill({ color: this.palette.surface }).stroke({ width: 2.5, color: this.palette.border });
     }
   }
 

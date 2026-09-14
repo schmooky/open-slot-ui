@@ -1,13 +1,18 @@
 // @open-slot-ui/pixi — PixiJS v8 view + controller binding. Peer-deps pixi.js.
 export * from './OpenUIPixi';
 export * from './views/ControlView';
-export * from './views/SpinView';
+// ── the ribbon: the HUD itself ───────────────────────────────────────────────
+export * from './chrome/RibbonHud';
+export * from './chrome/TopOverlay';
+export * from './chrome/HistoryModal';
+export * from './chrome/MainMenuSheet';
+export * from './chrome/AutoplaySheet';
+export * from './chrome/parts';
+export * from './chrome/sheet';
+export * from './chrome/icons';
 export * from './views/ValueDisplayView';
 export * from './views/ButtonView';
 export * from './views/ToggleView';
-export * from './views/TurboView';
-export * from './views/AutoplayView';
-export * from './views/AutoplayDrawerView';
 export * from './views/SliderView';
 export * from './views/PopoverView';
 export * from './views/PanelView';
@@ -16,19 +21,11 @@ export * from './views/StepperView';
 export * from './views/blockColumn';
 export * from './views/PanelBodyView';
 export * from './views/MenuView';
-export * from './views/ReadoutView';
 export * from './views/DialogView';
 export * from './mountHud';
 export * from './infoMenu';
 export * from './buyFeatureModal';
 export * from './bootError';
 export * from './renderers/TextCellRenderer';
-export * from './skin/SpinSkin';
-export * from './skin/defaultSkin';
-export * from './skin/svgSpinSkin';
-// NOTE: the built-in default icon art is intentionally NOT re-exported here — it
-// lives on its own tree-shakeable subpath `@open-slot-ui/pixi/art`, so a game that
-// mounts the HUD never pulls the bundled reference SVGs, and one that wants an icon
-// imports just that icon's loader. See `src/art/index.ts`.
 export * from './tween';
 export * from './util';

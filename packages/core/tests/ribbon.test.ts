@@ -47,7 +47,8 @@ describe('ribbon layout', () => {
   it('classifies the channel off the device bucket', () => {
     expect(channelFor(screen(1920, 1080))).toBe('desktop');
     expect(channelFor(screen(390, 844))).toBe('mobile');
-    expect(channelFor(screen(768, 1024))).toBe('mobile'); // a tablet gets the touch bar
+    expect(channelFor(screen(768, 1024))).toBe('mobile'); // a portrait tablet: touch bar
+    expect(channelFor(screen(1366, 768))).toBe('desktop'); // a laptop is not a tablet
   });
 
   it('docks the bar at the bottom and reserves exactly its height', () => {
@@ -85,6 +86,9 @@ describe('ribbon layout', () => {
       expect(m.round.x + m.round.r).toBeLessThanOrEqual(w);
       expect(m.menuButton.x - m.menuButton.r).toBeGreaterThanOrEqual(0);
       expect(m.autoplayButton.x + m.autoplayButton.r).toBeLessThanOrEqual(w);
+      // …and vertically: the round button overflows the plate, never the screen.
+      expect(m.round.y - m.round.r).toBeGreaterThanOrEqual(0);
+      expect(m.round.y + m.round.r).toBeLessThanOrEqual(h);
       for (const it of m.items) expect(it.x + it.width).toBeLessThanOrEqual(w + 0.001);
     }
   });
@@ -114,5 +118,23 @@ describe('ribbon layout', () => {
     expect(big.rem).toBeCloseTo(one.rem * 1.5);
     expect(big.round.r).toBeCloseTo(one.round.r * 1.5);
     expect(remFor(s, defaultHudChrome)).toBeCloseTo(one.rem);
+  });
+});
+
+describe('the phone bar drops what does not fit', () => {
+  it('shows the bet ONCE on a phone — in the strip, not twice', () => {
+    const portrait = solveRibbon(screen(390, 844), defaultHudChrome, parts);
+    const landscape = solveRibbon(screen(844, 390), defaultHudChrome, parts);
+    expect(portrait.betWidget.width).toBe(0);
+    expect(landscape.betWidget.width).toBe(0);
+    // …while the desktop bar keeps its bet widget in the action box.
+    expect(solveRibbon(screen(1440, 900), defaultHudChrome, parts).betWidget.width).toBeGreaterThan(0);
+  });
+
+  it('never lets the landscape strip spill its readouts off screen', () => {
+    const s = screen(844, 390);
+    const m = solveRibbon(s, defaultHudChrome, parts);
+    for (const it of m.items) expect(it.y + it.height).toBeLessThanOrEqual(390);
+    expect(m.buyButton.y + m.buyButton.height).toBeLessThanOrEqual(390);
   });
 });

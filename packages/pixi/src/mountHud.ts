@@ -18,6 +18,8 @@ import {
   type NoticeAction,
   type NoticeOptions,
   type RgsErrorOptions,
+  type HudState,
+  type HistoryRow,
 } from '@open-slot-ui/core';
 import { OpenUIPixi, type OpenUIPixiOptions } from './OpenUIPixi';
 import { PanelBodyView } from './views/PanelBodyView';
@@ -84,9 +86,20 @@ export interface BootedHud {
   on<K extends keyof OpenUIEvents>(type: K, fn: (p: OpenUIEvents[K]) => void): Dispose;
   setBalance(major: number): void;
   setBet(major: number): void;
-  /** Set the bonus total-win amount (major units). Shown in the buy-feature slot while
-   *  the spin button is in free-spins mode (`setFreeSpins(n > 0)`). */
+  /** Set the bonus total-win amount (major units). Takes the WIN slot on the bar
+   *  during a feature round. */
   setTotalWin(major: number): void;
+  /** Set the round's WIN readout (major units). It counts up to the new value. */
+  setWin(major: number): void;
+  /** Move the HUD state machine — `'idle' | 'play' | 'result' | 'featurePlay' | …`.
+   *  The bar reads it to decide what to show (e.g. the feature readouts). */
+  setHudState(state: HudState): void;
+  /** Put a one-line message on the strip under the bar (literal text or an i18n key). */
+  showFeedback(text: string, opts?: { tone?: 'info' | 'good' | 'warn'; ms?: number }): void;
+  /** Set the MAX WIN figures in the top overlay (`undefined` hides the widget). */
+  setMaxWin(multiplier?: number, odds?: string): void;
+  /** Replace the rows listed by the history window (the host's RGS owns the data). */
+  setHistory(rows: HistoryRow[]): void;
   setCurrency(spec: CurrencySpec): void;
   /** Apply a Stake Engine jurisdiction config (the compliance switchboard) at runtime. */
   applyJurisdiction(jur: JurisdictionConfig): void;
@@ -241,10 +254,16 @@ export function mountHud(app: Application, spec: UISpec = {}, opts: HudOptions =
     setBalance: (n) => ui.balance.set(n),
     setBet: (n) => ui.bet.set(n),
     setTotalWin: (n) => ui.totalWin.set(n),
+    setWin: (n) => ui.win.set(n),
+    setHudState: (state) => ui.setHudState(state),
+    showFeedback: (text, o) => ui.showFeedback(text, o),
+    setMaxWin: (multiplier, odds) => ui.setMaxWin(multiplier, odds),
+    setHistory: (rows) => ui.setHistory(rows),
     setCurrency: (c) => {
       ui.balance.setCurrency(c);
       ui.bet.setCurrency(c);
       ui.totalWin.setCurrency(c);
+      ui.win.setCurrency(c);
       ui.netPosition.setCurrency(c);
     },
     applyJurisdiction: (j) => ui.applyJurisdiction(j),
