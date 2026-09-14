@@ -56,7 +56,8 @@ See the doctrine in [CHARTER.md](./CHARTER.md).
 | Package | Role |
 | --- | --- |
 | [`@open-slot-ui/core`](./packages/core) | Headless M + C — signals, control state-machines, theme tokens, layout, façade, event bus, introspection. **Zero dependencies.** |
-| [`@open-slot-ui/pixi`](./packages/pixi) | The PixiJS v8 view + controller binding. Mounts one `Container`. Peer-dep `pixi.js ^8`. |
+| [`@open-slot-ui/pixi`](./packages/pixi) | The PixiJS v8 view + controller binding. Mounts one `Container`, draws the bar itself. Peer-dep `pixi.js ^8`. |
+| [`@open-slot-ui/dom`](./packages/dom) | The DOM binding: the HUD as real markup, dressed by **your** stylesheet. Draws nothing — use it when the design already exists as CSS. |
 
 ## Configuration at a glance
 

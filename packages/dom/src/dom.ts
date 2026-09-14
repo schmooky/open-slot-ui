@@ -1,7 +1,9 @@
 /** Tiny DOM helpers — enough to bind a tree without pulling in a framework. */
 
+// An attribute selector, not `#id`: it needs no escaping and works in any DOM
+// implementation (jsdom included, where `CSS.escape` may not exist).
 export const $ = <T extends HTMLElement = HTMLElement>(root: ParentNode, id: string): T | null =>
-  root.querySelector<T>(`#${CSS.escape(id)}`);
+  root.querySelector<T>(`[id="${id}"]`);
 
 /** Add a listener and get its remover back, so every binding is disposable. */
 export function on<K extends keyof HTMLElementEventMap>(

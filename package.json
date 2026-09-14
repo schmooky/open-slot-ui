@@ -10,7 +10,7 @@
     "dev": "pnpm --dir examples/demo dev",
     "build": "pnpm --filter pixi-text-counter build && pnpm --filter @open-slot-ui/core build && pnpm --filter @open-slot-ui/pixi build && pnpm --filter @open-slot-ui/dom build",
     "build:demo": "pnpm --dir examples/demo build",
-    "test": "pnpm --filter @open-slot-ui/core test",
+    "test": "pnpm --filter @open-slot-ui/core test && pnpm --filter @open-slot-ui/dom test",
     "typecheck": "tsc -p packages/pixi-text-counter/tsconfig.json && tsc -p packages/core/tsconfig.json && tsc -p packages/pixi/tsconfig.json && tsc -p packages/dom/tsconfig.json && tsc -p examples/demo/tsconfig.json",
     "release": "pnpm build && pnpm -r publish --access public --no-git-checks",
     "release:dry": "pnpm build && pnpm -r publish --dry-run --no-git-checks"

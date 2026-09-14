@@ -47,7 +47,9 @@
   ],
   "scripts": {
     "build": "tsup",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@open-slot-ui/core": "workspace:*"
@@ -56,6 +58,8 @@
     "access": "public"
   },
   "devDependencies": {
-    "tsup": "^8.3.5"
+    "tsup": "^8.3.5",
+    "vitest": "^3.0.5",
+    "jsdom": "^25.0.1"
   }
 }
