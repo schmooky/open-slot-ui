@@ -23,6 +23,9 @@ export default defineConfig({
     dedupe: ['pixi.js'],
   },
   optimizeDeps: { exclude: ['@open-slot-ui/core', '@open-slot-ui/pixi', '@open-slot-ui/dom'] },
+  // Relative asset URLs, so the build works under a subpath (a preview host, a CDN
+  // folder) and not only at a domain root.
+  base: './',
   // Two pages: `/` is the DOM renderer (the default), `/canvas.html` the canvas one.
   build: {
     rollupOptions: {

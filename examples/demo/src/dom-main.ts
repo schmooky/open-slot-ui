@@ -97,7 +97,7 @@ const SPEC: UISpec = {
   betLadder: resolveBetLadder(LADDER, LADDER[Math.min(3, LADDER.length - 1)]!),
   autoplay: { options: [10, 25, 50, 75, 100, 500, 1000], lossLimits: [5, 20, 50], winLimits: [10, 20, 75] },
   rtp: 96.1,
-  game: { name: 'Scrolls of Fate', version: '1.0.0' },
+  game: { name: 'open-slot-ui', version: '0.14.0' },
   hud: { features: { superTurbo: true, lobby: true } },
   rules: RULES_BLOCKS,
   facts: FACTS,
