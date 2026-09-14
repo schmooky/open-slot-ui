@@ -272,14 +272,16 @@ export class RoundButtonView extends RibbonView {
   private readonly bg = new Graphics();
   private readonly glyph = new Graphics();
   private readonly count = new Text({ text: '', style: { fontFamily: 'sans-serif', fontSize: 16, fill: '#000', fontWeight: '700' } });
+  private readonly fsLabel = new Text({ text: '', style: { fontFamily: 'sans-serif', fontSize: 11, fill: '#adb5bd', fontWeight: '700', letterSpacing: 1 } });
   private r = 56;
   private face: IconName = 'spin';
   private faceTint?: string;
 
   constructor(control: Control, ui: OpenUI, onActivate: () => void) {
     super(control, ui);
-    this.addChild(this.bg, this.glyph, this.count);
+    this.addChild(this.bg, this.glyph, this.count, this.fsLabel);
     this.count.anchor.set(0.5);
+    this.fsLabel.anchor.set(0.5);
     this.disposers.push(wirePress(this, control, onActivate), control.state.subscribe(() => this.paint()));
   }
 
@@ -295,6 +297,18 @@ export class RoundButtonView extends RibbonView {
     this.count.text = text;
     this.paint();
   }
+
+  /**
+   * The FREE-SPINS face: the remaining count over a small "FS" caption, in place of
+   * the spin glyph. `0` restores the normal button. Free spins are not a bet, so the
+   * button must not keep saying "spin" through them.
+   */
+  setFreeSpins(n: number): void {
+    this.freeSpins = Math.max(0, Math.floor(n));
+    this.paint();
+  }
+
+  private freeSpins = 0;
 
   place(box: Rect, _rem: number): void {
     this.r = Math.min(box.width, box.height) / 2;
@@ -314,14 +328,27 @@ export class RoundButtonView extends RibbonView {
       .fill({ color: fill, alpha: on ? 1 : 0.75 })
       .circle(0, 0, this.r - edge / 2)
       .stroke({ width: edge, color: t.color.edge });
-    drawIcon(this.glyph, this.face, this.r * 1.5, { color: on ? t.color.text : t.color.disabled, weight: 0.085, alpha: on ? 1 : 0.6 });
+    const fs = this.freeSpins > 0 && this.face === 'spin';
+    if (fs) {
+      this.glyph.clear();
+      this.fsLabel.visible = true;
+      this.fsLabel.text = this.ui.t('openui.freeSpins').toUpperCase();
+      this.fsLabel.style.fontFamily = t.type.family;
+      this.fsLabel.style.fontSize = this.r * 0.26;
+      this.fsLabel.style.fill = t.color.label;
+      this.fsLabel.position.set(0, this.r * 0.3);
+      this.count.text = String(this.freeSpins);
+    } else {
+      this.fsLabel.visible = false;
+      drawIcon(this.glyph, this.face, this.r * 1.5, { color: on ? t.color.text : t.color.disabled, weight: 0.085, alpha: on ? 1 : 0.6 });
+    }
     const hasCount = this.count.text.length > 0;
     this.count.visible = hasCount;
     if (hasCount) {
       this.count.style.fontFamily = t.type.family;
-      this.count.style.fontSize = this.r * 0.42;
+      this.count.style.fontSize = this.r * (fs ? 0.62 : 0.42);
       this.count.style.fill = this.faceTint ? t.color.accentText : t.color.text;
-      this.count.position.set(0, this.r * 0.02);
+      this.count.position.set(0, fs ? -this.r * 0.12 : this.r * 0.02);
     }
   }
 }
@@ -448,6 +475,102 @@ export class FeedbackStrip extends Container {
     this.text.style.fontSize = size;
     this.text.style.letterSpacing = size * 0.08;
     this.text.style.dropShadow = TEXT_SHADOW;
+  }
+
+  dispose(): void {
+    this.ticker.remove(this.tick);
+    for (const d of this.disposers) d();
+    this.disposers.length = 0;
+    if (!this.destroyed) this.destroy({ children: true });
+  }
+}
+
+/**
+ * A plain COUNT readout — free spins remaining, free rounds left. Same shape as a
+ * money readout, but it prints an integer, so the feature strip can sit beside the
+ * balance without pretending a spin count is currency.
+ */
+export class CounterItemView extends Container {
+  private readonly caption = new Text({ text: '', style: { fontFamily: 'sans-serif', fontSize: 10, fill: '#adb5bd' } });
+  private readonly value = new Text({ text: '', style: { fontFamily: 'sans-serif', fontSize: 14, fill: '#fafafa', fontWeight: '700' } });
+  private readonly disposers: Array<() => void> = [];
+  private boxW = 0;
+
+  constructor(
+    private readonly ui: OpenUI,
+    private readonly source: { get(): number; subscribe(fn: (v: number) => void): () => void },
+    private readonly labelKey: string,
+  ) {
+    super();
+    this.addChild(this.caption, this.value);
+    this.disposers.push(source.subscribe(() => this.paint()), ui.locale.subscribe(() => this.paint()));
+  }
+
+  place(box: Rect, rem: number): void {
+    this.boxW = box.width;
+    this.position.set(box.x, box.y + box.height * 0.16);
+    const t = this.ui.theme;
+    this.caption.style = { ...this.caption.style, fontFamily: t.type.family, fontSize: Math.max(7, rem * 0.62), fill: t.color.label, letterSpacing: rem * 0.04, dropShadow: TEXT_SHADOW };
+    this.value.style = { ...this.value.style, fontFamily: t.type.family, fontSize: Math.max(9, rem * 0.9), fill: t.color.text, fontWeight: '700', dropShadow: TEXT_SHADOW };
+    this.paint();
+  }
+
+  private paint(): void {
+    if (this.destroyed) return;
+    const n = this.source.get();
+    this.caption.text = this.ui.t(this.labelKey).toUpperCase();
+    this.value.text = Number.isFinite(n) ? String(Math.max(0, Math.floor(n))) : '∞';
+    this.caption.anchor.set(0.5, 0);
+    this.value.anchor.set(0.5, 0);
+    this.caption.position.set(this.boxW / 2, 0);
+    this.value.position.set(this.boxW / 2, (this.caption.style.fontSize as number) * 1.5);
+  }
+
+  dispose(): void {
+    for (const d of this.disposers) d();
+    this.disposers.length = 0;
+    if (!this.destroyed) this.destroy({ children: true });
+  }
+}
+
+/**
+ * The STANDALONE win presentation: one big amount over the bar, instead of the
+ * inline WIN readout (`hud.winRepresentation: 'standalone'`). It pops in when a
+ * round pays and clears itself when the next round starts.
+ */
+export class WinBanner extends Container {
+  private readonly text = new Text({ text: '', style: { fontFamily: 'sans-serif', fontSize: 34, fill: '#ffc529', fontWeight: '800' } });
+  private readonly disposers: Array<() => void> = [];
+  private readonly tick: (t: Ticker) => void;
+  private age = 0;
+
+  constructor(private readonly ui: OpenUI, private readonly ticker: Ticker) {
+    super();
+    this.addChild(this.text);
+    this.text.anchor.set(0.5);
+    this.visible = false;
+    this.disposers.push(
+      ui.win.value.subscribe((v) => {
+        this.visible = v > 0;
+        this.age = 0;
+        if (v > 0) this.text.text = formatAmount(v, ui.win.currency.get());
+      }),
+    );
+    this.tick = (t): void => {
+      if (!this.visible) return;
+      this.age += t.deltaMS;
+      const p = Math.min(1, this.age / 260);
+      const eased = 1 - Math.pow(1 - p, 3);
+      this.alpha = eased;
+      this.scale.set(0.86 + eased * 0.14);
+    };
+    ticker.add(this.tick);
+  }
+
+  place(x: number, y: number, size: number): void {
+    this.position.set(x, y);
+    const t = this.ui.theme;
+    this.text.style = { ...this.text.style, fontFamily: t.type.family, fontSize: size, fill: t.color.accent, dropShadow: TEXT_SHADOW };
   }
 
   dispose(): void {

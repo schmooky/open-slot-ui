@@ -215,7 +215,17 @@ export interface UISpec {
    * unable to cover the next round, show the same insufficient-funds modal a manual
    * spin shows (ERR_IPB) instead of ending silently.
    */
-  autoplay?: { options?: number[]; mode?: AutoplayMode; lossLimits?: number[]; winLimits?: number[]; insufficientFundsNotice?: boolean };
+  autoplay?: {
+    options?: number[];
+    mode?: AutoplayMode;
+    lossLimits?: number[];
+    winLimits?: number[];
+    insufficientFundsNotice?: boolean;
+    /** Some jurisdictions require a loss limit AND a single-win limit before autoplay
+     *  may start. With this on, the panel's START stays disabled until both are chosen
+     *  and says which one is missing — the reference's own behavior. */
+    requireLimits?: boolean;
+  };
   /** Turbo switcher: 2-mode (off/on) or 3-mode (off/turbo/super). */
   turbo?: TurboSpec;
   /** Spin button behavior: single `'tap'` or `'hold-to-spin'` turbo. */

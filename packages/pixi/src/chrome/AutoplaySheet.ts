@@ -119,8 +119,22 @@ export class AutoplaySheet extends Sheet {
     return Number.isFinite(n) ? `${n}×` : this.ui.t('openui.autoplay.noLimit').toUpperCase();
   }
 
+  /** Which limit (if any) a jurisdiction still wants before this run may start. */
+  private missingLimit(): 'loss' | 'win' | null {
+    if (!this.ui.autoplay.requireLimits) return null;
+    if (!Number.isFinite(this.lossLimit)) return 'loss';
+    if (!Number.isFinite(this.winLimit)) return 'win';
+    return null;
+  }
+
   private start(): void {
     const ui = this.ui;
+    const missing = this.missingLimit();
+    if (missing) {
+      // The reference says WHICH limit is missing rather than failing silently.
+      ui.showFeedback(missing === 'loss' ? 'openui.autoplay.needLossLimit' : 'openui.autoplay.needWinLimit', { tone: 'warn' });
+      return;
+    }
     ui.autoplayPanel.closePanel();
     ui.autoplay.begin(this.count, { lossLimit: this.lossLimit, singleWinLimit: this.winLimit });
   }
@@ -189,7 +203,7 @@ export class AutoplaySheet extends Sheet {
 
     this.startButton.resize(w, rem);
     this.startButton.position.set(pad, y);
-    this.startButton.setEnabled(ui.autoplay.interactable && !ui.autoplay.isActive);
+    this.startButton.setEnabled(ui.autoplay.interactable && !ui.autoplay.isActive && !this.missingLimit());
     y += this.startButton.rowHeight + pad;
     return y;
   }

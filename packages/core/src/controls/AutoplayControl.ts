@@ -35,6 +35,8 @@ export interface AutoplayOptions {
    */
   lossLimitOptions?: number[];
   winLimitOptions?: number[];
+  /** Require BOTH limits before autoplay may start (a jurisdiction rule). */
+  requireLimits?: boolean;
 }
 
 /**
@@ -56,6 +58,8 @@ export class AutoplayControl extends Control {
   private _options: number[];
   private _lossLimitOptions: number[];
   private _winLimitOptions: number[];
+  /** Whether a run needs both RG limits chosen before it may start. */
+  requireLimits = false;
   /** Active stop-on-total-loss (multiples of bet; Infinity = no limit). */
   lossLimit = Infinity;
   /** Active stop-on-single-win (multiples of bet; Infinity = no limit). */
@@ -70,6 +74,7 @@ export class AutoplayControl extends Control {
     this._options = opts.options ?? [10, 25, 50, 100, Infinity];
     this._lossLimitOptions = opts.lossLimitOptions ?? [];
     this._winLimitOptions = opts.winLimitOptions ?? [];
+    this.requireLimits = opts.requireLimits === true;
     this.mode = opts.mode ?? 'options';
     this.count = new Signal<number>(0);
   }
@@ -121,6 +126,8 @@ export class AutoplayControl extends Control {
    *  via {@link reportResult}. */
   begin(count: number, limits: AutoplayLimits = {}): void {
     if (this.current !== 'idle' && this.current !== 'picking') return;
+    // A jurisdiction that requires limits gets them ENFORCED, not just asked for.
+    if (this.requireLimits && (!Number.isFinite(limits.lossLimit ?? Infinity) || !Number.isFinite(limits.singleWinLimit ?? Infinity))) return;
     this.lossLimit = limits.lossLimit ?? Infinity;
     this.singleWinLimit = limits.singleWinLimit ?? Infinity;
     this.netLoss = 0;

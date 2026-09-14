@@ -215,6 +215,9 @@ export class OpenUI {
   readonly maxWin = new Signal<{ multiplier?: number; odds?: string } | null>(null);
   /** Rows for the history modal (the host fetches them from its RGS). */
   readonly history = new Signal<HistoryRow[]>([]);
+  /** Operator FREE ROUNDS left (0 = none). While > 0 the bar shows the counter and
+   *  the running total those rounds have won, as the reference does. */
+  readonly freeRounds = new Signal<number>(0);
   private feedbackSeq = 0;
   private feedbackTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -494,6 +497,11 @@ export class OpenUI {
   /** Set the max-win figures for the top overlay (`null` hides the widget). */
   setMaxWin(multiplier?: number, odds?: string): void {
     this.maxWin.set(multiplier == null && odds == null ? null : { multiplier, odds });
+  }
+
+  /** Set the number of operator free rounds left (0 clears the counter). */
+  setFreeRounds(n: number): void {
+    this.freeRounds.set(Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0);
   }
 
   /** Replace the rows the history modal lists. */

@@ -49,6 +49,8 @@ export const openuiDefaults: Record<string, string> = {
   'openui.autoplay.advanced': 'Advanced',
   'openui.autoplay.basic': 'Basic',
   'openui.autoplay.start': 'Start autoplay',
+  'openui.autoplay.needLossLimit': 'A loss limit is required to start autoplay',
+  'openui.autoplay.needWinLimit': 'A single win limit is required to start autoplay',
   'openui.autoplay.stop': 'Stop autoplay',
   // ── the feedback strip + bar messages ───────────────────────────────────────
   'openui.pressPlay': 'Press play to spin!',
@@ -95,6 +97,7 @@ export const openuiDefaults: Record<string, string> = {
   // Confirm step for a higher-cost play — {{name}} / {{price}} are interpolated.
   'openui.buyFeature.confirm': 'Buy {{name}} for {{price}}?',
   'openui.freeSpins': 'FS',
+  'openui.freeRounds': 'Free rounds',
   // reality check (RTS 13) — {{minutes}} is interpolated by open-ui's scheduler
   'openui.realityCheck.title': 'Reality check',
   'openui.realityCheck.message': "You've been playing for {{minutes}} minutes. Take a moment before continuing.",

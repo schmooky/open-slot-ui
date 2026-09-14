@@ -100,6 +100,8 @@ export interface BootedHud {
   setMaxWin(multiplier?: number, odds?: string): void;
   /** Replace the rows listed by the history window (the host's RGS owns the data). */
   setHistory(rows: HistoryRow[]): void;
+  /** Operator FREE ROUNDS left — while > 0 the bar shows the counter + their total. */
+  setFreeRounds(n: number): void;
   setCurrency(spec: CurrencySpec): void;
   /** Apply a Stake Engine jurisdiction config (the compliance switchboard) at runtime. */
   applyJurisdiction(jur: JurisdictionConfig): void;
@@ -259,6 +261,7 @@ export function mountHud(app: Application, spec: UISpec = {}, opts: HudOptions =
     showFeedback: (text, o) => ui.showFeedback(text, o),
     setMaxWin: (multiplier, odds) => ui.setMaxWin(multiplier, odds),
     setHistory: (rows) => ui.setHistory(rows),
+    setFreeRounds: (n) => ui.setFreeRounds(n),
     setCurrency: (c) => {
       ui.balance.setCurrency(c);
       ui.bet.setCurrency(c);

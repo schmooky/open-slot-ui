@@ -53,3 +53,27 @@ describe('AutoplayControl modes', () => {
     expect(a.count.get()).toBe(Infinity); // unchanged
   });
 });
+
+describe('required RG limits (a jurisdiction rule)', () => {
+  it('refuses to start without BOTH limits, and starts once they are set', () => {
+    const bus = new EventBus<OpenUIEvents>();
+    const a = new AutoplayControl({ id: 'autoplay', layout: { anchor: 'center' }, requireLimits: true }, bus);
+
+    a.begin(10); // no limits at all
+    expect(a.isActive).toBe(false);
+    a.begin(10, { lossLimit: 20 }); // only one of the two
+    expect(a.isActive).toBe(false);
+    a.begin(10, { lossLimit: 20, singleWinLimit: Infinity }); // "no limit" is not a limit
+    expect(a.isActive).toBe(false);
+
+    a.begin(10, { lossLimit: 20, singleWinLimit: 50 });
+    expect(a.isActive).toBe(true);
+    expect(a.count.get()).toBe(10);
+  });
+
+  it('is off by default — a game with no such rule starts unlimited', () => {
+    const a = new AutoplayControl({ id: 'autoplay', layout: { anchor: 'center' } }, new EventBus<OpenUIEvents>());
+    a.begin(5);
+    expect(a.isActive).toBe(true);
+  });
+});

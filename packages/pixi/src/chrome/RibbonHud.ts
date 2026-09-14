@@ -8,7 +8,7 @@ import {
   type ScreenState,
   type ValueDisplay,
 } from '@open-slot-ui/core';
-import { DataItemView, BetWidgetView, RoundButtonView, IconButtonView, PillButtonView, FeedbackStrip } from './parts';
+import { DataItemView, BetWidgetView, RoundButtonView, IconButtonView, PillButtonView, FeedbackStrip, CounterItemView, WinBanner } from './parts';
 import { MainMenuSheet } from './MainMenuSheet';
 import { AutoplaySheet } from './AutoplaySheet';
 
@@ -36,6 +36,9 @@ export class RibbonHud extends Container {
 
   private readonly items: Array<{ view: DataItemView; id: string }> = [];
   private betWidget?: BetWidgetView;
+  private featureCounter?: CounterItemView;
+  private freeRoundsCounter?: CounterItemView;
+  private winBanner?: WinBanner;
   private betUp?: IconButtonView;
   private betDown?: IconButtonView;
   private round?: RoundButtonView;
@@ -68,8 +71,24 @@ export class RibbonHud extends Container {
     };
     if (f.balance) addItem(ui.balance);
     if (f.betReadout) addItem(ui.bet);
-    if (f.win) addItem(ui.win, true);
+    // `winRepresentation: 'standalone'` presents the win BIG over the bar instead of
+    // as a readout in the data panel — the reference offers both.
+    const standaloneWin = ui.chrome.winRepresentation === 'standalone';
+    if (f.win && !standaloneWin) addItem(ui.win, true);
+    if (f.win && standaloneWin) {
+      this.winBanner = new WinBanner(ui, ticker);
+      this.addChild(this.winBanner);
+    }
     if (f.featurePanel) addItem(ui.totalWin, true);
+    // The feature strip's spin counter — a COUNT, not money, so it gets its own view.
+    if (f.featurePanel) {
+      this.featureCounter = new CounterItemView(ui, ui.spin.freeSpins, 'openui.freeSpins');
+      this.widgets.addChild(this.featureCounter);
+    }
+    if (f.freeRounds) {
+      this.freeRoundsCounter = new CounterItemView(ui, ui.freeRounds, 'openui.freeRounds');
+      this.widgets.addChild(this.freeRoundsCounter);
+    }
 
     // ── the action box ───────────────────────────────────────────────────────
     if (f.betWidget) {
@@ -122,6 +141,12 @@ export class RibbonHud extends Container {
       }),
       ui.mainMenuPanel.state.subscribe(sync),
       ui.muted.subscribe(sync),
+      // Free spins change what the round button IS, and add a counter to the bar.
+      ui.spin.freeSpins.subscribe(() => {
+        this.syncFaces();
+        this.relayout();
+      }),
+      ui.freeRounds.subscribe(() => this.relayout()),
     );
 
     // The ☰ glyph becomes a ✕ while the menu is open — the reference rotates it.
@@ -191,6 +216,7 @@ export class RibbonHud extends Container {
         this.round.setCount('');
       }
     }
+    this.round?.setFreeSpins(ui.spin.freeSpins.get());
     this.autoButton?.setIcon(ui.autoplay.isActive ? 'stop' : 'auto');
   }
 
@@ -208,16 +234,23 @@ export class RibbonHud extends Container {
 
     // Which readouts are on the bar right now: the bonus TOTAL WIN takes the WIN slot
     // during a feature round, exactly as the reference's feature panel does.
+    const inFreeSpins = ui.spin.freeSpins.get() > 0;
     const visible = this.items.filter(({ id }) => {
-      if (id === 'total-win') return feature && f.featurePanel;
-      if (id === 'win') return !feature;
+      if (id === 'total-win') return (feature || inFreeSpins) && f.featurePanel;
+      if (id === 'win') return !(feature || inFreeSpins);
       return true;
     });
     for (const { view, id } of this.items) view.visible = visible.some((v) => v.id === id);
+    const showCounter = !!this.featureCounter && inFreeSpins;
+    if (this.featureCounter) this.featureCounter.visible = showCounter;
+    const showFreeRounds = !!this.freeRoundsCounter && ui.freeRounds.get() > 0;
+    if (this.freeRoundsCounter) this.freeRoundsCounter.visible = showFreeRounds;
 
     const m = solveRibbon(screen, ui.chrome, {
-      items: visible.length,
-      buy: !!this.buyButton && !ui.hidden.has('bonus') && !feature,
+      items: visible.length + (showCounter ? 1 : 0) + (showFreeRounds ? 1 : 0),
+      // You cannot buy your way into a bonus you are already in — the reference drops
+      // the pill for the duration, and so do free rounds (they are not yours to spend).
+      buy: !!this.buyButton && !ui.hidden.has('bonus') && !feature && !inFreeSpins && !showFreeRounds,
       promo: false,
     });
     this.metrics = m;
@@ -229,6 +262,15 @@ export class RibbonHud extends Container {
       const box = m.items[i];
       if (box) view.place(box, rem);
     });
+    let extra = visible.length;
+    if (showCounter && this.featureCounter) {
+      const box = m.items[extra++];
+      if (box) this.featureCounter.place(box, rem);
+    }
+    if (showFreeRounds && this.freeRoundsCounter) {
+      const box = m.items[extra++];
+      if (box) this.freeRoundsCounter.place(box, rem);
+    }
 
     if (this.betWidget) {
       // The phone bar has no room for a second bet display — the solver zeroes it there.
@@ -251,6 +293,7 @@ export class RibbonHud extends Container {
     }
 
     this.feedback?.place(m.feedback.x, m.feedback.y, m.feedback.size);
+    this.winBanner?.place(m.feedback.x, m.feedback.y - m.rem * (this.feedback ? 2 : 0.6), m.rem * 2.1);
     this.mainMenu.place(m, screen.width, screen.height);
     this.autoplaySheet.place(m, screen.width, screen.height);
     // The sheets anchor to the button that opens them, not to the bar's centre.
@@ -312,6 +355,9 @@ export class RibbonHud extends Container {
     for (const d of this.disposers) d();
     this.disposers.length = 0;
     for (const { view } of this.items) view.dispose();
+    this.winBanner?.dispose();
+    this.featureCounter?.dispose();
+    this.freeRoundsCounter?.dispose();
     this.betWidget?.dispose();
     this.betUp?.dispose();
     this.betDown?.dispose();
