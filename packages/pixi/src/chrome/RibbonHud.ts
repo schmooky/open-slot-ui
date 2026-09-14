@@ -42,7 +42,7 @@ export class RibbonHud extends Container {
   private menuButton?: IconButtonView;
   private autoButton?: IconButtonView;
   private buyButton?: PillButtonView;
-  private readonly feedback: FeedbackStrip;
+  private readonly feedback?: FeedbackStrip;
   private readonly mainMenu: MainMenuSheet;
   private readonly autoplaySheet: AutoplaySheet;
 
@@ -100,9 +100,11 @@ export class RibbonHud extends Container {
       this.widgets.addChild(this.buyButton);
     }
 
-    this.feedback = new FeedbackStrip(ui, ticker);
-    this.feedback.visible = f.feedback;
-    this.addChild(this.feedback);
+    // A switched-off part is never CREATED — "hidden" must not mean "still there".
+    if (f.feedback) {
+      this.feedback = new FeedbackStrip(ui, ticker);
+      this.addChild(this.feedback);
+    }
 
     this.mainMenu = new MainMenuSheet(ui, ticker);
     this.autoplaySheet = new AutoplaySheet(ui, ticker);
@@ -248,7 +250,7 @@ export class RibbonHud extends Container {
       if (show) this.buyButton.place(m.buyButton, rem);
     }
 
-    this.feedback.place(m.feedback.x, m.feedback.y, m.feedback.size);
+    this.feedback?.place(m.feedback.x, m.feedback.y, m.feedback.size);
     this.mainMenu.place(m, screen.width, screen.height);
     this.autoplaySheet.place(m, screen.width, screen.height);
     // The sheets anchor to the button that opens them, not to the bar's centre.
@@ -317,7 +319,7 @@ export class RibbonHud extends Container {
     this.menuButton?.dispose();
     this.autoButton?.dispose();
     this.buyButton?.dispose();
-    this.feedback.dispose();
+    this.feedback?.dispose();
     this.mainMenu.dispose();
     this.autoplaySheet.dispose();
     if (!this.destroyed) this.destroy({ children: true });

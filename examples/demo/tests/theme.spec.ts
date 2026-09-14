@@ -3,7 +3,7 @@ import { waitForHud, openMenu, shots, accent, controlCount } from './_helpers';
 
 const DIR = shots('themes');
 // open-ui ships ONE theme: black & white with a yellow accent.
-const DEFAULT_ACCENT = '#ffc935';
+const DEFAULT_ACCENT = '#ffc529';
 
 /**
  * The single-theme proof + the "you can't break it" guarantee. open-ui ships one

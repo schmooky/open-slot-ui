@@ -102,9 +102,9 @@ export class DialogView extends ControlView {
 
   private buildClose(): void {
     const r = 22;
-    // Figma: a solid black circle with a white ✕, sitting at the card's top-right.
-    const bg = new Graphics().circle(0, 0, r).fill({ color: this.palette.primary });
-    const x = new Graphics().moveTo(-7, -7).lineTo(7, 7).moveTo(7, -7).lineTo(-7, 7).stroke({ width: 3, color: '#ffffff', cap: 'round' });
+    // A bare ✕ in the card's top-right — the reference's window close, no chrome.
+    const bg = new Graphics().circle(0, 0, r).fill({ color: 0xffffff, alpha: 0.0001 });
+    const x = new Graphics().moveTo(-8, -8).lineTo(8, 8).moveTo(8, -8).lineTo(-8, 8).stroke({ width: 3, color: this.palette.text, cap: 'round' });
     this.closeBtn.addChild(bg, x);
     this.closeBtn.eventMode = 'static';
     this.closeBtn.cursor = 'pointer';

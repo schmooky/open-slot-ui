@@ -91,7 +91,7 @@ export function buildBlockColumn(
     const wrap = new Container();
     const txt = new Text({
       text: tr(s),
-      style: { fontFamily: t.type.family, fontSize: size, fill: t.color.text, fontWeight: '800', letterSpacing: 1 },
+      style: { fontFamily: t.type.family, fontSize: size, fill: t.color.accent, fontWeight: '800', letterSpacing: 1 },
     });
     txt.anchor.set(0.5);
     txt.position.set(0, 0);

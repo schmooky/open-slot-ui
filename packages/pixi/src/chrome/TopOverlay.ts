@@ -67,6 +67,9 @@ export class TopOverlay extends Container {
     const f = ui.chrome.features;
     const rem = this.rem;
     const pad = rem * 0.6;
+    // When the bar docks at the TOP, this strip moves out of its way — to the bottom.
+    const flipped = ui.chrome.dock === 'top';
+    const rowY = (row: number): number => (flipped ? this.screen!.height - pad - size * (1.6 * (1 - row) + 1) : pad + size * 1.6 * row);
     const size = Math.max(9, rem * 0.62);
     const style = { fontFamily: t.type.family, fontSize: size, fill: t.color.text, dropShadow: { color: '#000000', alpha: 0.8, blur: 2, distance: 1, angle: Math.PI / 2 } } as const;
     this.left.style = { ...this.left.style, ...style };
@@ -81,13 +84,13 @@ export class TopOverlay extends Container {
     if (ui.gameInfo.name) bits.push(ui.gameInfo.name);
     if (f.rtp && !ui.hidden.has('rtp')) bits.push(`${ui.t('openui.rtp')} ${ui.rtp.formatted}`);
     this.left.text = bits.join('   ·   ');
-    this.left.position.set(pad, pad);
+    this.left.position.set(pad, rowY(0));
 
     const sess: string[] = [];
     if (f.sessionBar && !ui.hidden.has('session-timer')) sess.push(`${ui.t('openui.session')} ${ui.sessionTimer.formatted}`);
     if (f.sessionBar && !ui.hidden.has('net-position')) sess.push(`${ui.t('openui.net')} ${ui.netPosition.formatted}`);
     this.session.text = sess.join('   ·   ');
-    this.session.position.set(pad, pad + size * 1.6);
+    this.session.position.set(pad, rowY(1));
 
     const mw = ui.maxWin.get();
     const rightBits: string[] = [];
@@ -99,13 +102,13 @@ export class TopOverlay extends Container {
     this.right.anchor.set(1, 0);
     const fsSize = rem * 1.4;
     const fsRoom = f.fullscreen ? fsSize + pad : 0;
-    this.right.position.set(this.screen.width - pad - fsRoom, pad);
+    this.right.position.set(this.screen.width - pad - fsRoom, rowY(0));
 
     this.fs.visible = f.fullscreen && !ui.hidden.has('fullscreen');
     if (this.fs.visible) {
       const isFs = typeof document !== 'undefined' && !!document.fullscreenElement;
       drawIcon(this.fsGlyph, isFs ? 'fullscreen-exit' : 'fullscreen', fsSize, { color: t.color.text, weight: 0.1 });
-      this.fs.position.set(this.screen.width - pad - fsSize / 2, pad + fsSize / 2);
+      this.fs.position.set(this.screen.width - pad - fsSize / 2, rowY(0) + fsSize / 2);
     }
   }
 

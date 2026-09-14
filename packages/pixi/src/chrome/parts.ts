@@ -221,6 +221,8 @@ export class BetWidgetView extends RibbonView {
     this.eventMode = 'static';
     this.cursor = 'pointer';
     this.on('pointertap', () => this.ui.bus.emit('buttonActivated', { id: 'bet-widget' }));
+    // The data-panel BET readout stays the canonical view of `bet` for introspection.
+    this.disownInspect();
   }
 
   place(box: Rect, rem: number): void {

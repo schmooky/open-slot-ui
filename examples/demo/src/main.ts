@@ -100,7 +100,20 @@ function buildSpec(): UISpec {
   const FORGOTTEN = new Set(['r-stats', 'r-f-ss-h', 'r-f-ss', 'r-f-ab-h', 'r-f-ab']);
   const rules = cfg.forget ? RULES_BLOCKS.filter((b) => !FORGOTTEN.has(b.id)) : RULES_BLOCKS;
   const facts = cfg.forget ? { ...FACTS, freeSpins: undefined } : FACTS;
+  // ?off=buyFeature,history,… switches ribbon features OFF; ?on=… switches them on.
+  // (A misspelled flag is reported to onDataIssue and ignored — try ?off=nope.)
+  const features: Record<string, boolean> = {};
+  for (const id of (q.get('off') ?? '').split(',').filter(Boolean)) features[id] = false;
+  for (const id of (q.get('on') ?? '').split(',').filter(Boolean)) features[id] = true;
+
   return {
+    // The bar itself: where it docks, how big it is, and WHICH PARTS EXIST.
+    hud: {
+      dock: q.get('dock') === 'top' ? 'top' : 'bottom',
+      scale: Number(q.get('hudscale')) || undefined,
+      reveal: (q.get('reveal') as 'drop' | 'rotate' | 'spin' | 'twist' | 'none') || undefined,
+      ...(Object.keys(features).length ? { features } : {}),
+    },
     // The Figma "default" look is set in Montserrat (Black for the HUD figures). A bad
     // ?accent is sanitized away (the preset accent shows through) — never broken.
     theme: {
