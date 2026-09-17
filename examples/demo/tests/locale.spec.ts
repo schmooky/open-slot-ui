@@ -15,7 +15,7 @@ const DIR = shots('locales');
 test.describe('locale matrix — 16 Stake locales × every device + orientation', () => {
   for (const code of LOCALE_CODES) {
     test(`menu renders in "${code}"`, async ({ page }, testInfo) => {
-      await page.goto(`/canvas.html?bare=1&locale=${code}`);
+      await page.goto(`/tests/fixtures/pixi-hud.html?bare=1&locale=${code}`);
       await waitForHud(page);
       await openMenu(page);
 

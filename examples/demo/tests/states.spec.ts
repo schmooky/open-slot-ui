@@ -49,7 +49,7 @@ const snap = async (page: Page): Promise<Snapshot> => (await cmd(page, 'snapshot
 async function boot(page: Page): Promise<string> {
   const dir = ROOT;
   mkdirSync(dir, { recursive: true });
-  await page.goto('/canvas.html?builtin=1&bare=1'); // ONE structural url; all state via the harness
+  await page.goto('/tests/fixtures/pixi-hud.html?builtin=1&bare=1'); // ONE structural url; all state via the harness
   await page.waitForFunction(() => !!(window as unknown as { ui?: unknown }).ui);
   await cmd(page, 'reset');
   return dir;

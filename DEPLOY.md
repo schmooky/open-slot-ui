@@ -25,10 +25,10 @@ Pushes to the connected branch redeploy automatically.
 
 ### Pages
 
-| Path | What it is |
-| --- | --- |
-| `/` | the **DOM renderer** — real markup, dressed by the skin |
-| `/canvas.html` | the **canvas renderer** — the same core, drawn in Pixi |
+One: `/`, the **DOM renderer** — real markup, dressed by the skin. The canvas
+renderer has a test fixture under `examples/demo/tests/`, which is not an input of
+the build, so a deployed copy serves exactly one UI and no second one can be reached
+by guessing a path.
 
 ### Optional environment variables
 
@@ -48,7 +48,7 @@ pnpm build:demo          # → examples/demo/dist
 npx serve examples/demo/dist
 ```
 
-The output is plain files: `index.html`, `canvas.html`, `assets/`, `skin/`. Netlify,
+The output is plain files: `index.html`, `assets/`, `skin/`. Netlify,
 Vercel, Cloudflare Pages, S3, nginx — all the same two answers: build command
 `pnpm build:demo`, publish directory `examples/demo/dist`.
 

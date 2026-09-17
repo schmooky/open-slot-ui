@@ -26,11 +26,11 @@ export default defineConfig({
   // Relative asset URLs, so the build works under a subpath (a preview host, a CDN
   // folder) and not only at a domain root.
   base: './',
-  // Two pages: `/` is the DOM renderer (the default), `/canvas.html` the canvas one.
+  // ONE page. The client is the DOM binding at `/` — the canvas renderer's own HUD
+  // is a test fixture (tests/fixtures/pixi-hud.html), never a route of the app, so a
+  // deployed copy cannot serve a second, different-looking UI.
   build: {
-    rollupOptions: {
-      input: { index: fromRoot('examples/demo/index.html'), canvas: fromRoot('examples/demo/canvas.html') },
-    },
+    rollupOptions: { input: { index: fromRoot('examples/demo/index.html') } },
   },
   server: { fs: { allow: [root.pathname] }, port: 5199, strictPort: true },
 });

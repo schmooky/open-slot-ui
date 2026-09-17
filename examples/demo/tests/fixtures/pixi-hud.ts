@@ -2,20 +2,26 @@ import { Application, Assets, Container, Graphics, Rectangle, Texture } from 'pi
 import { mountHud, mountBuyFeatureModal } from '@open-slot-ui/pixi';
 import { resolveBetLadder } from '@open-slot-ui/core';
 import type { UISpec, CurrencySpec, ThemePreset, JurisdictionConfig } from '@open-slot-ui/core';
-import { MESSAGES } from './locales';
-import rulesXml from './rules.xml?raw';
-import { buildRules, FEATURES, FACTS, dropBlocks, art } from './content';
+import { MESSAGES } from '../../src/locales';
+import rulesXml from '../../src/rules.xml?raw';
+import { buildRules, FEATURES, FACTS, dropBlocks, art } from '../../src/content';
 
 /** The rules, parsed from the markup file at boot — see content.ts. */
 const RULES_BLOCKS = buildRules(rulesXml);
-import { mountHarness } from './harness';
-import { buildReels, evaluate } from './reels';
+import { mountHarness } from '../../src/harness';
+import { buildReels, evaluate } from '../../src/reels';
 
 /**
- * The open-ui EXAMPLE CLIENT — a throwaway host "game" (a shuffling pip grid) with
- * the real @open-ui HUD mounted on top in ONE call. Everything the HUD looks and
- * behaves like is set by a plain JSON UISpec, here read from the URL so the
- * Playwright suites can screenshot every permutation:
+ * THE CANVAS RENDERER'S TEST FIXTURE — not a page of the example client.
+ *
+ * `@open-slot-ui/pixi` draws its own HUD, and this is the page the e2e suite drives
+ * to check it. It lives under `tests/` and is no input of the build, so the client
+ * has exactly ONE page — the DOM binding at `/` — and a deployed copy has no way to
+ * reach the canvas HUD at all.
+ *
+ * A throwaway host "game" (the same 5×3 slot) with the HUD mounted on top in ONE
+ * call. Everything the HUD looks and behaves like is set by a plain JSON UISpec,
+ * here read from the URL so the Playwright suites can screenshot every permutation:
  *
  *   ?autoplay=infinite&spin=hold&currency=BTC&locale=ja&bare=1
  *   ?accent=%23ff0000   (recolour the one b&w+yellow theme — a broken value can't break it)

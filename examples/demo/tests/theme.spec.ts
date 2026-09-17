@@ -14,7 +14,7 @@ const DEFAULT_ACCENT = '#ffc529';
 test.describe('theme', () => {
   test('the default b&w + yellow theme renders', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'theme test runs on desktop');
-    await page.goto('/canvas.html?bare=1');
+    await page.goto('/tests/fixtures/pixi-hud.html?bare=1');
     await waitForHud(page);
     expect((await accent(page)).toLowerCase()).toBe(DEFAULT_ACCENT);
     await openMenu(page);
@@ -25,7 +25,7 @@ test.describe('theme', () => {
 test.describe('safe theming — configure, never break', () => {
   test('a valid accent override applies', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'runs on desktop');
-    await page.goto('/canvas.html?bare=1&accent=%23ff0000');
+    await page.goto('/tests/fixtures/pixi-hud.html?bare=1&accent=%23ff0000');
     await waitForHud(page);
     expect((await accent(page)).toLowerCase()).toBe('#ff0000');
     await page.screenshot({ path: `${DIR}override-valid.png` });
@@ -33,7 +33,7 @@ test.describe('safe theming — configure, never break', () => {
 
   test('a BROKEN accent cannot break the HUD — it falls back to the default', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'runs on desktop');
-    await page.goto('/canvas.html?bare=1&accent=javascript:alert(1)');
+    await page.goto('/tests/fixtures/pixi-hud.html?bare=1&accent=javascript:alert(1)');
     await waitForHud(page);
     // garbage rejected → the default yellow shows through; the HUD mounted fully
     expect((await accent(page)).toLowerCase()).toBe(DEFAULT_ACCENT);
