@@ -103,3 +103,80 @@ for (const c of CASES) {
     });
   });
 }
+
+/**
+ * THE BAR DOES NOT GROW WITH THE NUMBER.
+ *
+ * A rial balance is three times the width of a dollar one at the same font size.
+ * The reference's answer is to size a readout off its own length (`data-charcount`,
+ * one rule per length), so the plate keeps its geometry and the round button — which
+ * hangs off the plate's right edge — stays on the screen. Before this, IRR pushed it
+ * clean off a 620px window.
+ */
+test.describe('long money keeps the shape of the bar', () => {
+  const HUGE = 'currency=IRR&balance=98765432100000&bet=5000000&win=25000000000000';
+
+  const widthOf = async (page: Page, sel: string): Promise<number> =>
+    (await page.locator(sel).boundingBox())?.width ?? 0;
+
+  test('the whole bar, overhangs included, stays inside the window', async ({ page }) => {
+    await page.goto(`/?${HUGE}`);
+    await page.waitForFunction(() => !!document.querySelector('.HacksawCasinoUiContainer'));
+    await page.waitForTimeout(700);
+    const view = page.viewportSize()!;
+    // The round button on the right and the buy coin on the left hang OUTSIDE the
+    // plate; the fit has to measure them, not just the plate. The phone layout lets
+    // the coin bleed a few pixels past the edge by design, so what is checked is
+    // that essentially all of each part is on screen — not that it is pixel-inside.
+    const slack = 4;
+    for (const sel of ['#PlaceBetBtn', '#FeatureBuyToggle', '.UiRibbonUserPanel__container']) {
+      const b = await page.locator(sel).first().boundingBox();
+      if (!b) continue;
+      expect(b.x, `${sel} starts off-screen`).toBeGreaterThanOrEqual(-slack);
+      expect(b.x + b.width, `${sel} hangs off the right edge`).toBeLessThanOrEqual(view.width + slack);
+    }
+  });
+
+  test('a long value shrinks itself instead of stretching its slot', async ({ page }) => {
+    await page.goto(`/?${HUGE}`);
+    await page.waitForFunction(() => !!document.querySelector('.HacksawCasinoUiContainer'));
+    await page.waitForTimeout(700);
+    const long = await page.evaluate(() => {
+      const el = document.getElementById('BalanceValue')!;
+      return { count: el.dataset.charcount, size: parseFloat(getComputedStyle(el).fontSize), slot: Math.round(el.parentElement!.getBoundingClientRect().width) };
+    });
+    expect(long.count).toBe('22'); // "98,765,432,100,000 IRR"
+    const plateLong = await widthOf(page, '.UiRibbonUserPanel__container');
+
+    await page.goto('/?currency=USD&balance=12345.67&bet=1&win=0');
+    await page.waitForFunction(() => !!document.querySelector('.HacksawCasinoUiContainer'));
+    await page.waitForTimeout(700);
+    const short = await page.evaluate(() => {
+      const el = document.getElementById('BalanceValue')!;
+      return { count: el.dataset.charcount, size: parseFloat(getComputedStyle(el).fontSize) };
+    });
+    const plateShort = await widthOf(page, '.UiRibbonUserPanel__container');
+
+    // The rial is set smaller than the base size the dollar gets — on a phone both
+    // land on the stylesheet's 10px floor, so the honest assertion is "no larger,
+    // and well under the 24px a short value is set at".
+    expect(long.size).toBeLessThanOrEqual(short.size);
+    expect(long.size).toBeLessThan(16);
+    expect(short.count).toBe('10'); // "$12,345.67"
+    // …and the plate is the same bar either way.
+    expect(Math.abs(plateLong - plateShort)).toBeLessThanOrEqual(2);
+  });
+
+  test('the stake charged is the stake shown', async ({ page }) => {
+    await page.goto(`/?${HUGE}`);
+    await page.waitForFunction(() => !!(window as unknown as { ui?: unknown }).ui);
+    await page.waitForTimeout(900);
+    const read = (t: string): number => Number(t.replace(/[^\d]/g, ''));
+    const before = read(await page.locator('#BalanceValue').innerText());
+    const bet = read((await page.locator('#BetAmountValue, #BetAmountStaticValue').allTextContents()).find(Boolean) ?? '0');
+    await page.locator('#PlaceBetBtn').click();
+    await page.waitForTimeout(1200);
+    const after = read(await page.locator('#BalanceValue').innerText());
+    expect(before - after, 'the round charged something other than the bet on the bar').toBe(bet);
+  });
+});

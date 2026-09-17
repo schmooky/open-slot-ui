@@ -22,6 +22,23 @@ export function text(el: HTMLElement | null, value: string): void {
   if (el && el.textContent !== value) el.textContent = value;
 }
 
+/**
+ * Set a VALUE, and tell the stylesheet how long it is.
+ *
+ * A readout has a slot, and money does not respect it: `987,654,321,000 IRR` is
+ * three times the width of `$12.34` at the same size, so the bar would either grow
+ * (pushing the round button off the screen) or clip. The reference solves this by
+ * sizing the text off its own length — `[data-charcount="19"]` rules, one per
+ * length — and every skin written for this markup has that table. So the binding's
+ * job is simply to keep the attribute honest on every repaint.
+ */
+export function valueText(el: HTMLElement | null, value: string): void {
+  if (!el) return;
+  text(el, value);
+  const n = String(value.length);
+  if (el.dataset.charcount !== n) el.dataset.charcount = n;
+}
+
 export function toggleClass(el: Element | null, cls: string, on: boolean): void {
   if (el) el.classList.toggle(cls, on);
 }

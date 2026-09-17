@@ -9,7 +9,7 @@ import {
   type HudState,
   type BlockSpec,
 } from '@open-slot-ui/core';
-import { $, on, text, toggleClass, setVisible, setDisabled, setIcon, el } from './dom';
+import { $, on, text, toggleClass, setVisible, setDisabled, setIcon, el, valueText } from './dom';
 import { label } from './i18n';
 
 export type Dispose = () => void;
@@ -69,15 +69,18 @@ export function bindReadouts(ui: OpenUI, ctx: BindContext): Dispose {
   const progress = $(r, 'BetAmountIndicatorProgress');
 
   const paint = (): void => {
-    text(balance, money(ui, ui.balance.get()));
+    // Every money readout goes through `valueText`: the number decides its own font
+    // size (see `data-charcount`), so a twelve-digit rial fits the slot a dollar
+    // amount fits, and the bar's layout never moves.
+    valueText(balance, money(ui, ui.balance.get()));
     const bet = formatAmount(ui.bet.get(), ui.bet.currency.get());
-    text(betStatic, bet);
-    text(betAction, bet);
-    text(win, money(ui, ui.win.get()));
-    text(totalWin, money(ui, ui.totalWin.get()));
-    text(freeRoundsWin, money(ui, ui.totalWin.get()));
-    text(counter, String(ui.spin.freeSpins.get()));
-    text(freeRounds, String(ui.freeRounds.get()));
+    valueText(betStatic, bet);
+    valueText(betAction, bet);
+    valueText(win, money(ui, ui.win.get()));
+    valueText(totalWin, money(ui, ui.totalWin.get()));
+    valueText(freeRoundsWin, money(ui, ui.totalWin.get()));
+    valueText(counter, String(ui.spin.freeSpins.get()));
+    valueText(freeRounds, String(ui.freeRounds.get()));
     // The ladder bar under the bet: how far up the bet ladder this stake sits.
     if (progress) {
       const levels = ui.betStepper.count;

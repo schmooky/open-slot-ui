@@ -153,7 +153,18 @@ async function main(): Promise<void> {
   ui.lock(); // the bar is on screen, but there is nothing behind it to play yet
 
   hud.setBalance(Number(q.get('balance')) || money0.balance);
-  if (Number(q.get('bet'))) ui.bet.set(Number(q.get('bet')));
+  // `?bet=` moves the LADDER, not just the readout: the stake a round costs is the
+  // ladder's level, so painting a number the game does not charge is a lie. The
+  // nearest declared level wins — a bet the ladder does not offer cannot be played.
+  const wantBet = Number(q.get('bet'));
+  if (wantBet > 0) {
+    let nearest = 0;
+    LADDER.forEach((level, i) => {
+      if (Math.abs(level - wantBet) < Math.abs((LADDER[nearest] ?? 0) - wantBet)) nearest = i;
+    });
+    ui.betStepper.setIndex(nearest);
+    ui.bet.set(ui.betStepper.value);
+  }
   if (Number(q.get('win'))) hud.setWin(Number(q.get('win')));
   hud.setMaxWin(5000, '1 in 1,250,000');
   hud.setHistory([]);

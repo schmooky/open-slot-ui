@@ -272,7 +272,11 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
     const box = plate.getBoundingClientRect();
     let left = box.left;
     let right = box.right;
-    for (const sel of ['.ToggleButton__container--feature-buy', '.ToggleButton__container--feature-promotion']) {
+    // Everything that hangs OUTSIDE the plate: the buy coin and the promotion pill on
+    // the left, the round button on the right. Measuring the plate alone is how the
+    // spin button ended up off the screen in a currency whose numbers are long enough
+    // to stretch the bar (`?currency=IRR`).
+    for (const sel of [OVERHANG_LEFT, OVERHANG_PROMO, OVERHANG_RIGHT]) {
       const node = root.querySelector<HTMLElement>(sel);
       if (!node || !node.offsetParent) continue;
       const b = node.getBoundingClientRect();
@@ -460,6 +464,11 @@ ${BLOCK_SCOPE} .GameInfo__body {
 ${BLOCK_SCOPE} .GameInfo__body *, ${BLOCK_SCOPE} .GameInfo__body *::before, ${BLOCK_SCOPE} .GameInfo__body *::after { box-sizing: border-box; }
 ${BLOCK_SCOPE} .GameInfo__body.ohm-body { padding-left: clamp(14px, 3vw, 26px); padding-right: clamp(10px, 2vw, 18px); }
 ${scopeCss(BLOCK_CSS, BLOCK_SCOPE)}`;
+
+/** The parts of the bar that stick out past the plate, and so decide the fit. */
+const OVERHANG_LEFT = '.ToggleButton__container--feature-buy';
+const OVERHANG_PROMO = '.ToggleButton__container--feature-promotion';
+const OVERHANG_RIGHT = '.ActionPanel__container--game-actions';
 
 const BEHAVIOUR_CSS = `
 /* The buy sheet's card list is CLIPPED by the design (it fades its top and bottom
