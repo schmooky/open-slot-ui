@@ -810,18 +810,28 @@ export function bindOverlay(ui: OpenUI, ctx: BindContext): Dispose {
   paintClock();
 
   const paint = (): void => {
-    text($(r, 'GameNameOverlay'), ui.gameInfo.name ?? '');
+    const name = ui.gameInfo.name ?? '';
+    text($(r, 'GameNameOverlay'), name);
     text($(r, 'RtpOverlayValue'), ui.rtp.formatted);
-    setVisible($(r, 'RtpOverlay'), !ui.hidden.has('rtp'));
+    const rtp = !ui.hidden.has('rtp');
+    setVisible($(r, 'RtpOverlay'), rtp);
     const mw = ui.maxWin.get();
     text($(r, 'MaxWinMultiplierOverlayValue'), mw?.multiplier != null ? `${mw.multiplier}×` : '');
     text($(r, 'MaxWinOddsOverlayValue'), mw?.odds ?? '');
     setVisible($(r, 'MaxWinOverlayContainer'), !!mw);
     setVisible($(r, 'MaxWinOddsOverlay'), !!mw?.odds);
     text($(r, 'SessionTimerValue'), ui.sessionTimer.formatted);
-    setVisible($(r, 'SessionTimer'), !ui.hidden.has('session-timer'));
+    const session = !ui.hidden.has('session-timer');
+    setVisible($(r, 'SessionTimer'), session);
     text($(r, 'NetPositionValue'), ui.netPosition.formatted);
-    setVisible($(r, 'NetPosition'), !ui.hidden.has('net-position'));
+    const net = !ui.hidden.has('net-position');
+    setVisible($(r, 'NetPosition'), net);
+    // The strip ITSELF is hidden by the stylesheet until something asks to be in it
+    // (`.CoreOverlay:not(.is-visible)`). Without this the compliance readouts a
+    // jurisdiction switches ON — RTP, net position, the session timer — were set
+    // visible inside a container that was still display:none, so nothing appeared.
+    const anything = rtp || session || net || !!mw || !!name || !!$(r, 'Clock');
+    setVisible($(r, 'CoreOverlay'), anything);
   };
   paint();
 
@@ -832,6 +842,9 @@ export function bindOverlay(ui: OpenUI, ctx: BindContext): Dispose {
     ui.netPosition.value.subscribe(paint),
     ui.sessionTimer.value.subscribe(paint),
     ui.locale.subscribe(paint),
+    // A jurisdiction reveals these readouts by UNHIDING them, which changes no value
+    // — so without this the RTP a regulator demands was switched on and never drawn.
+    ui.bus.on('visibilityChanged', paint),
   );
 }
 

@@ -25,7 +25,9 @@ function baseSpec(story: Story): UISpec {
     autoplay: { options: [10, 25, 50, 100], lossLimits: [5, 20, 50], winLimits: [10, 20, 75] },
     rtp: 96.5,
     game: { name: 'open-slot-ui', version: 'gallery' },
-    hud: { features: { superTurbo: true, lobby: true } },
+    // The compliance readouts are features a game opts into; a jurisdiction then
+    // reveals the ones it mandates (see the `state-jurisdiction` story).
+    hud: { features: { superTurbo: true, lobby: true, rtp: true, sessionBar: true } },
     rules,
     facts: {
       modes: [
@@ -144,6 +146,9 @@ if (!story) {
   document.body.innerHTML = '<p style="font:600 14px system-ui;color:#888;padding:24px">No such story. Try <a href="/gallery/">the gallery</a>.</p>';
 } else {
   const hud = mount(story);
+  // A story is a place to poke at the HUD: `hud` and `hud.ui` are on the window, the
+  // same handle the game would hold.
+  (globalThis as { hud?: DomHud }).hud = hud;
   const run = SCRIPTS[story.script ?? ''];
   // One frame, so the script acts on a HUD that has been laid out and revealed.
   requestAnimationFrame(() =>

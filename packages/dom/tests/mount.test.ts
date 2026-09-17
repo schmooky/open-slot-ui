@@ -383,3 +383,43 @@ describe('the rules blocks, inside the skin’s info window', () => {
     expect(body!.textContent).toContain('Pays left to right.');
   });
 });
+
+describe('the compliance verbs', () => {
+  it('applies a jurisdiction and reveals what it mandates', () => {
+    hud.dispose();
+    hud = mountDomHud({
+      currency: { code: 'USD', decimals: 2 },
+      rtp: 96.5,
+      // The readouts are features a game opts into; the switchboard then reveals them.
+      hud: { features: { rtp: true, sessionBar: true } },
+    });
+    const rtpRow = id('RtpOverlay');
+    expect(rtpRow, 'the RTP readout was not built').not.toBeNull();
+    expect(rtpRow!.classList.contains('is-visible')).toBe(false);
+
+    hud.applyJurisdiction({ displayRTP: true, displayNetPosition: true, displaySessionTimer: true });
+
+    expect(rtpRow!.classList.contains('is-visible'), 'a revealed readout stayed hidden').toBe(true);
+    expect(id('NetPosition')!.classList.contains('is-visible')).toBe(true);
+    expect(id('SessionTimer')!.classList.contains('is-visible')).toBe(true);
+    // …and the strip they live in, which the stylesheet keeps display:none until it
+    // has something to show.
+    expect(id('CoreOverlay')!.classList.contains('is-visible')).toBe(true);
+  });
+
+  it('shows an RGS error, and its localized default text', () => {
+    hud.showRgsError('ERR_IPB');
+    const dialog = id('DialogWindow');
+    expect(dialog!.classList.contains('is-visible')).toBe(true);
+    expect(dialog!.textContent).toContain('Insufficient funds');
+  });
+
+  it('carries the rest of the platform verbs the canvas handle has', () => {
+    expect(typeof hud.setRtp).toBe('function');
+    expect(typeof hud.showError).toBe('function');
+    expect(typeof hud.showFatal).toBe('function');
+    expect(typeof hud.setReplay).toBe('function');
+    hud.setReplay(true);
+    expect(document.querySelector('.HacksawCasinoUiContainer')!.classList.contains('is-locked')).toBe(true);
+  });
+});

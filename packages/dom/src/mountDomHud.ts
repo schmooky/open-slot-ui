@@ -11,6 +11,9 @@ import {
   type HistoryRow,
   type HudState,
   type CurrencySpec,
+  type JurisdictionConfig,
+  type NoticeOptions,
+  type RgsErrorOptions,
 } from '@open-slot-ui/core';
 import {
   TPL_PROGRESS_INDICATOR,
@@ -87,6 +90,18 @@ export interface DomHud {
   setHudState(state: HudState): void;
   showFeedback(text: string, opts?: { tone?: 'info' | 'good' | 'warn'; ms?: number }): void;
   reportRound(win: number, bet: number): void;
+  /**
+   * The compliance verbs. They were on the canvas handle and not on this one, which
+   * left a DOM host unable to do the things a platform actually requires: apply the
+   * per-player switchboard, state the RTP, show the error the RGS returned, or mark
+   * a replay. They are the same calls, on both bindings.
+   */
+  applyJurisdiction(jurisdiction: JurisdictionConfig): void;
+  setRtp(percent: number): void;
+  showError(message: string, opts?: NoticeOptions): void;
+  showRgsError(code: string, opts?: RgsErrorOptions): void;
+  showFatal(message: string, opts?: NoticeOptions): void;
+  setReplay(on: boolean): void;
   /** Hide the boot spinner — the game calls it when it is ready to play. */
   ready(): void;
   dispose(): void;
@@ -391,6 +406,12 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
     setHudState: (s) => ui.setHudState(s),
     showFeedback: (t, o) => ui.showFeedback(t, o),
     reportRound: (win, bet) => ui.reportRound(win, bet),
+    applyJurisdiction: (j) => ui.applyJurisdiction(j),
+    setRtp: (p) => ui.rtp.set(p),
+    showError: (message, opts) => ui.showError(message, opts),
+    showRgsError: (code, opts) => ui.showRgsError(code, opts),
+    showFatal: (message, opts) => ui.showFatal(message, opts),
+    setReplay: (on) => ui.setReplay(on),
     ready: () => progress?.classList.remove('is-visible'),
     dispose: () => {
       for (const d of disposers.splice(0)) d();
