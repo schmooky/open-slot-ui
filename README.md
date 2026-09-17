@@ -97,8 +97,14 @@ RTP, max win and price actually stated.
 | The reels | `paylines` · `grid` (any cells lit — a scatter pattern, a cluster, a way) |
 | At a glance | `badges` · `meter` · `timeline` · `steps` |
 | Pictures | `image` · `media` (image + text) · `gallery` · `cards` |
-| Containers | `tabs` · `accordion` · `columns` · `group` |
+| Containers | `sections` · `tabs` (both render as an open stack) · `columns` · `group` |
 | Interactive | `toggle` · `slider` · `select` · `stepper` · `button` · `value` |
+
+**Nothing in the vocabulary hides content.** `sections` renders titled panels, all
+of them open, and `tabs` — kept because authors think in tabs — renders as the same
+stack rather than as a strip. There is deliberately no flag to collapse either:
+content a player had to click to reveal is content they can later say they never
+saw, and a rules page is a legal document before it is a UI.
 
 Write them as objects, or **as markup** — a rules page is content, so it can live
 in a file a writer edits and a translator reads:

@@ -136,19 +136,19 @@
 
   <note tone="bonus" title="Tip">Hold spin for turbo.</note>
 
-  <!-- ── the fine print, folded away until someone wants it ──────────────── -->
-  <accordion>
-    <section id="a-rg" title="Responsible play">
+  <!-- ── the fine print: titled panels, none of them collapsed ───────────── -->
+  <sections>
+    <section id="s-rg" title="Responsible play">
       <text>Set a limit before you start. Autoplay stops on its own when your loss or win limit is reached, and you can stop it at any time.</text>
       <quote cite="The house">A slot is entertainment with a price, not a way to make money.</quote>
     </section>
-    <section id="a-disconnect" title="Disconnections and malfunctions">
+    <section id="s-disconnect" title="Disconnections and malfunctions">
       <text>An interrupted round is settled the next time you open the game. Malfunction voids all pays and play.</text>
     </section>
-    <section id="a-terms" title="Terms">
+    <section id="s-terms" title="Terms">
       <a href="https://example.test/terms">Operator terms and conditions</a>
     </section>
-  </accordion>
+  </sections>
 
   <note tone="warning" title="Please note">Malfunction voids all pays and play.</note>
   <hr/>

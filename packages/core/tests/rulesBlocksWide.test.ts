@@ -37,21 +37,34 @@ describe('the wider block vocabulary', () => {
     expect(out).toContain('ohm-badge--bonus');
   });
 
-  it('renders tabs with no script, and accordions as native details', () => {
+  it('renders a tab group as an open stack, not as tabs', () => {
     const out = html([
       { kind: 'tabs', id: 't', tabs: [
         { id: 'a', label: 'A', children: [{ kind: 'text', id: 'ta', text: 'first' }] },
         { id: 'b', label: 'B', children: [{ kind: 'text', id: 'tb', text: 'second' }] },
       ] },
-      { kind: 'accordion', id: 'ac', items: [{ id: 'x', title: 'X', open: true, children: [{ kind: 'text', id: 'ax', text: 'body' }] }] },
     ]);
-    expect(out).toContain('type="radio"');
-    expect(out).toContain('checked');
-    expect(out).toContain('<details class="ohm-acc" open>');
+    // No strip, no radios, no script — both parts are simply on the page.
+    expect(out).not.toContain('type="radio"');
     expect(out).not.toContain('<script');
-    // the first tab is the checked one, and both panels are in the markup
     expect(out).toContain('first');
     expect(out).toContain('second');
+    expect((out.match(/ohm-panel-title/g) ?? []).length).toBe(2);
+  });
+
+  it('never renders a section a player has to open', () => {
+    const out = html([
+      { kind: 'sections', id: 'sec', items: [
+        { id: 'x', title: 'Responsible play', children: [{ kind: 'text', id: 'ax', text: 'Set a limit.' }] },
+        { id: 'y', title: 'Terms', children: [{ kind: 'text', id: 'ay', text: 'They apply.' }] },
+      ] },
+    ]);
+    // A collapsed rule is a rule a player can say they never saw.
+    expect(out).not.toContain('<details');
+    expect(out).not.toContain('<summary');
+    expect(out).toContain('Set a limit.');
+    expect(out).toContain('They apply.');
+    expect(out).toContain('ohm-panel-title');
   });
 
   it('renders columns, quote, gallery, timeline, compare, link and spacer', () => {
@@ -104,7 +117,7 @@ describe('the wider block vocabulary', () => {
       { kind: 'meter', id: 'm', value: 1 },
       { kind: 'badges', id: 'b', items: [{ text: 'x' }] },
       { kind: 'tabs', id: 't', tabs: [{ id: 'a', label: 'A', children: [] }] },
-      { kind: 'accordion', id: 'ac', items: [{ id: 'x', title: 'X', children: [] }] },
+      { kind: 'sections', id: 'ac', items: [{ id: 'x', title: 'X', children: [] }] },
       { kind: 'columns', id: 'c', of: 3, children: [[], [], []] },
       { kind: 'quote', id: 'q', text: 'q' },
       { kind: 'gallery', id: 'gal', items: [{ src: 'a.png' }] },
@@ -132,7 +145,7 @@ describe('the validator knows the wider vocabulary', () => {
         { kind: 'meter', id: 'm', value: 3, max: 5 },
         { kind: 'badges', id: 'b', items: [{ text: 'x', tone: 'bonus' }] },
         { kind: 'tabs', id: 't', tabs: [{ id: 'a', label: 'A', children: [{ kind: 'text', id: 'tx', text: 'x' }] }] },
-        { kind: 'accordion', id: 'ac', items: [{ id: 'x', title: 'X', children: [{ kind: 'text', id: 'ax', text: 'x' }] }] },
+        { kind: 'sections', id: 'ac', items: [{ id: 'x', title: 'X', children: [{ kind: 'text', id: 'ax', text: 'x' }] }] },
         { kind: 'columns', id: 'c', of: 2, children: [[{ kind: 'text', id: 'l', text: 'L' }], [{ kind: 'text', id: 'r', text: 'R' }]] },
         { kind: 'quote', id: 'q', text: 'q' },
         { kind: 'gallery', id: 'gal', items: [{ src: 'a.png' }] },
@@ -152,6 +165,9 @@ describe('the validator knows the wider vocabulary', () => {
     expect(codes({ rules: [{ kind: 'grid', id: 'g', reels: 3, rows: 3, cells: [[9, 0]] }] })).toContain('grid-cell-oor');
     expect(codes({ rules: [{ kind: 'meter', id: 'm', value: 9, max: 5 }] })).toContain('meter-range');
     expect(codes({ rules: [{ kind: 'tabs', id: 't', tabs: [] }] })).toContain('empty-tabs');
+    expect(codes({ rules: [{ kind: 'sections', id: 's', items: [
+      { id: 'a', title: 'A', children: [] }, { id: 'a', title: 'B', children: [] },
+    ] }] })).toContain('dup-id');
     expect(codes({ rules: [{ kind: 'tabs', id: 't', tabs: [
       { id: 'a', label: 'A', children: [] }, { id: 'a', label: 'B', children: [] },
     ] }] })).toContain('dup-id');
@@ -194,7 +210,7 @@ describe('the validator knows the wider vocabulary', () => {
       meter: { kind: 'meter', id: 'x', value: 1 },
       badges: { kind: 'badges', id: 'x', items: [{ text: 'a' }] },
       tabs: { kind: 'tabs', id: 'x', tabs: [{ id: 'a', label: 'A', children: [] }] },
-      accordion: { kind: 'accordion', id: 'x', items: [{ id: 'a', title: 'A', children: [] }] },
+      sections: { kind: 'sections', id: 'x', items: [{ id: 'a', title: 'A', children: [] }] },
       columns: { kind: 'columns', id: 'x', of: 2, children: [[], []] },
       quote: { kind: 'quote', id: 'x', text: 'x' },
       gallery: { kind: 'gallery', id: 'x', items: [{ src: 'a.png' }] },

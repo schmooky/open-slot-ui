@@ -160,10 +160,16 @@ export type BlockSpec = {
   | { kind: 'meter'; id: string; label?: string; value: number; max?: number; caption?: string }
   // Short CHIPS: mechanic tags, "ways 243", "max win 5,000x".
   | { kind: 'badges'; id: string; items: Array<{ text: string; tone?: 'neutral' | 'accent' | 'bonus' | 'warning' }> }
-  // TABBED sections — long rules that would otherwise be one endless scroll.
+  // A group of titled parts, written the way an author thinks about them — "Base
+  // game", "Symbols", "Numbers". It RENDERS as the same open stack as `sections`:
+  // a tab is a panel nobody clicked, and an unclicked panel is one a player can
+  // say they never saw. Kept as its own kind so existing rules keep working.
   | { kind: 'tabs'; id: string; tabs: Array<{ id: string; label: string; children: BlockSpec[] }> }
-  // COLLAPSIBLE sections, closed by default unless `open`.
-  | { kind: 'accordion'; id: string; items: Array<{ id: string; title: string; open?: boolean; children: BlockSpec[] }> }
+  // TITLED sections in a bordered stack — the long tail of a rules page (RG,
+  // disconnections, terms). They do NOT collapse, and there is deliberately no
+  // flag to make them: content a player has to open is content they can later say
+  // they never saw, and every word of the rules has to be on the page.
+  | { kind: 'sections'; id: string; items: Array<{ id: string; title: string; children: BlockSpec[] }> }
   // SIDE-BY-SIDE columns of blocks. `of` is how many across on a wide screen.
   | { kind: 'columns'; id: string; of?: 2 | 3 | 4; children: BlockSpec[][] }
   // A pulled-out NOTE in the author's voice — not a callout, not body text.
@@ -210,7 +216,7 @@ export const BLOCK_KINDS = [
   'meter',
   'badges',
   'tabs',
-  'accordion',
+  'sections',
   'columns',
   'quote',
   'gallery',

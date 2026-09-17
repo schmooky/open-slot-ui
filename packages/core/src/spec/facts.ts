@@ -271,15 +271,15 @@ function scanBlocks(blocks: BlockSpec[] | undefined, resolve: (s: string) => str
           break;
 
         // ── the wider vocabulary: rules written in these still count ───────
-        // A tab label and an accordion title ARE headings — a mode explained
-        // inside one is explained, and the audit has to see it that way.
+        // A tab label and a section title ARE headings — a mode explained inside
+        // one is explained, and the audit has to see it that way.
         case 'tabs':
           for (const tab of b.tabs) {
             startSection(resolve(tab.label));
             walk(tab.children);
           }
           break;
-        case 'accordion':
+        case 'sections':
           for (const it of b.items) {
             startSection(resolve(it.title));
             walk(it.children);

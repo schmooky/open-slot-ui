@@ -50,18 +50,6 @@ export interface BlockColumnOptions {
   controlSkins?: Partial<Record<string, ControlViewFactory>>;
   /** Unclipped layer for select dropdowns (so a scroll mask doesn't clip them). */
   dropdownLayer?: Container;
-  /**
-   * Which tab of each `tabs` block is open, by block id — owned by the CALLER so a
-   * rebuild keeps the reader where they were. Pass it together with `onRelayout`.
-   */
-  tabState?: Map<string, number>;
-  /**
-   * Called when a block changed its own height (a tab switched) and the column has
-   * to be laid out again. A caller that can rebuild (the menu) gets tabs sized to
-   * the open panel; a caller that cannot gets a strip as tall as its tallest panel,
-   * so nothing below it ever moves.
-   */
-  onRelayout?: () => void;
 }
 
 export interface BlockColumn {
@@ -256,63 +244,6 @@ export function buildBlockColumn(
     return { node, height: sub.height };
   };
 
-  /**
-   * A real tab strip: labels across the top, one panel open at a time.
-   *
-   * Canvas has no reflow, so the two callers get two honest shapes. With
-   * `onRelayout` (the menu, which can rebuild) only the OPEN panel is built and the
-   * block is exactly as tall as it — switching re-lays the column out. Without it,
-   * every panel is built and the strip takes the height of the tallest, so a switch
-   * can never move the rows underneath.
-   */
-  const tabsNode = (b: Extract<BlockSpec, { kind: 'tabs' }>): Container => {
-    const wrap = new Container();
-    if (!b.tabs.length) return wrap;
-    const stripH = 38;
-    const relayout = opts.onRelayout;
-    const active = Math.min(Math.max(opts.tabState?.get(b.id) ?? 0, 0), b.tabs.length - 1);
-    const panels = b.tabs.map((tab, i) => (relayout && i !== active ? null : nested(tab.children, bodyW)));
-    const panelH = panels.reduce((a, p) => Math.max(a, p?.height ?? 0), 0);
-    const totalH = stripH + panelH;
-    const tabW = innerW / b.tabs.length;
-    const show = (i: number): void => {
-      panels.forEach((p, pi) => { if (p) p.node.visible = pi === i; });
-      marks.forEach((m, mi) => {
-        m.label.style.fill = mi === i ? t.color.text : t.color.textDim;
-        m.rule.visible = mi === i;
-      });
-    };
-    const open = (i: number): void => {
-      opts.tabState?.set(b.id, i);
-      if (relayout) relayout();
-      else show(i);
-    };
-    const marks = b.tabs.map((tab, i) => {
-      const cx = -innerW / 2 + i * tabW + tabW / 2;
-      const label = new Text({
-        text: tr(tab.label),
-        style: { fontFamily: t.type.family, fontSize: 13, fill: t.color.textDim, fontWeight: '800', letterSpacing: 0.4 },
-      });
-      label.anchor.set(0.5);
-      label.position.set(cx, -totalH / 2 + stripH / 2 - 3);
-      const rule = new Graphics().rect(cx - tabW / 2 + 6, -totalH / 2 + stripH - 6, tabW - 12, 3).fill({ color: t.color.accent });
-      const hit = new Graphics().rect(cx - tabW / 2, -totalH / 2, tabW, stripH).fill({ color: 0xffffff, alpha: 0.001 });
-      hit.eventMode = 'static';
-      hit.cursor = 'pointer';
-      hit.on('pointertap', () => open(i));
-      wrap.addChild(rule, label, hit);
-      return { label, rule };
-    });
-    wrap.addChild(new Graphics().rect(-innerW / 2, -totalH / 2 + stripH - 5, innerW, 1).fill({ color: t.color.textDim, alpha: 0.25 }));
-    panels.forEach((p) => {
-      if (!p) return;
-      p.node.position.set(0, -totalH / 2 + stripH + p.height / 2);
-      wrap.addChild(p.node);
-    });
-    show(active);
-    return wrap;
-  };
-
   /** Side-by-side columns of blocks; narrow bodies stack them instead. */
   const columnsNode = (b: Extract<BlockSpec, { kind: 'columns' }>): Container => {
     const wrap = new Container();
@@ -427,12 +358,15 @@ export function buildBlockColumn(
         case 'spacer':
           placeAuto(spacerNode(b, innerW), 0);
           break;
+        // `tabs` and `sections` both read as titled parts, one after another: a
+        // rules document never hides a word of itself behind a click.
         case 'tabs':
-          placeAuto(tabsNode(b), 12);
+          for (const tab of b.tabs) {
+            placeAuto(subheading(tab.label), 8);
+            walk(tab.children);
+          }
           break;
-        // No re-layout pass exists on canvas, so a collapsed section could never
-        // push the rows under it down: on Pixi an accordion reads as its sections.
-        case 'accordion':
+        case 'sections':
           for (const it of b.items) {
             placeAuto(subheading(it.title), 8);
             walk(it.children);

@@ -228,9 +228,15 @@ export function validateSpec(spec: UISpec): { ok: boolean; issues: SpecIssue[] }
             walkBlocks(t.children, `${p}.tabs[${ti}].children`);
           });
         }
-        if (b.kind === 'accordion') {
-          if (!b.items || b.items.length === 0) add('warn', `${p}.items`, 'empty-accordion', 'an accordion block has no items');
-          b.items?.forEach((it, ii) => walkBlocks(it.children, `${p}.items[${ii}].children`));
+        if (b.kind === 'sections') {
+          if (!b.items || b.items.length === 0) add('warn', `${p}.items`, 'empty-sections', 'a sections block has no items');
+          const seenSec = new Set<string>();
+          b.items?.forEach((it, ii) => {
+            if (!it.id || !it.id.trim()) add('error', `${p}.items[${ii}].id`, 'blank-id', 'a section needs a non-empty id');
+            else if (seenSec.has(it.id)) add('error', `${p}.items[${ii}].id`, 'dup-id', `duplicate section id "${it.id}"`);
+            else seenSec.add(it.id);
+            walkBlocks(it.children, `${p}.items[${ii}].children`);
+          });
         }
         if (b.kind === 'columns') {
           const of = b.of ?? b.children?.length ?? 0;

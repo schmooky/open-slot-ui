@@ -27,7 +27,7 @@ test.beforeEach(async ({ page }) => {
 
 test('every module the markup declares is rendered', async ({ page }) => {
   const body = page.locator('#GameInfoBody');
-  for (const cls of ['.ohm-badges', '.ohm-meter', '.ohm-tabs', '.ohm-symbols', '.ohm-rgrid', '.ohm-timeline', '.ohm-compare', '.ohm-kv', '.ohm-gallery', '.ohm-accs', '.ohm-quote', '.ohm-link', '.ohm-stats', '.ohm-callout']) {
+  for (const cls of ['.ohm-badges', '.ohm-meter', '.ohm-panels', '.ohm-symbols', '.ohm-rgrid', '.ohm-timeline', '.ohm-compare', '.ohm-kv', '.ohm-gallery', '.ohm-panels', '.ohm-quote', '.ohm-link', '.ohm-stats', '.ohm-callout']) {
     await expect(body.locator(cls).first(), `${cls} is missing from the info window`).toHaveCount(1, { timeout: 5_000 }).catch(async () => {
       // several blocks of a kind are fine — what matters is that at least one exists
       expect(await body.locator(cls).count(), `${cls} is missing from the info window`).toBeGreaterThan(0);
@@ -35,19 +35,18 @@ test('every module the markup declares is rendered', async ({ page }) => {
   }
 });
 
-test('the tab strip shows one panel at a time and switches on click', async ({ page }) => {
-  const tabs = page.locator('#GameInfoBody .ohm-tabs').first();
-  const panels = tabs.locator('.ohm-tabpanel');
-  await expect(panels).toHaveCount(3);
-  // Exactly one panel is visible, and it is the first one.
-  await expect(panels.nth(0)).toBeVisible();
-  await expect(panels.nth(1)).toBeHidden();
+test('a tab group reads as titled parts, all of them on the page', async ({ page }) => {
+  const body = page.locator('#GameInfoBody');
+  // The markup's three tabs render as three open panels — no strip, no radios.
+  await expect(body.locator('input[type=radio]')).toHaveCount(0);
+  const titles = body.locator('.ohm-panel-title');
+  await expect(titles.nth(0)).toHaveText('How to play');
+  await expect(titles.nth(1)).toHaveText('Symbols');
+  await expect(titles.nth(2)).toHaveText('Numbers');
+  for (let i = 0; i < 3; i++) await expect(titles.nth(i)).toBeVisible();
 
-  await tabs.locator('label', { hasText: 'Symbols' }).click();
-  await expect(panels.nth(1)).toBeVisible();
-  await expect(panels.nth(0)).toBeHidden();
-  // …and the symbol table inside it is the one the markup declares.
-  const rows = panels.nth(1).locator('.ohm-symbols tbody tr');
+  // …and the symbol table inside the second part is the one the markup declares.
+  const rows = body.locator('.ohm-symbols tbody tr');
   await expect(rows).toHaveCount(4);
   await expect(rows.first()).toContainText('Wild');
   await expect(rows.first()).toContainText('50x');
@@ -69,13 +68,23 @@ test('fact tokens resolve against the declared configuration', async ({ page }) 
   await expect(page.locator('#GameInfoBody')).toContainText('100× your bet'); // {{cost.free-spins}}
 });
 
-test('an accordion section opens, and its link leaves the game safely', async ({ page }) => {
-  const acc = page.locator('#GameInfoBody details.ohm-acc');
-  await expect(acc).toHaveCount(3);
-  await expect(acc.nth(1)).not.toHaveAttribute('open', '');
-  await acc.nth(1).locator('summary').click();
-  await expect(acc.nth(1)).toHaveAttribute('open', '');
+test('nothing in the rules is hidden behind a click', async ({ page }) => {
+  const body = page.locator('#GameInfoBody');
+  // A collapsed section is a section a player can say they never saw, so the
+  // document must contain no disclosure widget at all…
+  await expect(body.locator('details')).toHaveCount(0);
+  await expect(body.locator('summary')).toHaveCount(0);
+  // …and every titled panel's copy is on the page, visible, from the start.
+  const panels = body.locator('.ohm-panel');
+  await expect(panels).toHaveCount(6); // three tab parts + three fine-print sections
+  for (const panel of await panels.all()) {
+    await expect(panel.locator('.ohm-panel-body')).toBeVisible();
+  }
+  await expect(body).toContainText('Set a limit before you start.');
+  await expect(body).toContainText('Malfunction voids all pays');
+});
 
+test('a link out of the game is safe', async ({ page }) => {
   const link = page.locator('#GameInfoBody a.ohm-link').first();
   await expect(link).toHaveAttribute('target', '_blank');
   await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
@@ -106,7 +115,6 @@ test.describe('on a phone', () => {
     expect(doc, 'the page scrolls sideways').toBeLessThanOrEqual(1);
 
     // Wide blocks are the ones that break first: the symbol table and the grids.
-    await body.locator('.ohm-tabs label', { hasText: 'Symbols' }).click();
     const table = await body.locator('.ohm-symbols').first().boundingBox();
     const box = await body.boundingBox();
     expect(table!.width).toBeLessThanOrEqual(box!.width + 1);

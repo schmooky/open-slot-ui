@@ -32,6 +32,24 @@ function statGridHtml(items: ReadonlyArray<{ label: string; value: string }>, tr
   return `<dl class="ohm-stats">${rows}</dl>`;
 }
 
+/**
+ * A stack of TITLED PANELS — what both `sections` and `tabs` render as.
+ *
+ * Never `<details>`, never a tab strip: a rules document may not hide a word of
+ * itself behind a click, because content a player had to reveal is content they
+ * can later say they never saw.
+ */
+function panelStackHtml(
+  items: ReadonlyArray<{ title: string; children: BlockSpec[] }>,
+  tr: (s: string) => string,
+  facts?: GameFacts,
+): string {
+  const panels = items
+    .map((it) => `<section class="ohm-panel"><h4 class="ohm-panel-title">${esc(tr(it.title))}</h4><div class="ohm-panel-body">${renderBlocksHtml(it.children, tr, facts)}</div></section>`)
+    .join('');
+  return `<div class="ohm-panels">${panels}</div>`;
+}
+
 type PayRow = Extract<BlockSpec, { kind: 'paytable' }>['rows'][number];
 
 /** The Figma symbols grid: an icon (image or emoji/text) + its payout lines. */
@@ -190,24 +208,15 @@ export function renderBlocksHtml(blocks: BlockSpec[], tr: (s: string) => string,
           `<div class="ohm-badges">${b.items.map((it) => `<span class="ohm-badge${it.tone && it.tone !== 'neutral' ? ` ohm-badge--${it.tone}` : ''}">${esc(tr(it.text))}</span>`).join('')}</div>`,
         );
         break;
-      case 'tabs': {
-        // Radio inputs + labels: real tabs with no JavaScript, so the same markup
-        // works in the game, in a docs page and in a static export.
-        const name = `ohm-tabs-${att(b.id)}`;
-        const labels = b.tabs
-          .map((t, i) => `<input type="radio" name="${name}" id="${name}-${att(t.id)}"${i === 0 ? ' checked' : ''}><label for="${name}-${att(t.id)}">${esc(tr(t.label))}</label>`)
-          .join('');
-        const panels = b.tabs.map((t) => `<section class="ohm-tabpanel">${renderBlocksHtml(t.children, tr, facts)}</section>`).join('');
-        out.push(`<div class="ohm-tabs" data-count="${b.tabs.length | 0}">${labels}<div class="ohm-tabpanels">${panels}</div></div>`);
+      // `tabs` and `sections` render the same way on purpose: an open stack of
+      // titled panels. See the `tabs` block in types.ts — nothing in a rules
+      // document may sit behind a click.
+      case 'tabs':
+        out.push(panelStackHtml(b.tabs.map((t) => ({ title: t.label, children: t.children })), tr, facts));
         break;
-      }
-      case 'accordion': {
-        const items = b.items
-          .map((it) => `<details class="ohm-acc"${it.open ? ' open' : ''}><summary>${esc(tr(it.title))}</summary><div class="ohm-acc-body">${renderBlocksHtml(it.children, tr, facts)}</div></details>`)
-          .join('');
-        out.push(`<div class="ohm-accs">${items}</div>`);
+      case 'sections':
+        out.push(panelStackHtml(b.items, tr, facts));
         break;
-      }
       case 'columns':
         out.push(
           `<div class="ohm-cols ohm-cols--${b.of ?? b.children.length}">${b.children.map((col) => `<div>${renderBlocksHtml(col, tr, facts)}</div>`).join('')}</div>`,
@@ -320,15 +329,20 @@ export const BLOCK_CSS = `
   --ohm-gap-sm: 10px;   /* heading to the thing it introduces */
   --ohm-gap-lg: 34px;   /* air before a new section */
   --ohm-pad: 16px;      /* inside a box */
-  --ohm-radius: 10px;
-  --ohm-rule: color-mix(in srgb, var(--text-dim) 22%, transparent);
-  --ohm-fill: color-mix(in srgb, var(--text-dim) 9%, transparent);
+  /* The reference's info screen is drawn in flat rectangles — bordered cells, a
+     dark fill, square corners. Rounded cards and pill-shaped chips read as a
+     different product bolted into the window, so the radius here is a hairline. */
+  --ohm-radius: 2px;
+  --ohm-rule: color-mix(in srgb, var(--text-dim) 30%, transparent);
+  /* A tint of the INK, not a fixed black or white: it darkens a light card and
+     lightens a dark one, so a cell reads the same in either theme. */
+  --ohm-fill: color-mix(in srgb, var(--text-dim) 10%, transparent);
 }
 /* No block carries its top margin at the top of a container, or its bottom margin
    at the bottom — the container's own padding is the edge. */
-.ohm-body > :first-child, .ohm-tabpanel > :first-child, .ohm-acc-body > :first-child,
+.ohm-body > :first-child, .ohm-panel-body > :first-child,
 .ohm-group > :first-child, .ohm-cols > div > :first-child { margin-top: 0; }
-.ohm-body > :last-child, .ohm-tabpanel > :last-child, .ohm-acc-body > :last-child,
+.ohm-body > :last-child, .ohm-panel-body > :last-child,
 .ohm-group > :last-child, .ohm-cols > div > :last-child { margin-bottom: 0; }
 
 /* ── prose ─────────────────────────────────────────────────────────────────── */
@@ -359,15 +373,18 @@ export const BLOCK_CSS = `
 .ohm-steps b { color: var(--text); }
 
 /* ── boxes ─────────────────────────────────────────────────────────────────── */
-.ohm-callout { margin: var(--ohm-gap, 18px) 0; padding: 14px var(--ohm-pad, 16px); border-radius: var(--ohm-radius, 10px); border-left: 4px solid var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
-.ohm-callout b { display: block; margin-bottom: 4px; color: var(--accent); font-size: 13px; letter-spacing: .4px; text-transform: uppercase; }
+/* A callout is the same bordered cell the reference uses everywhere, with a small
+   uppercase tag for its title — not a rounded, tinted speech bubble. The tone is
+   carried by the tag and the top edge, so a page of them still reads as one page. */
+.ohm-callout { margin: var(--ohm-gap, 18px) 0; padding: 13px var(--ohm-pad, 16px); border: 1px solid var(--ohm-rule); border-top: 2px solid var(--accent); background: var(--ohm-fill); }
+.ohm-callout b { display: block; margin-bottom: 5px; color: var(--accent); font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .ohm-callout p { margin: 0; color: var(--text); }
-.ohm-callout--warning { border-left-color: #e0a106; background: color-mix(in srgb, #e0a106 10%, transparent); }
+.ohm-callout--info { border-top-color: var(--accent); }
+.ohm-callout--warning { border-top-color: #e0a106; }
 .ohm-callout--warning b { color: #e0a106; }
-.ohm-callout--info { border-left-color: var(--accent); }
-.ohm-callout--bonus { border-left-color: #2ea44f; background: color-mix(in srgb, #2ea44f 10%, transparent); }
+.ohm-callout--bonus { border-top-color: #2ea44f; }
 .ohm-callout--bonus b { color: #45c46a; }
-.ohm-audit { margin: 0 0 var(--ohm-gap-lg, 34px); padding: 16px 18px; border-radius: var(--ohm-radius, 10px); border: 2px solid #d03131; background: color-mix(in srgb, #d03131 10%, transparent); }
+.ohm-audit { margin: 0 0 var(--ohm-gap-lg, 34px); padding: 16px 18px; border: 1px solid #d03131; border-top: 3px solid #d03131; background: color-mix(in srgb, #d03131 12%, transparent); }
 .ohm-audit-title { font-weight: 900; letter-spacing: .5px; color: #ff6b6b; }
 .ohm-audit-sub { margin-top: 10px; font-size: 13px; font-weight: 800; letter-spacing: .3px; color: #ff6b6b; }
 .ohm-audit-sub--rec { color: #e0a106; }
@@ -405,10 +422,10 @@ export const BLOCK_CSS = `
 .ohm-pay span { color: var(--accent); font-weight: 700; }
 
 /* ── pictures ──────────────────────────────────────────────────────────────── */
-.ohm-feature { display: block; width: 100%; height: auto; margin: var(--ohm-gap, 18px) 0; border-radius: var(--ohm-radius, 10px); }
+.ohm-feature { display: block; width: 100%; height: auto; margin: var(--ohm-gap, 18px) 0; }
 .ohm-media { display: flex; align-items: flex-start; gap: 20px; margin: var(--ohm-gap, 18px) 0; }
 .ohm-media--right { flex-direction: row-reverse; }
-.ohm-media > img { width: 38%; max-width: 300px; height: auto; flex: none; border-radius: var(--ohm-radius, 10px); }
+.ohm-media > img { width: 38%; max-width: 300px; height: auto; flex: none; }
 .ohm-media-body { flex: 1; min-width: 0; }
 .ohm-media-body h4 { margin: 0 0 8px; font-size: 15px; font-weight: 800; letter-spacing: .3px; color: var(--text); }
 .ohm-media-body p { margin: 0; }
@@ -417,13 +434,13 @@ export const BLOCK_CSS = `
   .ohm-media > img { width: 100%; max-width: none; }
 }
 .ohm-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0 0 var(--ohm-gap, 18px); }
-.ohm-fcard { padding: 16px 12px; text-align: center; border-radius: var(--ohm-radius, 10px); background: var(--ohm-fill); }
+.ohm-fcard { padding: 16px 12px; text-align: center; border: 1px solid var(--ohm-rule); background: var(--ohm-fill); }
 .ohm-fcard img { display: block; width: 46px; height: 46px; margin: 0 auto 10px; }
 .ohm-fcard h5 { margin: 0 0 6px; font-size: 13.5px; font-weight: 800; letter-spacing: .3px; color: var(--text); }
 .ohm-fcard p { margin: 0; font-size: 12.5px; line-height: 1.55; }
 .ohm-gallery { display: grid; grid-template-columns: repeat(var(--cols, 3), 1fr); gap: 14px; margin: var(--ohm-gap, 18px) 0; }
 .ohm-gallery figure { margin: 0; }
-.ohm-gallery img { width: 100%; border-radius: var(--ohm-radius, 10px); display: block; }
+.ohm-gallery img { width: 100%; display: block; }
 .ohm-gallery figcaption { margin-top: 8px; color: var(--text-dim); font-size: 12.5px; text-align: center; }
 @container ohm (max-width: 560px) { .ohm-gallery { grid-template-columns: repeat(2, 1fr); gap: 10px; } }
 
@@ -449,7 +466,7 @@ export const BLOCK_CSS = `
 /* Tinted with the vocabulary's own fill and divided by rules — NOT with the host's
    --surface, which a skin is free to define as a light panel colour, and a pale
    slab in the middle of a dark rules page looks like a bug. */
-.ohm-kv { margin: 0 0 var(--ohm-gap, 18px); display: grid; background: var(--ohm-fill); border-radius: var(--ohm-radius, 10px); overflow: hidden; }
+.ohm-kv { margin: 0 0 var(--ohm-gap, 18px); display: grid; background: var(--ohm-fill); border: 1px solid var(--ohm-rule); }
 .ohm-kv > div { display: grid; grid-template-columns: minmax(110px, 30%) 1fr; gap: 16px; padding: 13px var(--ohm-pad, 16px); border-bottom: 1px solid var(--ohm-rule); }
 .ohm-kv > div:last-child { border-bottom: 0; }
 .ohm-kv dt { margin: 0; font-size: 13.5px; font-weight: 700; color: var(--text); }
@@ -457,21 +474,21 @@ export const BLOCK_CSS = `
 @container ohm (max-width: 560px) { .ohm-kv > div { grid-template-columns: 1fr; gap: 4px; } }
 
 /* ── at a glance ───────────────────────────────────────────────────────────── */
-.ohm-badges { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 var(--ohm-gap, 18px); }
-.ohm-badge { display: inline-flex; align-items: center; height: 26px; padding: 0 12px; border-radius: 999px; background: var(--ohm-fill); color: var(--text); font-size: 11.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
-.ohm-badge--accent { background: var(--accent); color: var(--accent-text); }
-.ohm-badge--bonus { background: #17803d; color: #fff; }
-.ohm-badge--warning { background: #b4410f; color: #fff; }
+.ohm-badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 var(--ohm-gap, 18px); }
+.ohm-badge { display: inline-flex; align-items: center; height: 28px; padding: 0 11px; border: 1px solid var(--ohm-rule); background: var(--ohm-fill); color: var(--text); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.ohm-badge--accent { border-color: color-mix(in srgb, var(--accent) 60%, transparent); color: var(--accent); }
+.ohm-badge--bonus { border-color: color-mix(in srgb, #2ea44f 60%, transparent); color: #45c46a; }
+.ohm-badge--warning { border-color: color-mix(in srgb, #e0a106 60%, transparent); color: #e0a106; }
 .ohm-meter { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 var(--ohm-gap, 18px); }
 .ohm-meter-label { font-size: 13px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: var(--text); }
 .ohm-meter-pips { display: inline-flex; gap: 5px; align-self: center; }
-.ohm-meter-pips i { width: 24px; height: 8px; border-radius: 2px; background: var(--ohm-fill); }
+.ohm-meter-pips i { width: 24px; height: 9px; background: color-mix(in srgb, var(--text-dim) 25%, transparent); }
 .ohm-meter-pips i.on { background: var(--accent); }
 .ohm-meter-cap { flex-basis: 100%; margin: 0; color: var(--text-dim); font-size: 13px; }
 .ohm-timeline { list-style: none; margin: 0 0 var(--ohm-gap, 18px); padding: 0; display: grid; gap: 16px; }
 .ohm-timeline > li { list-style: none; }
 .ohm-timeline li { display: grid; grid-template-columns: 28px 1fr; gap: 14px; align-items: start; }
-.ohm-tl-mark { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 999px; background: var(--accent); color: var(--accent-text); font-weight: 800; font-size: 12.5px; }
+.ohm-tl-mark { display: grid; place-items: center; width: 28px; height: 28px; background: var(--accent); color: var(--accent-text); font-weight: 800; font-size: 12.5px; }
 .ohm-timeline b { display: block; padding-top: 4px; font-size: 14px; color: var(--text); }
 .ohm-timeline p { margin: 5px 0 0; font-size: 13.5px; line-height: 1.6; color: var(--text-dim); }
 
@@ -490,29 +507,12 @@ export const BLOCK_CSS = `
 .ohm-rgrid figcaption { color: var(--text-dim); font-size: 12.5px; line-height: 1.5; text-align: center; }
 
 /* ── containers ────────────────────────────────────────────────────────────── */
-.ohm-tabs { margin: 0 0 var(--ohm-gap, 18px); }
-.ohm-tabs > input { position: absolute; opacity: 0; pointer-events: none; }
-.ohm-tabs > label { display: inline-block; padding: 9px 16px; font-size: 13.5px; font-weight: 800; letter-spacing: .3px; cursor: pointer; color: var(--text-dim); border-bottom: 3px solid transparent; margin-bottom: -3px; position: relative; z-index: 1; transition: color .12s, border-color .12s; }
-.ohm-tabs > label:first-of-type { padding-left: 0; }
-.ohm-tabs > label:hover { color: var(--text); }
-.ohm-tabs > input:checked + label { color: var(--text); border-bottom-color: var(--accent); }
-.ohm-tabs > input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
-.ohm-tabpanels { border-top: 1px solid var(--ohm-rule); }
-.ohm-tabpanels > .ohm-tabpanel { display: none; padding-top: var(--ohm-gap, 18px); }
-.ohm-tabs > input:nth-of-type(1):checked ~ .ohm-tabpanels > .ohm-tabpanel:nth-of-type(1),
-.ohm-tabs > input:nth-of-type(2):checked ~ .ohm-tabpanels > .ohm-tabpanel:nth-of-type(2),
-.ohm-tabs > input:nth-of-type(3):checked ~ .ohm-tabpanels > .ohm-tabpanel:nth-of-type(3),
-.ohm-tabs > input:nth-of-type(4):checked ~ .ohm-tabpanels > .ohm-tabpanel:nth-of-type(4),
-.ohm-tabs > input:nth-of-type(5):checked ~ .ohm-tabpanels > .ohm-tabpanel:nth-of-type(5),
-.ohm-tabs > input:nth-of-type(6):checked ~ .ohm-tabpanels > .ohm-tabpanel:nth-of-type(6) { display: block; }
-.ohm-accs { margin: 0 0 var(--ohm-gap, 18px); display: grid; gap: 10px; }
-.ohm-acc { border: 1px solid var(--ohm-rule); border-radius: var(--ohm-radius, 10px); overflow: hidden; }
-.ohm-acc > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; padding: 14px var(--ohm-pad, 16px); font-size: 13.5px; font-weight: 800; letter-spacing: .3px; color: var(--text); background: var(--ohm-fill); list-style: none; }
-.ohm-acc > summary::-webkit-details-marker { display: none; }
-.ohm-acc > summary::after { content: '+'; font-size: 17px; font-weight: 400; line-height: 1; color: var(--text-dim); }
-.ohm-acc[open] > summary { border-bottom: 1px solid var(--ohm-rule); }
-.ohm-acc[open] > summary::after { content: '\\2212'; }
-.ohm-acc-body { padding: var(--ohm-pad, 16px); }
+/* Titled panels, all of them open — nothing in a rules document is ever hidden
+   behind a click (see the 'sections' block). */
+.ohm-panels { margin: 0 0 var(--ohm-gap, 18px); display: grid; gap: 10px; }
+.ohm-panel { border: 1px solid var(--ohm-rule); }
+.ohm-panel-title { margin: 0; padding: 11px var(--ohm-pad, 16px); font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text); background: var(--ohm-fill); border-bottom: 1px solid var(--ohm-rule); }
+.ohm-panel-body { padding: var(--ohm-pad, 16px); }
 .ohm-cols { display: grid; gap: 20px; margin: 0 0 var(--ohm-gap, 18px); grid-template-columns: 1fr; }
 @container ohm (min-width: 560px) {
   .ohm-cols--2 { grid-template-columns: repeat(2, 1fr); }

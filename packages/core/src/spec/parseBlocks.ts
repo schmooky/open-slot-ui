@@ -217,6 +217,8 @@ const ALIASES: Record<string, string> = {
   section: 'group', box: 'group',
   stats: 'stat-grid', 'mode-table': 'mode-stats',
   glossary: 'kv', definitions: 'kv',
+  // `<accordion>` still parses — it just does not collapse any more.
+  accordion: 'sections', panels: 'sections',
   small: 'legal', legalese: 'legal',
   chips: 'badges',
   gauge: 'meter',
@@ -500,18 +502,14 @@ export function parseBlocks(source: string): ParseResult {
           }));
           return tag(n, { kind: 'tabs', id: idFor(n, kind), tabs });
         }
-        case 'accordion': {
-          const items = kids(n, 'section', 'item', 'panel', 'details').map((c, i) => {
-            const it: { id: string; title: string; open?: boolean; children: BlockSpec[] } = {
-              id: (c.attrs['id'] ?? '').trim() || `acc-${i + 1}`,
-              title: attrOr(c, 'title') || attrOr(c, 'label') || `Section ${i + 1}`,
-              children: convertAll(c, `${path}.items[${i}]`),
-            };
-            const open = bool(c, 'open');
-            if (open != null) it.open = open;
-            return it;
-          });
-          return tag(n, { kind: 'accordion', id: idFor(n, kind), items });
+        case 'sections': {
+          const items = kids(n, 'section', 'item', 'panel', 'details').map((c, i) => ({
+            id: (c.attrs['id'] ?? '').trim() || `section-${i + 1}`,
+            title: attrOr(c, 'title') || attrOr(c, 'label') || `Section ${i + 1}`,
+            children: convertAll(c, `${path}.items[${i}]`),
+          }));
+          // `open` is accepted and ignored on purpose: these panels never collapse.
+          return tag(n, { kind: 'sections', id: idFor(n, kind), items });
         }
         case 'columns': {
           const cols = kids(n, 'column', 'col');
@@ -642,7 +640,7 @@ export function parseJsonBlocks(source: string | unknown): ParseResult {
           children: Array.isArray(t['children']) ? fill(t['children'] as unknown[], `${p}.tabs[${ti}].children`) : [],
         }));
       }
-      if (kind === 'accordion' && Array.isArray(b['items'])) {
+      if (kind === 'sections' && Array.isArray(b['items'])) {
         b['items'] = (b['items'] as Array<Record<string, unknown>>).map((t, ti) => ({
           ...t,
           children: Array.isArray(t['children']) ? fill(t['children'] as unknown[], `${p}.items[${ti}].children`) : [],

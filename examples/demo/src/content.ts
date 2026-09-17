@@ -12,7 +12,7 @@ import { parseBlocks, type BlockSpec, type GameFacts } from '@open-slot-ui/core'
  *
  * The document is a tour of the palette: badges · meter · tabs (with columns,
  * reel grids, a symbol table, paylines, a comparison and a glossary inside) ·
- * media · timeline · cards · gallery · image · callouts · accordion · quote ·
+ * media · timeline · cards · gallery · image · callouts · sections · quote ·
  * link · mode-stats (auto, from FACTS) · divider · legal.
  */
 
@@ -91,7 +91,7 @@ export function buildRules(xml: string): BlockSpec[] {
 
 /**
  * Drop blocks by id, ANYWHERE in the document — a block can sit inside a tab, an
- * accordion section or a column, so a flat filter would miss it. The demo uses
+ * titled section or a column, so a flat filter would miss it. The demo uses
  * this for `?forget=1`; a real game would use it to strip a section a market
  * forbids.
  */
@@ -103,7 +103,7 @@ export function dropBlocks(blocks: BlockSpec[], ids: ReadonlySet<string>): Block
         if (b.kind === 'group') return { ...b, children: keep(b.children) };
         if (b.kind === 'columns') return { ...b, children: b.children.map(keep) };
         if (b.kind === 'tabs') return { ...b, tabs: b.tabs.map((t) => ({ ...t, children: keep(t.children) })) };
-        if (b.kind === 'accordion') return { ...b, items: b.items.map((i) => ({ ...i, children: keep(i.children) })) };
+        if (b.kind === 'sections') return { ...b, items: b.items.map((i) => ({ ...i, children: keep(i.children) })) };
         return b;
       });
   return keep(blocks);

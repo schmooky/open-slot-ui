@@ -342,7 +342,7 @@ describe('the rules blocks, inside the skin’s info window', () => {
 
   it('injects the block stylesheet, scoped so it out-specifies the skin', () => {
     const css = blockStyle();
-    expect(css).toContain('.ohm-tabs');
+    expect(css).toContain('.ohm-panel');
     // Every rule is prefixed — a bare `.ohm-…` selector would lose to the skin's
     // own `[data-channel] .GameInfoWindow .GameInfo__body p`.
     const selectors = [...css.matchAll(/(^|[{}])\s*([^{}@]+?)\s*\{/g)].map((m) => m[2] as string);
@@ -373,13 +373,13 @@ describe('the rules blocks, inside the skin’s info window', () => {
       rules: [
         { kind: 'heading', id: 'h', text: 'Rules' },
         { kind: 'badges', id: 'b', items: [{ text: '20 lines' }] },
-        { kind: 'tabs', id: 't', tabs: [{ id: 'a', label: 'A', children: [{ kind: 'text', id: 'x', text: 'Pays left to right.' }] }] },
+        { kind: 'sections', id: 't', items: [{ id: 'a', title: 'A', children: [{ kind: 'text', id: 'x', text: 'Pays left to right.' }] }] },
       ],
     });
     const body = id('GameInfoBody');
     expect(body!.className).toContain('ohm-body');
     expect(body!.querySelector('.ohm-badges')).not.toBeNull();
-    expect(body!.querySelector('.ohm-tabs')).not.toBeNull();
+    expect(body!.querySelector('.ohm-panel-title')).not.toBeNull();
     expect(body!.textContent).toContain('Pays left to right.');
   });
 });

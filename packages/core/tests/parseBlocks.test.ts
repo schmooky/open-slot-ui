@@ -67,16 +67,16 @@ describe('parseBlocks — the XML dialect', () => {
     expect(s.rows[1]).toEqual({ name: 'King', pays: ['4', '15', '80'] });
   });
 
-  it('nests blocks through tabs, accordions, columns and groups', () => {
+  it('nests blocks through tabs, sections, columns and groups', () => {
     const { blocks, issues } = parseBlocks(`
       <rules>
         <tabs>
           <tab id="base" label="Base game"><p>Ways pay left to right.</p></tab>
           <tab id="bonus" label="Bonus"><badges><badge tone="bonus">Free spins</badge></badges></tab>
         </tabs>
-        <accordion>
-          <section id="rtp" title="RTP" open><p>96.20%</p></section>
-        </accordion>
+        <sections>
+          <section id="rtp" title="RTP"><p>96.20%</p></section>
+        </sections>
         <columns of="2">
           <column><p>Left</p></column>
           <column><p>Right</p></column>
@@ -86,8 +86,8 @@ describe('parseBlocks — the XML dialect', () => {
     const tabs = find(blocks, 'tabs');
     expect(tabs.tabs.map((t) => t.id)).toEqual(['base', 'bonus']);
     expect(kinds(tabs.tabs[1]!.children)).toEqual(['badges']);
-    const acc = find(blocks, 'accordion');
-    expect(acc.items[0]?.open).toBe(true);
+    const acc = find(blocks, 'sections');
+    expect(acc.items[0]).toMatchObject({ id: 'rtp', title: 'RTP' });
     expect(find(blocks, 'columns').children.map((c) => c.length)).toEqual([1, 1]);
   });
 
@@ -163,7 +163,7 @@ describe('parseBlocks — the JSON spelling', () => {
     expect(b.blocks[0]?.id).toBe('heading-1');
   });
 
-  it('fills ids inside tabs, accordions, columns and groups', () => {
+  it('fills ids inside tabs, sections, columns and groups', () => {
     const { blocks } = parseJsonBlocks({
       blocks: [
         { kind: 'tabs', tabs: [{ id: 't', label: 'T', children: [{ kind: 'text', text: 'x' }] }] },
@@ -192,7 +192,7 @@ describe('parsed markup renders and validates', () => {
         <tab id="base" label="Base"><grid reels="5" rows="3"><cell reel="2" row="1"/></grid></tab>
         <tab id="bonus" label="Bonus"><timeline><step title="Land 3"/></timeline></tab>
       </tabs>
-      <accordion><section id="rtp" title="RTP"><kv/></section></accordion>
+      <sections><section id="rtp" title="RTP"><kv/></section></sections>
       <meter label="Volatility" value="5" max="5"/>
       <a href="https://example.test">Terms</a>
     </rules>`;
@@ -206,9 +206,9 @@ describe('parsed markup renders and validates', () => {
 
   it('renders to HTML the info window can show', () => {
     const html = renderBlocksHtml(parseBlocks(source).blocks, (s) => s);
-    expect(html).toContain('ohm-tabs');
-    expect(html).toContain('ohm-tabpanel');
-    expect(html).toContain('<details');
+    expect(html).toContain('ohm-panels');
+    expect((html.match(/ohm-panel-title/g) ?? []).length).toBe(3); // two tab parts + one section
+    expect(html).toContain('ohm-panel-title');
     expect(html).toContain('ohm-meter');
     expect(html).toContain('href="https://example.test"');
     expect(html).not.toContain('<script');
