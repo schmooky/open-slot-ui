@@ -3,17 +3,22 @@ layout: ../../layouts/Docs.astro
 title: Mount & façade
 section: docs
 eyebrow: API reference
-description: mountHud boots the whole HUD in one call; the OpenUI façade it returns owns the control tree, theme, screen state and typed event bus.
+description: One call boots the whole HUD; the OpenUI façade it returns owns the control tree, the screen state and the typed event bus.
 ---
 
-## mountHud — the one-call entry
+## The one-call entry
 
-`mountHud` (from `@open-ui/pixi`) builds, configures and mounts the entire HUD,
-returning a `BootedHud` handle with the day-to-day game verbs.
+Each binding has one: `mountDomHud` renders the HUD as markup your stylesheet
+dresses, `mountHud` draws it onto a PixiJS stage. Both take the same
+[`UISpec`](/guides/configuration/), return the same handle, and speak the same
+façade — everything below is true of either.
 
 ```ts
-import { mountHud } from '@open-ui/pixi';
+import { mountDomHud } from '@open-slot-ui/dom';
+const hud = mountDomHud(spec?, { skin: { href: '/ui.css' } });
 
+// …or, for a game with no DOM at all:
+import { mountHud } from '@open-slot-ui/pixi';
 const hud = mountHud(app, spec?, opts?);
 ```
 
@@ -38,8 +43,8 @@ classes below only for custom wiring.
 two composed.
 
 ```ts
-import { createUI } from '@open-ui/core';
-import { OpenUIPixi } from '@open-ui/pixi';
+import { createUI } from '@open-slot-ui/core';
+import { OpenUIPixi } from '@open-slot-ui/pixi';
 
 const ui = createUI({ theme: 'neon' });
 new OpenUIPixi(ui, { icons }).mount(app);

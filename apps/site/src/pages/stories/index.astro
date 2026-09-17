@@ -1,0 +1,34 @@
+---
+/**
+ * ONE STORY, ALONE.
+ *
+ * Deliberately layout-free: no nav, no footer, no docs styling — just the HUD the
+ * query string asks for (`/stories/?id=bar-idle`). The gallery embeds this page in
+ * an iframe, which is also what keeps the docs' own CSS from ever touching the
+ * skin's, and what lets a reader open any state full-screen on its own URL.
+ */
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>open-ui — story</title>
+    <link rel="preload" as="style" href="/skin/ui.min.css" />
+    <link rel="preload" as="font" type="font/woff2" href="/skin/ui/fonts/icons/icomoon.woff2" crossorigin />
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #101216; }
+      /* The stage stands in for the game behind the HUD: a flat, quiet backdrop, so
+         nothing on the page competes with the thing being looked at. */
+      body::before {
+        content: ''; position: fixed; inset: 0;
+        background: radial-gradient(120% 90% at 50% 0%, #1b1f27, #0c0e12 70%);
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      import '../../stories/stage';
+    </script>
+  </body>
+</html>

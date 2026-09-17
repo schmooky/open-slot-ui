@@ -68,7 +68,7 @@ config. Key overrides by **device size** or **orientation**; they re-apply on ev
 resize, layered base → orientation → size:
 
 ```ts
-mountHud(app, {
+mountDomHud({
   responsive: {
     portrait: { controls: { spin: { layout: { anchor: 'bottom-center', offset: [0, -470] } } } },
     mobile:   { controls: { bonus: { hidden: true } } },   // drop on phones

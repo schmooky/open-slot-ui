@@ -4,24 +4,26 @@ import { OPEN_UI_VERSION } from '../lib/version.ts';
 
 const principles = [
   { n: 'P1', title: 'Biased, not neutral', body: 'A stateful, opinionated HUD with M-V-C inside. The game talks to it, never through it.' },
-  { n: 'P3', title: 'Headless core, thin renderer', body: 'All state, logic, layout & theming live in zero-dependency @open-slot-ui/core. @open-slot-ui/pixi is a thin view.' },
+  { n: 'P3', title: 'Headless core, thin binding', body: 'All state, logic, layout and money live in zero-dependency @open-slot-ui/core. A binding only draws.' },
   { n: 'P5', title: 'Every control is a state machine', body: 'State is the single source of truth for look, interactivity, and tests. No second “is it disabled?”.' },
-  { n: 'P8', title: 'Themeable by tokens', body: 'Look is data: a small token override re-skins the whole HUD. Nothing renders un-themed.' },
+  { n: 'P8', title: 'The look is yours', body: 'The DOM binding ships no stylesheet: it renders the markup a casino skin expects and wears the one you pass.' },
   { n: 'P10', title: 'Introspection is first-class', body: 'window.__OPENUI__ reports every control’s state, interactability and bounds — no pixel reading.' },
   { n: 'P12', title: 'Leak-free lifecycle', body: 'Every subscription, tween and timer returns a disposer. One dispose() tears it all down.' },
 ];
 
-const config = `import { mountHud } from '@open-slot-ui/pixi';
+const config = `import { mountDomHud } from '@open-slot-ui/dom';
 
-mountHud(app, {
-  theme: { overrides: { color: { accent: '#ffc935' } } }, // one b&w theme; recolour via overrides
-  turbo:    { modes: 3 },        // 2-mode toggle or 3-mode switcher
-  autoplay: { mode: 'options' }, // 'options' drawer, or 'infinite'
-  spin:     { press: 'hold-to-spin' }, // 'tap' or hold-to-turbo-spin
-  responsive: {                  // restyle per device / orientation
-    mobile:  { controls: { bonus: { hidden: true } } },
-    portrait:{ controls: { spin: { layout: { anchor: 'bottom-center', offset: [0, -470] } } } },
-  },
+mountDomHud({
+  currency: { code: 'USD', symbol: '$', display: 'symbol', position: 'prefix', decimals: 2 },
+  betLadder: { levels: [0.1, 0.2, 0.5, 1, 2, 5, 10], index: 3 },
+  autoplay: { options: [10, 25, 50, 100], lossLimits: [5, 20, 50] },
+  turbo: { modes: 3 },                 // 2-mode toggle or 3-mode switcher
+  spin: { press: 'hold-to-spin' },     // 'tap', or hold to turbo-spin
+  hud: { features: { buyFeature: true, history: true, info: true } },
+  rules,                               // the info window, written in blocks
+}, {
+  skin: { href: '/ui.css' },           // the look is yours; the library ships none
+  features: [{ id: 'free-spins', name: 'Free Spins', variant: 'buy', cost: 100 }],
 });`;
 ---
 <Base>
@@ -32,38 +34,40 @@ mountHud(app, {
       <div class="mx-auto max-w-3xl text-center">
         <span class="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
           <span class="h-1.5 w-1.5 rounded-full bg-[#ffc935]"></span>
-          PixiJS v8 · v{OPEN_UI_VERSION}
+          DOM + PixiJS bindings · v{OPEN_UI_VERSION}
         </span>
         <h1 class="mt-6 text-4xl font-bold tracking-tight sm:text-6xl gradient-text">
           A slot HUD you configure, not build.
         </h1>
         <p class="mx-auto mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
-          open-ui is a <strong class="text-foreground">biased, themeable</strong> UI library for slot games.
-          Mount the whole HUD onto your PixiJS scene in <strong class="text-foreground">one call</strong>,
-          then set how it looks and behaves with <strong class="text-foreground">plain string-literal options</strong>.
+          open-ui is a <strong class="text-foreground">biased, stateful</strong> UI library for slot games.
+          Mount the whole HUD in <strong class="text-foreground">one call</strong>, dress it in
+          <strong class="text-foreground">your own stylesheet</strong>, and set what it does with plain,
+          typed options. Every part of it is <a href="/gallery/" class="underline underline-offset-4 decoration-foreground/40">in the gallery</a>, live.
         </p>
         <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
           <a href="/guides/getting-started/" class="inline-flex h-11 items-center rounded-md bg-primary px-6 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90">
             Get started
           </a>
-          <a href="/guides/configuration/" class="inline-flex h-11 items-center rounded-md border border-border px-6 text-sm font-medium text-foreground transition-colors hover:bg-secondary/50">
-            See every option
+          <a href="/gallery/" class="inline-flex h-11 items-center rounded-md border border-border px-6 text-sm font-medium text-foreground transition-colors hover:bg-secondary/50">
+            Open the gallery
           </a>
         </div>
       </div>
 
-      <!-- Hero shots: the real HUD, screenshotted by the example client's Playwright suite -->
+      <!-- Hero shots, taken from the gallery's own stories (apps/site/scripts/shoot-hero.mjs) -->
       <div class="mx-auto mt-14 grid max-w-5xl gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
         <figure class="overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
-          <img src="/hero/hud-desktop.png" alt="The open-ui ribbon on desktop — menu and readouts left, action box right" width="1440" height="900" class="w-full" loading="eager" />
+          <img src="/hero/hud-desktop.png" alt="The open-ui bar on desktop: the buy coin, the ☰ menu, balance and win, the stake with its ladder, and the round button" width="2040" height="300" class="w-full" loading="eager" />
         </figure>
         <figure class="mx-auto w-44 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl sm:w-40">
-          <img src="/hero/hud-mobile.png" alt="open-ui HUD on a phone, portrait" width="390" height="844" class="w-full" loading="eager" />
+          <img src="/hero/hud-mobile.png" alt="The same bar on a phone: the round button centred, readouts underneath" width="782" height="352" class="w-full" loading="eager" />
         </figure>
       </div>
       <p class="mt-3 text-center text-xs text-muted-foreground">
-        The same HUD, same code — reflowed per device. These are real Playwright screenshots from the
-        <a href="/guides/testing/" class="underline underline-offset-4 decoration-foreground/30 hover:decoration-foreground">device test suite</a>.
+        The same HUD and the same code, reflowed per device. Both shots are taken from
+        <a href="/gallery/#bar" class="underline underline-offset-4 decoration-foreground/30 hover:decoration-foreground">gallery stories</a>
+        you can open and prod yourself.
       </p>
     </div>
   </section>
@@ -73,8 +77,9 @@ mountHud(app, {
     <div class="mx-auto max-w-2xl text-center">
       <h2 class="text-2xl font-semibold tracking-tight">Configure it, don't fork it</h2>
       <p class="mt-2 text-muted-foreground">
-        One JSON spec sets the theme, the turbo modes, how autoplay and the spin button behave,
-        and how the HUD reflows on every screen. Typed, so a typo is a compile error.
+        One spec object sets which parts exist, the bet ladder, the autoplay limits, the money, the
+        locale and the rules. Typed, so a typo is a compile error — and validated, so a bad value is
+        reported and dropped instead of thrown.
       </p>
     </div>
     <div class="mx-auto mt-8 grid max-w-5xl gap-6 lg:grid-cols-2 lg:items-center">
@@ -82,9 +87,9 @@ mountHud(app, {
         <pre class="overflow-x-auto text-[13px] leading-6"><code>{config}</code></pre>
       </div>
       <figure class="overflow-hidden rounded-xl border border-border bg-card shadow-xl">
-        <img src="/hero/autoplay-drawer.png" alt="The autoplay panel flying up out of the bar — rounds, total cost and the start button" width="1440" height="900" class="w-full" />
+        <img src="/hero/autoplay-drawer.png" alt="The autoplay panel over the bar: rounds, what they cost, and the loss and win limits" width="2880" height="1040" class="w-full" />
         <figcaption class="border-t border-border/60 px-4 py-2 text-xs text-muted-foreground">
-          autoplay <code class="rounded bg-muted px-1 py-0.5">mode: 'options'</code> → a bottom drawer to pick a count, then Start.
+          The autoplay panel: rounds, what they cost, and the loss and win limits a jurisdiction asks for.
         </figcaption>
       </figure>
     </div>
@@ -115,8 +120,8 @@ mountHud(app, {
   <!-- Packages + quickstart -->
   <section class="container py-12">
     <div class="mx-auto max-w-4xl">
-      <h2 class="mb-6 text-2xl font-semibold tracking-tight">Two packages</h2>
-      <div class="grid gap-4 md:grid-cols-2">
+      <h2 class="mb-6 text-2xl font-semibold tracking-tight">Three packages</h2>
+      <div class="grid gap-4 md:grid-cols-3">
         <div class="rounded-xl border border-border bg-card p-6">
           <div class="flex items-center justify-between">
             <code class="font-mono text-sm font-semibold">@open-slot-ui/core</code>
@@ -126,18 +131,25 @@ mountHud(app, {
         </div>
         <div class="rounded-xl border border-border bg-card p-6">
           <div class="flex items-center justify-between">
+            <code class="font-mono text-sm font-semibold">@open-slot-ui/dom</code>
+            <span class="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">your stylesheet</span>
+          </div>
+          <p class="mt-3 text-sm leading-6 text-muted-foreground">The HUD as real markup — the ids and classes a casino skin already expects — bound to the core. This is what the gallery shows.</p>
+        </div>
+        <div class="rounded-xl border border-border bg-card p-6">
+          <div class="flex items-center justify-between">
             <code class="font-mono text-sm font-semibold">@open-slot-ui/pixi</code>
             <span class="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">peer: pixi.js ^8</span>
           </div>
-          <p class="mt-3 text-sm leading-6 text-muted-foreground">The PixiJS v8 view + controller binding. Mounts one Container, shares your ticker &amp; renderer.</p>
+          <p class="mt-3 text-sm leading-6 text-muted-foreground">The canvas binding: the same core drawn onto your PixiJS stage, for games that want no DOM at all.</p>
         </div>
       </div>
       <div class="mt-8 rounded-xl border border-border surface-code p-5">
-        <pre class="overflow-x-auto text-sm leading-6"><code>{`import { mountHud } from '@open-slot-ui/pixi';
+        <pre class="overflow-x-auto text-sm leading-6"><code>{`import { mountDomHud } from '@open-slot-ui/dom';
 
-const hud = mountHud(app);              // whole HUD, one Container onto YOUR stage
-hud.on('spinRequested', () => game.spin());   // events out
-hud.ui.spin.busy();                           // commands in
+const hud = mountDomHud(spec, { skin: { href: '/ui.css' } }); // the whole HUD, one call
+hud.on('spinRequested', () => game.spin());                   // events out
+hud.ui.spin.busy();                                           // commands in
 hud.setBalance(1234);`}</code></pre>
       </div>
     </div>

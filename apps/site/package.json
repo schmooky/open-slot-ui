@@ -3,13 +3,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "astro dev",
-    "start": "astro dev",
-    "build": "astro build",
+    "sync-skin": "node scripts/sync-skin.mjs",
+    "shoot-hero": "node scripts/shoot-hero.mjs",
+    "dev": "pnpm sync-skin && astro dev",
+    "start": "pnpm sync-skin && astro dev",
+    "build": "pnpm sync-skin && astro build",
     "preview": "astro preview",
     "astro": "astro"
   },
   "dependencies": {
+    "@open-slot-ui/core": "workspace:*",
+    "@open-slot-ui/dom": "workspace:*",
     "@astrojs/mdx": "^5.0.3",
     "@tailwindcss/vite": "^4.2.2",
     "astro": "^6.1.8",
@@ -17,6 +21,7 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.50.0",
     "typescript": "^5.7.2"
   }
 }

@@ -6,25 +6,33 @@ eyebrow: Concepts
 description: Look is data. A small token override re-skins the whole HUD, and components never break un-themed.
 ---
 
-In open-ui, **look is data** (Charter&nbsp;P8). A `Theme` is a token set — colour,
-space, radius, type, motion — with semantic aliases and safe fallbacks. A
-per-game theme is a small override map; nothing in the logic changes.
+**Which look you are theming depends on the binding.**
+
+`@open-slot-ui/dom` renders markup and paints nothing: its look is the stylesheet
+you pass in `skin`, exactly as a casino skin is written today. There is no theme to
+set — see [how it fits together](/docs/anatomy/), and
+[the gallery](/gallery/) for what the example's skin does with it.
+
+Everything below is the **token theme**: the palette the canvas binding draws with,
+and the colours the shared rules blocks use. In open-ui, **look is data**
+(Charter&nbsp;P8): a `Theme` is a token set — colour, space, radius, type, motion —
+with semantic aliases and safe fallbacks, and a per-game theme is a small override
+map. Nothing in the logic changes.
 
 ## The quick path: a preset
 
 Four presets ship in the box — pick one by name in the [config](/guides/configuration/):
 
 ```ts
-mountHud(app, { theme: 'default' | 'midnight' | 'neon' | 'light' });
+mountDomHud({ theme: 'default' | 'midnight' | 'neon' | 'light' });
 // tweak a preset's tokens:
-mountHud(app, { theme: { preset: 'neon', overrides: { color: { accent: '#ff4d6d' } } } });
+mountDomHud({ theme: { preset: 'neon', overrides: { color: { accent: '#ff4d6d' } } } });
 ```
 
 The `light` preset renders the menu as a white card. Everything in it is a
-configurable block — a banner image, divider headings, a multiplier paytable with
-symbol icons, bold body text, a stat grid, a callout:
-
-<img src="/hero/menu-light.png" alt="The light-theme menu: banner, divider headers, symbol-icon paytable, bold rules" width="1440" height="900" style="border-radius:12px;border:1px solid var(--border);margin-top:0.5rem" />
+configurable block — headings, a symbol table, reel grids, a stat grid, callouts —
+and every one of them is rendered live, next to the markup that produced it, in the
+[menu-blocks gallery](/gallery/blocks/).
 
 ## Safe by design — theme it, don't break it
 
@@ -35,7 +43,7 @@ validated at runtime: an invalid colour or a non-finite radius is **dropped and
 reported**, and the safe token shows through. A broken theme is impossible:
 
 ```ts
-mountHud(app, {
+mountDomHud({
   theme: { preset: 'neon', overrides: { color: { accent: 'not-a-color' } } },
   hooks: { onDataIssue: (i) => console.warn(i.code, i.message) }, // 'bad-color', …
 });
@@ -66,8 +74,8 @@ export const defaultTheme = {
 changes. One change cascades through the semantic aliases.
 
 ```ts
-import { OpenUI } from '@open-ui/core';
-import { extendTheme, defaultTheme } from '@open-ui/core';
+import { OpenUI } from '@open-slot-ui/core';
+import { extendTheme, defaultTheme } from '@open-slot-ui/core';
 
 const scrollOfFate = extendTheme(defaultTheme, {
   color: { accent: '#E8B23A', surface: '#1a0f08', surfaceAlt: '#0d0704' },
@@ -81,7 +89,7 @@ const ui = new OpenUI({ theme: scrollOfFate });
 
 There are two layers of "look", and they're independent:
 
-- **Theme** = renderer-agnostic *data* (the tokens above). Lives in `@open-ui/core`.
+- **Theme** = renderer-agnostic *data* (the tokens above). Lives in `@open-slot-ui/core`.
 - **Skin** = a renderer-side *drawer*. For Pixi, swap art per control via `OpenUIPixi`'s `spinSkin` / `icons` — e.g. `svgSpinSkin({ default, auto })`.
 
 ```ts

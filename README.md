@@ -215,8 +215,16 @@ pnpm build                    # build both libraries
 
 pnpm --dir examples/demo test:visual   # Playwright device screenshots → screenshots/
 pnpm --dir examples/demo specimen      # the rules blocks on their own page → screenshots/specimen.html
-pnpm --dir apps/site dev               # the docs site → http://localhost:5210
+pnpm --dir examples/demo boot          # what the first second of load looks like
+pnpm --dir apps/site dev               # the docs site + gallery → http://localhost:5210
 ```
+
+The **gallery** (`/gallery/`) is the storybook: every part of the HUD — the bar in each
+state, each control, each window, the money shapes that break layouts — mounted live from
+source, each one on its own URL (`/stories/?id=bar-slam`) so it can be opened alone or
+linked to. Beside it, `/gallery/blocks/` renders every block kind next to the markup that
+produced it, and `/gallery/cases/` lists what the suites actually assert, read out of the
+suite files at build time.
 
 The **specimen** is the design view of the block vocabulary: the example's own
 `rules.xml`, rendered on the default light card with nothing else around it — the

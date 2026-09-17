@@ -3,52 +3,62 @@ layout: ../../layouts/Docs.astro
 title: Getting started
 section: guides
 eyebrow: Start here
-description: Mount the whole open-ui HUD onto an existing PixiJS v8 app in one call.
+description: Mount the whole open-ui HUD in one call, dress it in your own stylesheet, and talk to it.
 ---
 
-open-ui mounts as **one layer** into a PixiJS v8 app you already have. You don't
-build the HUD — you `mountHud()` it, configure it, and then **talk to it**.
+open-ui mounts as **one layer** over the game you already have. You don't build the
+HUD — you mount it, configure it, and then **talk to it**.
+
+There are two bindings over the same headless core. Everything below uses
+`@open-slot-ui/dom`, which renders the HUD as real markup and wears the stylesheet
+you pass — it is what the [gallery](/gallery/) shows. `@open-slot-ui/pixi` takes the
+same spec and the same calls, and draws onto a PixiJS stage instead.
 
 ## Requirements
 
 - Node 20+ and a package manager (pnpm recommended)
-- A PixiJS v8 `Application` — open-ui shares your `app.stage`, `ticker` and `renderer`
+- A page to mount into. The DOM binding needs nothing else; the canvas binding needs
+  a PixiJS v8 `Application`, whose `stage`, `ticker` and `renderer` it shares.
 
 ## Install
 
 ```bash
-pnpm add @open-ui/core @open-ui/pixi pixi.js
+pnpm add @open-slot-ui/core @open-slot-ui/dom
 ```
-
-`pixi.js` is a **peer dependency** of `@open-ui/pixi` so there is exactly one
-deduped instance shared between your game and the UI (Charter&nbsp;B2).
 
 ## Mount the whole HUD in one call
 
 ```ts
-import { Application } from 'pixi.js';
-import { mountHud } from '@open-ui/pixi';
+import { mountDomHud } from '@open-slot-ui/dom';
 
-const app = new Application();
-await app.init({ background: '#0b0e13', resizeTo: window });
-document.body.appendChild(app.canvas);
-
-// the entire HUD, mounted as one Container onto YOUR stage
-const hud = mountHud(app);
-```
-
-That puts a correct, laid-out HUD on screen: spin, balance, bet, autoplay, turbo,
-bet ±, a settings popover and a rules modal — all wired, all responsive. To shape
-it, pass a [config](/guides/configuration/):
-
-```ts
-const hud = mountHud(app, {
-  theme: 'neon',
-  turbo:    { modes: 3 },
-  autoplay: { mode: 'options' },
-  spin:     { press: 'hold-to-spin' },
+const hud = mountDomHud({
+  currency: { code: 'USD', symbol: '$', display: 'symbol', position: 'prefix', decimals: 2 },
+  betLadder: { levels: [0.1, 0.2, 0.5, 1, 2, 5, 10], index: 3 },
+}, {
+  // The library ships NO stylesheet: this is the skin your game wears.
+  skin: { href: '/ui.css', font: { family: 'icomoon', src: '/icons.woff2' } },
 });
 ```
+
+That puts a correct, laid-out HUD on screen — balance, stake and its ladder, win,
+the round button, autoplay, turbo, the ☰ menu, the info window — all wired, all
+responsive, on desktop and on a phone. To shape it, pass more
+[config](/guides/configuration/):
+
+```ts
+const hud = mountDomHud({
+  turbo:    { modes: 3 },
+  autoplay: { mode: 'options', lossLimits: [5, 20, 50] },
+  spin:     { press: 'hold-to-spin' },
+  hud:      { features: { buyFeature: true, history: true, info: true } },
+}, { skin });
+```
+
+## The look is yours
+
+The DOM binding renders the ids and classes a casino skin already expects, so a
+stylesheet written for that markup dresses it as-is. Nothing in the library paints
+a colour of its own — see [how it fits together](/docs/anatomy/).
 
 ## Talk to it: events out, commands in
 
@@ -68,9 +78,10 @@ hud.on('spinRequested', async () => {
 
 ## Add it to any slot
 
-That's the whole integration: import `mountHud`, call it with your `app`, wire
-`spinRequested` to your spin and feed results back with `hud.setBalance()`. The
-HUD owns its own layout, theming, animation and teardown — you own the game.
+That's the whole integration: mount it, wire `spinRequested` to your spin, and feed
+results back with `hud.setBalance()`. The HUD owns its own layout, states and
+teardown; your game owns the round. Every state it can be in is a
+[story you can open](/gallery/).
 
 ## Tear it down cleanly
 
@@ -89,3 +100,4 @@ hud.dispose();   // removes the layer + every listener, tween and timer
 - **Re-skin it** → [Theming by tokens](/guides/theming/)
 - **Reflow per device** → [Responsive layout](/guides/layout/)
 - **Test it** → [Introspection & testing](/guides/testing/)
+- **See all of it** → [the gallery](/gallery/), [menu blocks](/gallery/blocks/), [test cases](/gallery/cases/)

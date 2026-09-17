@@ -7,21 +7,21 @@ description: One JSON spec sets how the whole HUD looks and behaves — which pa
 ---
 
 The whole HUD is one **`UISpec`** — a plain, JSON-serializable object you pass to
-`mountHud(app, spec)`. Every field is optional; omit one and you get the sensible
+`mountDomHud(spec, opts)`. Every field is optional; omit one and you get the sensible
 default. It's fully typed, so your editor autocompletes the options and a typo
 won't compile.
 
 ```ts
-import { mountHud } from '@open-slot-ui/pixi';
+import { mountDomHud } from '@open-slot-ui/dom';
 
-const hud = mountHud(app, {
+const hud = mountDomHud({
   hud:      { dock: 'bottom', features: { promotion: false } },
   autoplay: { mode: 'options' },
   spin:     { press: 'hold-to-spin' },
 });
 ```
 
-`mountHud()` with no spec gives you the reference HUD. Everything below is opt-in.
+`mountDomHud()` with no spec gives you the reference HUD. Everything below is opt-in.
 
 ## The bar — `hud`
 
@@ -52,8 +52,10 @@ flags are reported to `onDataIssue` and ignored.
 | Action box | `betWidget` · `betChangers` · `betProgress` · `autoplay` · `autoplayAdvanced` · `buyFeature` · `promotion` · `stopRound` |
 | Overlays | `feedback` · `clock` · `rtp` · `maxWin` · `sessionBar` · `fullscreen` · `branding` |
 
-The bar reserves a strip the reels must stay clear of — read it with
-`hud.pixi.barHeight` (it updates on every resize).
+The bar reserves a strip the reels must stay clear of. Measure it from the markup
+(`document.querySelector('.UiUserPanelWrapper').getBoundingClientRect().height`) on
+the DOM binding, or read `hud.pixi.barHeight` on the canvas one; both update on
+every resize.
 
 ## Theme
 
@@ -199,7 +201,9 @@ centered divider; `text`/paytable payouts support `**bold**`; paytable takes a
 `columns` grid with per-symbol `icon`s; every block's text flows through `ui.t`, so
 the whole menu localizes.
 
-<img src="/hero/menu.png" alt="The unified scrollable menu, localized to Japanese" width="1440" height="900" style="border-radius:12px;border:1px solid var(--border);margin-top:1rem" />
+<img src="/hero/menu.png" alt="The info window: the rules, rendered from blocks" width="1440" height="900" style="border-radius:12px;border:1px solid var(--border);margin-top:1rem" /> 
+
+It is live, with every block kind beside its markup, in the [menu-blocks gallery](/gallery/blocks/).
 
 ## i18n — localize safely
 
@@ -220,7 +224,7 @@ The spec is validated on mount. Problems are **reported, not fatal** — a malfo
 HUD still boots with the bad pieces dropped. Catch issues in development:
 
 ```ts
-mountHud(app, spec, { hooks: { onDataIssue: (i) => console.warn(i.code, i.message) } });
+mountDomHud(spec, { hooks: { onDataIssue: (i) => console.warn(i.code, i.message) } });
 ```
 
 ## Next

@@ -22,3 +22,6 @@ Archive.zip
 # The demo's SKIN (stylesheet + icon font) is committed so the example builds and
 # deploys from a clean checkout — see examples/demo/public/skin/README.md for what it
 # is and who it belongs to.
+
+# The docs site serves the example's skin; it is copied in by `pnpm --dir apps/site sync-skin`.
+apps/site/public/skin/

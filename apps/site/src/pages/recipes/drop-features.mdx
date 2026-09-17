@@ -14,7 +14,7 @@ is *never created* — not hidden-but-clickable.
 ## The lean bar
 
 ```ts
-const hud = mountHud(app, {
+const hud = mountDomHud({
   hud: {
     features: {
       buyFeature: false,      // no BUY BONUS pill, no buy sheet
@@ -67,7 +67,7 @@ The bar draws its own parts, but the MENU and window content still render throug
 the shared block renderer, so a host can substitute a view per control id:
 
 ```ts
-mountHud(app, spec, {
+mountDomHud(spec, {
   controlSkins: { 'music': (control, ui, ticker) => new MyFancySlider(control, ui, ticker) },
 });
 ```

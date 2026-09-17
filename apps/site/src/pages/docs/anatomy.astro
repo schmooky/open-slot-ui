@@ -1,0 +1,112 @@
+---
+import Docs from '../../layouts/Docs.astro';
+---
+<Docs
+  title="How it fits together — open-ui"
+  description="What the package is made of: a headless core, a renderer binding, one spec object, and the round it plays."
+>
+  <h1>How it fits together</h1>
+  <p class="lead">
+    open-ui is two halves and one object. The half that thinks knows nothing about drawing; the half that draws
+    knows nothing about rules. What joins them is a <strong>spec</strong> — a plain object you hand over once.
+  </p>
+
+  <svg viewBox="0 0 720 260" class="my-8 w-full" role="img" aria-label="The game passes a UISpec to the binding, which builds the core's controls and renders the markup the skin dresses; events travel back to the game.">
+    <defs>
+      <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0 0 L10 5 L0 10 z" fill="currentColor" />
+      </marker>
+    </defs>
+    <g fill="none" stroke="currentColor" stroke-width="1.5" opacity=".85">
+      <rect x="8" y="34" width="150" height="72" rx="6" />
+      <rect x="252" y="16" width="200" height="52" rx="6" />
+      <rect x="252" y="96" width="200" height="52" rx="6" />
+      <rect x="252" y="176" width="200" height="52" rx="6" />
+      <rect x="552" y="96" width="160" height="52" rx="6" />
+      <path d="M158 70 H252" marker-end="url(#a)" />
+      <path d="M452 42 H500 V122 H552" marker-end="url(#a)" />
+      <path d="M452 122 H552" marker-end="url(#a)" />
+      <path d="M452 202 H500 V122" />
+      <path d="M552 140 H500 V240 H83 V106" marker-end="url(#a)" stroke-dasharray="4 4" />
+    </g>
+    <g fill="currentColor" font-family="ui-monospace,monospace" font-size="12">
+      <text x="83" y="62" text-anchor="middle" font-weight="700">your game</text>
+      <text x="83" y="80" text-anchor="middle" opacity=".6">spec + calls</text>
+      <text x="352" y="38" text-anchor="middle" font-weight="700">@open-slot-ui/core</text>
+      <text x="352" y="54" text-anchor="middle" opacity=".6">signals · controls · state machines</text>
+      <text x="352" y="118" text-anchor="middle" font-weight="700">@open-slot-ui/dom</text>
+      <text x="352" y="134" text-anchor="middle" opacity=".6">the markup, bound to those controls</text>
+      <text x="352" y="198" text-anchor="middle" font-weight="700">your stylesheet</text>
+      <text x="352" y="214" text-anchor="middle" opacity=".6">the look — the library ships none</text>
+      <text x="632" y="118" text-anchor="middle" font-weight="700">the HUD</text>
+      <text x="632" y="134" text-anchor="middle" opacity=".6">on the player's screen</text>
+      <text x="300" y="252" opacity=".6">events back: spinRequested · skipRequested · buttonActivated · …</text>
+    </g>
+  </svg>
+
+  <h2>The core does not draw</h2>
+  <p>
+    <code>@open-slot-ui/core</code> is zero-dependency and has no DOM in it. Every button, readout and panel is a
+    small state machine over a signal, and whether a control can be pressed is <em>derived</em> from state rather
+    than stored as a flag — which is why a HUD cannot end up with a spin button that is enabled during a spin.
+    It also owns the things a game must not get wrong twice: money formatting, the bet ladder, the autoplay
+    limits, the jurisdiction switchboard, and the never-throwing validator that reads your spec.
+  </p>
+
+  <h2>A binding draws, and owns no rules</h2>
+  <p>
+    <code>@open-slot-ui/dom</code> renders the HUD as real markup — the ids and classes a casino skin already
+    expects — and wires each element to a control. It ships <strong>no stylesheet</strong>: you pass the one your
+    game wears. Everything in the <a href="/gallery/">gallery</a> is that binding, dressed in the example's skin.
+  </p>
+
+  <h2>One object decides what exists</h2>
+  <p>
+    A <code>UISpec</code> is the whole configuration: which parts exist at all, the bet ladder, the autoplay
+    options and limits, the currency, the locale dictionary, the menu and its rules. A value the library cannot
+    use is reported and dropped — never thrown — so a bad config degrades the HUD instead of taking the game
+    down with it.
+  </p>
+  <pre><code>{`import { mountDomHud } from '@open-slot-ui/dom';
+
+const hud = mountDomHud({
+  currency: { code: 'USD', symbol: '$', display: 'symbol', position: 'prefix', decimals: 2 },
+  betLadder: { levels: [0.1, 0.2, 0.5, 1, 2, 5, 10], index: 3 },
+  autoplay: { options: [10, 25, 50, 100], lossLimits: [5, 20, 50], winLimits: [10, 20, 75] },
+  hud: { features: { buyFeature: true, history: true, info: true } },
+  rules,                       // blocks — see the menu-blocks gallery
+}, {
+  skin: { href: '/ui.css', font: { family: 'icomoon', src: '/icons.woff2' } },
+  features: [{ id: 'free-spins', name: 'Free Spins', variant: 'buy', cost: 100 }],
+  onBuy: (id, cost) => { /* your game starts the feature */ },
+});`}</code></pre>
+
+  <h2>The round, in three phases</h2>
+  <p>
+    A spin is not a boolean. The round button is idle, then <em>in flight</em> — dimmed, but not a stop button,
+    because there is nothing to stop until the server has answered — and only then <em>slam-to-stop</em>. That is
+    one button in three phases, never two buttons at once; the
+    <a href="/gallery/#control-round">round-button story</a> walks them.
+  </p>
+  <pre><code>{`ui.spin.busy();        // the player pressed it; the request is out
+ui.spin.stopState();   // the answer arrived — now it can be slammed
+ui.spin.idle();        // the reels have landed
+
+ui.on('spinRequested', () => game.spin());
+ui.on('skipRequested', () => game.slam());`}</code></pre>
+
+  <h2>The rules are content, not code</h2>
+  <p>
+    The info window is written in <a href="/gallery/blocks/">blocks</a> — headings, tables, symbol tables, reel
+    grids, meters, timelines — which both renderers understand. They can be written as objects or parsed from a
+    markup file a writer edits, and they are <em>audited</em>: every mode the game declares must have its own
+    section stating its RTP, its max win and its price, or the window says so where a reader will see it.
+  </p>
+
+  <h2>What the tests hold on to</h2>
+  <p>
+    Every control reports its state, interactability and bounds through <code>window.__OPENUI__</code>, so an
+    end-to-end suite asserts on facts rather than on pixels. The cases that exist today are listed, straight from
+    the suite files, on the <a href="/gallery/cases/">test-cases page</a>.
+  </p>
+</Docs>
