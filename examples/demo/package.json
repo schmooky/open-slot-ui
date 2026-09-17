@@ -11,7 +11,8 @@
     "test:e2e": "playwright test",
     "test:visual": "playwright test",
     "matrix": "playwright test -c playwright.matrix.config.ts && node scripts/montage.mjs",
-    "specimen": "node scripts/specimen.mjs"
+    "specimen": "node scripts/specimen.mjs",
+    "boot": "node scripts/boot-probe.mjs"
   },
   "dependencies": {
     "@open-slot-ui/core": "workspace:*",

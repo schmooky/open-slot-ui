@@ -14,6 +14,24 @@ export interface MenuViewOptions {
 
 const MARGIN = 16;
 const HEADER_H = 62;
+/**
+ * `requestIdleCallback`, where it exists — and deliberately with NO timeout: a
+ * forced deadline would fire the build back into the boot it was moved out of. If
+ * the thread never goes idle, the menu simply builds when it is first opened.
+ * Safari has no idle callback at all, hence the timer, set well clear of boot.
+ */
+type IdleHandle = { cancel: () => void };
+function idleCallback(fn: () => void): IdleHandle {
+  const g = globalThis as { requestIdleCallback?: (cb: () => void) => number; cancelIdleCallback?: (h: number) => void };
+  if (typeof g.requestIdleCallback === 'function') {
+    const h = g.requestIdleCallback(fn);
+    return { cancel: () => g.cancelIdleCallback?.(h) };
+  }
+  const t = setTimeout(fn, 2500);
+  return { cancel: () => clearTimeout(t) };
+}
+const cancelIdle = (h: IdleHandle | undefined): void => h?.cancel();
+
 const INSET = 24;
 
 // The window palette is derived from the theme (see `chrome/palette`), so the menu
@@ -50,6 +68,9 @@ export class MenuView extends ControlView {
   private vpW = 0;
   private vpH = 0;
   private scrollY = 0;
+  /** The column is stale (never built, or the width changed) — see `ensureContent`. */
+  private needsRebuild = true;
+  private warmHandle: IdleHandle;
   private contentH = 0;
   private dragging = false;
   private lastY = 0;
@@ -97,14 +118,20 @@ export class MenuView extends ControlView {
 
     this.addChild(this.backdrop, this.card, this.viewport, this.maskG, this.headerBar, this.title, this.closeBtn, this.dropdownLayer);
 
-    this.rebuildContent();
+    // The menu is a DOCUMENT — paytable grids, symbol tables, a page of rules — and
+    // building it is the most expensive thing this view does. It is not built here:
+    // at mount the player is waiting for the game, not for a menu they have not
+    // opened. It builds on first open, and warms itself when the main thread is next
+    // idle so that open is instant anyway.
+    this.warmHandle = idleCallback(() => this.ensureContent());
     this.applyOpen(this.panel.isOpen);
     this.disposers.push(
+      () => cancelIdle(this.warmHandle),
       this.panel.state.subscribe(() => this.applyOpen(this.panel.isOpen)),
       this.ui.locale.subscribe(() => {
         if (this.destroyed) return;
         this.title.text = this.ui.t(this.titleKey);
-        this.rebuildContent();
+        this.invalidateContent();
       }),
     );
   }
@@ -124,7 +151,18 @@ export class MenuView extends ControlView {
     this.closeBtn.on('pointertap', () => this.panel.closePanel());
   }
 
-  private readonly tabState = new Map<string, number>();
+  /** Mark the column stale. A closed menu rebuilds when it is next opened. */
+  private invalidateContent(): void {
+    this.needsRebuild = true;
+    if (this.panel.isOpen) this.ensureContent();
+  }
+
+  /** Build the column if it is missing or stale — the only caller of the builder. */
+  private ensureContent(): void {
+    if (this.destroyed || !this.needsRebuild) return;
+    this.needsRebuild = false;
+    this.rebuildContent();
+  }
 
   private rebuildContent(): void {
     for (const v of this.childViews) v.dispose();
@@ -132,14 +170,7 @@ export class MenuView extends ControlView {
     for (const child of this.content.removeChildren()) child.destroy();
 
     const bodyW = this.vpW > 0 ? this.vpW : Math.min(this.maxWidth - INSET * 2, 520);
-    const col = buildBlockColumn(this.blocks, this.controls, this.lightUi, this.ticker, bodyW, {
-      controlSkins: this.opts.controlSkins,
-      dropdownLayer: this.dropdownLayer,
-      // Tab selection lives HERE, not in the column: switching a tab rebuilds the
-      // column, and the reader has to stay on the tab they picked.
-      tabState: this.tabState,
-      onRelayout: () => { if (!this.destroyed) this.rebuildContent(); },
-    });
+    const col = buildBlockColumn(this.blocks, this.controls, this.lightUi, this.ticker, bodyW, { controlSkins: this.opts.controlSkins, dropdownLayer: this.dropdownLayer });
     this.childViews = col.views;
     this.content.addChild(...col.content.removeChildren());
     this.content.x = bodyW / 2; // column rows are centered at x=0
@@ -174,6 +205,7 @@ export class MenuView extends ControlView {
     const vpX = cx + INSET;
     const vpY = cy + HEADER_H + INSET;
     const newVpW = cardW - INSET * 2;
+    const widthChanged = newVpW !== this.vpW;
     this.vpW = newVpW;
     this.vpH = cardH - HEADER_H - INSET * 2;
     this.viewport.position.set(vpX, vpY);
@@ -181,8 +213,11 @@ export class MenuView extends ControlView {
     this.catcher.clear().rect(0, 0, this.vpW, this.vpH).fill({ color: 0xffffff, alpha: 0.0001 });
     this.catcher.hitArea = new Rectangle(0, 0, this.vpW, this.vpH);
 
-    // Rebuild the column to the live viewport width (so wrapping is correct).
-    this.rebuildContent();
+    // The column wraps to the viewport width, so a WIDTH change invalidates it —
+    // and only a width change. Every other layout pass (a resize that keeps the card
+    // the same width, a rotation that only changes height) used to rebuild the whole
+    // document for nothing.
+    if (widthChanged) this.invalidateContent();
     this.clampScroll();
   }
 
@@ -216,6 +251,7 @@ export class MenuView extends ControlView {
   }
 
   private applyOpen(open: boolean): void {
+    if (open) this.ensureContent();
     this.visible = open;
     this.eventMode = open ? 'static' : 'none';
     if (open) {

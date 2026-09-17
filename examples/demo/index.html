@@ -4,6 +4,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no" />
     <title>open-ui · example client</title>
+    <!--
+      The SKIN, asked for while the HTML is still parsing.
+
+      open-ui ships no stylesheet: the binding adds this same <link> itself, but only
+      once the bundle has downloaded, parsed and run — a second of nothing on a phone,
+      and the HUD cannot show itself until its clothes arrive. Asking here overlaps
+      the two downloads. (`?skin=` still overrides which sheet is used; the preload
+      is then simply unused.)
+    -->
+    <link rel="preload" as="style" href="/skin/ui.min.css" />
+    <link rel="preload" as="font" type="font/woff2" href="/skin/ui/fonts/icons/icomoon.woff2" crossorigin />
     <style>
       html, body { margin: 0; height: 100%; width: 100%; overflow: hidden; -webkit-user-select: none; user-select: none; }
       body { background: #14161a; font-family: system-ui, sans-serif; }

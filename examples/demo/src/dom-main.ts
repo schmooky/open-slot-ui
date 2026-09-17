@@ -1,8 +1,11 @@
-import { Application } from 'pixi.js';
 import { mountDomHud } from '@open-slot-ui/dom';
 import { resolveBetLadder, formatAmount } from '@open-slot-ui/core';
 import type { UISpec, CurrencySpec } from '@open-slot-ui/core';
-import { buildReels, evaluate } from './reels';
+// PixiJS, GSAP and the slot itself are imported DYNAMICALLY, below: they are by far
+// the biggest thing this page downloads and the HUD needs none of it. Splitting them
+// out means the bar is parsed, mounted and on screen while the game is still coming
+// down the wire.
+import type { Slot } from './reels';
 import rulesXml from './rules.xml?raw';
 import { buildRules, FACTS, dropBlocks } from './content';
 
@@ -115,21 +118,17 @@ const SPEC: UISpec = {
   facts: forget ? { ...FACTS, freeSpins: undefined } : FACTS,
 };
 
+/** Resolves after the browser has actually put a frame on the screen. */
+const painted = (): Promise<void> =>
+  new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => done())));
+
 async function main(): Promise<void> {
-  const app = new Application();
-  await app.init({ resizeTo: window, backgroundAlpha: 0, antialias: true, autoDensity: true, resolution: Math.min(devicePixelRatio || 1, 2) });
-  document.getElementById('GameWrapper')!.appendChild(app.canvas);
-
-  const reels = buildReels(app);
-  app.stage.addChild(reels.container);
-
-  /** The bar reserves a strip at the bottom of the screen; ask the DOM how tall it is. */
-  const barHeight = (): number => document.querySelector('.UiUserPanelWrapper')?.getBoundingClientRect().height ?? 0;
-  // The bar reserves a strip at the bottom; the reels get everything above it.
-  const layout = (): void => reels.layout(app.screen.width, app.screen.height, barHeight());
-  app.renderer.on('resize', layout);
-  layout();
-
+  // ORDER MATTERS. Building the slot is the single most expensive thing this client
+  // does — a WebGL context, then a first frame that rasterizes 35 symbols — and it
+  // used to run BEFORE the HUD existed, so the player watched an empty page for the
+  // whole of it. The HUD is cheap and is what the player is waiting for: it mounts
+  // first, paints (with its own boot spinner running), and the game is built after.
+  let reels: Slot | undefined;
   const hud = mountDomHud(SPEC, {
     skin: { href: skinHref, font: { family: 'icomoon', src: iconFont } },
     features: FEATURES,
@@ -151,14 +150,35 @@ async function main(): Promise<void> {
     },
   });
   const ui = hud.ui;
+  ui.lock(); // the bar is on screen, but there is nothing behind it to play yet
 
   hud.setBalance(Number(q.get('balance')) || money0.balance);
   if (Number(q.get('bet'))) ui.bet.set(Number(q.get('bet')));
   if (Number(q.get('win'))) hud.setWin(Number(q.get('win')));
   hud.setMaxWin(5000, '1 in 1,250,000');
   hud.setHistory([]);
-  ui.showFeedback('press_play', { ms: 0 });
-  hud.ready();
+
+  // ── the game, once the HUD is on screen ──────────────────────────────────
+  await painted();
+  const [{ Application }, { buildReels, evaluate }] = await Promise.all([import('pixi.js'), import('./reels')]);
+  const app = new Application();
+  await app.init({ resizeTo: window, backgroundAlpha: 0, antialias: true, autoDensity: true, resolution: Math.min(devicePixelRatio || 1, 2) });
+  document.getElementById('GameWrapper')!.appendChild(app.canvas);
+  // One more frame before the reels: `init` alone is a long task on a cheap phone,
+  // and cramming the build into the same one drops the frame either way.
+  await painted();
+  reels = buildReels(app);
+  app.stage.addChild(reels.container);
+
+  /** The bar reserves a strip at the bottom of the screen; ask the DOM how tall it is. */
+  const barHeight = (): number => document.querySelector('.UiUserPanelWrapper')?.getBoundingClientRect().height ?? 0;
+  // The bar reserves a strip at the bottom; the reels get everything above it.
+  const layout = (): void => reels?.layout(app.screen.width, app.screen.height, barHeight());
+  app.renderer.on('resize', layout);
+  layout();
+  ui.unlock();
+  ui.showFeedback('press_play', { ms: 0 }); // only now is there anything to press play ON
+  hud.ready(); // the boot spinner stops when there is a game behind the bar
 
   const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
   const snap = (n: number): number => Math.round(n * 100) / 100;
@@ -179,12 +199,12 @@ async function main(): Promise<void> {
     // TURBO comes from the ☰ menu's own switch — the reels take the faster profile.
     // The round button goes dim on press and only becomes STOP once the result is
     // in — the same three-phase behaviour the reference has.
-    const grid = await reels.spin(ui.turboBase.isOn, () => ui.spin.stopState());
+    const grid = await reels!.spin(ui.turboBase.isOn, () => ui.spin.stopState());
     const line = evaluate(grid);
     const win = snap(stake * line.win);
     if (win > 0) {
       ui.balance.set(snap(ui.balance.get() + win));
-      reels.celebrate(line.cells);
+      reels!.celebrate(line.cells);
     }
     hud.setWin(win);
     hud.setHudState(win > 0 ? 'winPresentation' : 'result');
@@ -210,13 +230,13 @@ async function main(): Promise<void> {
     while (ui.spin.freeSpins.get() > 0) {
       const stake = ui.betStepper.value;
       ui.spin.busy();
-      const grid = await reels.spin(true); // a bonus always runs at turbo pace, and is not slammable
+      const grid = await reels!.spin(true); // a bonus always runs at turbo pace, and is not slammable
       const line = evaluate(grid);
       const win = snap(stake * line.win * 2); // free spins pay double in this demo
       total = snap(total + win);
       if (win > 0) {
         ui.balance.set(snap(ui.balance.get() + win));
-        reels.celebrate(line.cells);
+        reels!.celebrate(line.cells);
       }
       hud.setTotalWin(total);
       hud.setFreeSpins(ui.spin.freeSpins.get() - 1); // the counter on the bar
@@ -251,7 +271,7 @@ async function main(): Promise<void> {
   });
 
   ui.on('spinRequested', () => void playSpin());
-  ui.on('skipRequested', () => reels.skip()); // the slam-stop button
+  ui.on('skipRequested', () => reels?.skip()); // the slam-stop button
   ui.on('autoplayStarted', async () => {
     while (ui.autoplay.isActive) {
       await playSpin();

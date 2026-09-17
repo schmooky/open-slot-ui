@@ -127,12 +127,47 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
   ].join('');
   container.appendChild(root);
 
+  /**
+   * THE FIRST FRAMES.
+   *
+   * The skin arrives as a `<link>`, and a stylesheet does not block rendering of a
+   * tree that was appended after it started loading: the bar would paint once as
+   * raw markup — full-size icon glyphs, a column of unstyled rows — and then jump
+   * into place when the sheet lands. That flash is what the HUD is hidden for.
+   *
+   * Hidden means `visibility`, not `display`: the tree keeps its boxes, so the fit
+   * can measure the real bar before anyone sees it. It reveals on the frame after
+   * the stylesheet settles, and a deadline guarantees it reveals at all — a skin
+   * that 404s costs a plain-looking HUD, never an invisible one.
+   */
+  root.style.visibility = 'hidden';
+  let revealed = false;
+  const reveal = (): void => {
+    if (revealed) return;
+    revealed = true;
+    root.style.removeProperty('visibility');
+  };
+  const dressed = (): void => {
+    if (revealed) return;
+    // One frame later: the sheet has been applied, so this fit measures the bar the
+    // player is about to see, and the reveal carries no re-layout with it.
+    requestAnimationFrame(() => {
+      syncScreen();
+      reveal();
+    });
+  };
+  const revealDeadline = setTimeout(reveal, 2000);
+
   const disposers: Dispose[] = [];
   const disposersEarly = disposers;
+  disposers.push(() => clearTimeout(revealDeadline));
   // The skin arrives as a <link>: until it loads, the tree measures NOTHING like its
   // final size, so the fit has to run again once it lands (and whenever the bar's own
   // box changes afterwards).
-  const skin = mountSkin(opts.skin, () => syncScreen());
+  const skin = mountSkin(opts.skin, () => {
+    syncScreen();
+    dressed();
+  });
   if (skin) disposers.push(skin);
 
   // Rows the game hasn't asked for never reach the DOM.
@@ -446,16 +481,31 @@ div[data-channel="mobile"] .BetHistoryWindow .BetHistory__table-container,
 div[data-channel="mobile"] .GameInfoWindow .GameInfo__body { overflow-y: auto; }
 `;
 
-/** Load the skin: a `<link>`, a `<style>`, and (optionally) its icon `@font-face`. */
-function mountSkin(skin: DomSkin = {}, onLoad?: () => void): Dispose | undefined {
+/**
+ * Load the skin: a `<link>`, a `<style>`, and (optionally) its icon `@font-face`.
+ *
+ * `onSettled` fires once the stylesheet has landed — or failed, or was never asked
+ * for. Until then the markup measures and looks like nothing it is supposed to, so
+ * the HUD stays hidden (see `revealWhenDressed`).
+ */
+function mountSkin(skin: DomSkin = {}, onSettled?: () => void): Dispose | undefined {
   const nodes: Element[] = [];
   if (skin.href) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = skin.href;
-    if (onLoad) link.addEventListener('load', onLoad, { once: true });
+    if (onSettled) {
+      // An already-cached sheet can be applied before the listener is attached; a
+      // missing one never loads at all. Both have to settle the boot.
+      link.addEventListener('load', onSettled, { once: true });
+      link.addEventListener('error', onSettled, { once: true });
+    }
     document.head.appendChild(link);
     nodes.push(link);
+  } else if (onSettled) {
+    // No skin to wait for — but never synchronously, because the caller is still
+    // half-built at this point (the fit it runs is declared below it).
+    queueMicrotask(onSettled);
   }
   const css: string[] = [];
   if (skin.font) css.push(`@font-face{font-family:"${skin.font.family}";src:url("${skin.font.src}");font-display:block}`);
