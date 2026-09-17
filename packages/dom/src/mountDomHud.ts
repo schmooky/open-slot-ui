@@ -46,6 +46,11 @@ export interface DomSkin {
   font?: { family: string; src: string };
   /** Base font size for the skin's rem units. Default 16. */
   rootFontSize?: number;
+  /**
+   * The promotion pill's art. Defaults to `ui/images/promotion_button.png` resolved
+   * against `href`, which is where a skin keeps it — set this when yours does not.
+   */
+  promotionImage?: string;
 }
 
 export interface DomHudOptions {
@@ -200,6 +205,19 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
   dropIf(!f.lobby, 'LobbyAnchor');
   dropIf(!f.buyFeature, 'FeatureBuyToggle');
   dropIf(!f.promotion, 'FeaturePromotionToggle');
+  // The promotion pill is ART, and art belongs to the skin. The template used to
+  // carry `src="ui/images/promotion_button.png"` — a RELATIVE url, so every page
+  // that was not served from the skin's own directory fetched a 404, and fetched it
+  // even with the feature switched off, because the browser starts loading the
+  // moment the markup is parsed. It is resolved here instead, against the
+  // stylesheet's URL, which is how the skin's own CSS resolves its images.
+  if (f.promotion) {
+    const img = $(root, 'FeaturePromotionImage') as HTMLImageElement | null;
+    const src =
+      opts.skin?.promotionImage ??
+      (opts.skin?.href ? new URL('ui/images/promotion_button.png', new URL(opts.skin.href, location.href)).href : undefined);
+    if (img && src) img.src = src;
+  }
   if (!f.autoplay) $(root, 'AutoplayBtn')?.closest('.ActionPanel__container--autoplay')?.remove();
   if (!f.betChangers) $(root, 'BetAmountIncrease')?.closest('.BetAmountChangersWidget')?.remove();
   if (!f.betWidget) $(root, 'BetAmountItem')?.remove();

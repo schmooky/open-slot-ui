@@ -423,3 +423,31 @@ describe('the compliance verbs', () => {
     expect(document.querySelector('.HacksawCasinoUiContainer')!.classList.contains('is-locked')).toBe(true);
   });
 });
+
+describe('the promotion pill', () => {
+  it('asks for no art at all when the feature is off', () => {
+    // The template used to carry a relative src, so every page fetched a 404 for a
+    // button it had already removed.
+    expect(document.querySelector('#FeaturePromotionImage')).toBeNull();
+  });
+
+  it('resolves its art against the skin stylesheet when the feature is on', () => {
+    hud.dispose();
+    hud = mountDomHud(
+      { currency: { code: 'USD', decimals: 2 }, hud: { features: { promotion: true } } },
+      { skin: { href: '/skin/ui.min.css' } },
+    );
+    const img = id<HTMLImageElement>('FeaturePromotionImage');
+    expect(img).not.toBeNull();
+    expect(img!.getAttribute('src')).toBe(`${location.origin}/skin/ui/images/promotion_button.png`);
+  });
+
+  it('takes the host own url when it has one', () => {
+    hud.dispose();
+    hud = mountDomHud(
+      { currency: { code: 'USD', decimals: 2 }, hud: { features: { promotion: true } } },
+      { skin: { href: '/skin/ui.min.css', promotionImage: 'https://cdn.example.test/promo.png' } },
+    );
+    expect(id<HTMLImageElement>('FeaturePromotionImage')!.src).toBe('https://cdn.example.test/promo.png');
+  });
+});
