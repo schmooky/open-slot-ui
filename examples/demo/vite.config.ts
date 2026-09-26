@@ -18,11 +18,12 @@ export default defineConfig({
       { find: /^@open-slot-ui\/pixi\/art$/, replacement: fromRoot('packages/pixi/src/art/index.ts') },
       { find: /^@open-slot-ui\/pixi$/, replacement: fromRoot('packages/pixi/src/index.ts') },
       { find: /^@open-slot-ui\/dom$/, replacement: fromRoot('packages/dom/src/index.ts') },
+      { find: /^@open-slot-ui\/silk$/, replacement: fromRoot('packages/silk/src/index.ts') },
       { find: /^pixi-text-counter$/, replacement: fromRoot('packages/pixi-text-counter/src/index.ts') },
     ],
     dedupe: ['pixi.js'],
   },
-  optimizeDeps: { exclude: ['@open-slot-ui/core', '@open-slot-ui/pixi', '@open-slot-ui/dom'] },
+  optimizeDeps: { exclude: ['@open-slot-ui/core', '@open-slot-ui/pixi', '@open-slot-ui/dom', '@open-slot-ui/silk'] },
   // Relative asset URLs, so the build works under a subpath (a preview host, a CDN
   // folder) and not only at a domain root.
   base: './',

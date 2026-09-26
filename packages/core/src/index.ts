@@ -37,6 +37,7 @@ export * from './spec/facts';
 export * from './spec/rulesDoc';
 export * from './spec/rulesHtml';
 export * from './spec/parseBlocks';
+export * from './i18n/labels';
 export * from './spec/defaultHudSpec';
 export * from './EventLog';
 export * from './i18n/translator';

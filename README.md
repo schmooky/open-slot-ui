@@ -58,6 +58,7 @@ See the doctrine in [CHARTER.md](./CHARTER.md).
 | [`@open-slot-ui/core`](./packages/core) | Headless M + C — signals, control state-machines, theme tokens, layout, façade, event bus, introspection. **Zero dependencies.** |
 | [`@open-slot-ui/pixi`](./packages/pixi) | The PixiJS v8 view + controller binding. Mounts one `Container`, draws the bar itself. Peer-dep `pixi.js ^8`. |
 | [`@open-slot-ui/dom`](./packages/dom) | The DOM binding: the HUD as real markup, dressed by **your** stylesheet. Draws nothing — use it when the design already exists as CSS. |
+| [`@open-slot-ui/silk`](./packages/silk) | The same bar as the DOM binding, drawn on a PixiJS stage with [pixi-silk](https://pixi-silk.schmooky.dev) — for clients with no DOM to mount into. Its geometry is *measured* from the skin, and a parity script compares the two renderers pixel by pixel. |
 
 ## Configuration at a glance
 
