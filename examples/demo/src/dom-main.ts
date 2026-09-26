@@ -166,7 +166,7 @@ async function main(): Promise<void> {
     // A canvas has no markup to click, so the binding's own view of itself — which
     // state it drew, and where each captured element ended up — is published for the
     // click-through harness that checks the doors all still open.
-    (window as unknown as { __silk?: unknown }).__silk = { state: silk.state, pointOf: silk.pointOf };
+    (window as unknown as { __silk?: unknown }).__silk = { state: silk.state, pointOf: silk.pointOf, textOf: silk.textOf };
     return silk as unknown as ReturnType<typeof mountDomHud>;
   }
 

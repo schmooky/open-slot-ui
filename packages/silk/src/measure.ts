@@ -71,3 +71,79 @@ export function parseShadow(css: string): { color: string; dx: number; dy: numbe
   const [dx = '0', dy = '0', blur = '0'] = nums;
   return { color, dx: parseFloat(dx), dy: parseFloat(dy), blur: parseFloat(blur) };
 }
+
+/** One stop of a CSS ramp, as pixi-silk wants it. */
+export interface RampStop {
+  offset: number;
+  color: number;
+  alpha: number;
+}
+
+/**
+ * A CSS `linear-gradient(...)` as a ramp between two points of the shape's box.
+ *
+ * The browser hands back the computed form — an angle or nothing, then colours with
+ * optional positions — and this turns it into the two points and the stops a canvas
+ * gradient is made of. The geometry is CSS's own: 0deg points up, the line runs
+ * through the centre of the box, and its length is what makes the corners land on
+ * the end colours.
+ */
+export function parseRamp(css: string): { from: [number, number]; to: [number, number]; stops: RampStop[] } | null {
+  const body = css.match(/^linear-gradient\((.*)\)$/s)?.[1];
+  if (!body) return null;
+  const parts = splitTop(body);
+  if (!parts.length) return null;
+
+  let angle = 180; // CSS default: to bottom
+  const first = parts[0]!.trim();
+  const deg = first.match(/^(-?[\d.]+)deg$/);
+  if (deg) {
+    angle = parseFloat(deg[1] as string);
+    parts.shift();
+  } else if (first.startsWith('to ')) {
+    const sides = first.slice(3).trim();
+    const map: Record<string, number> = { top: 0, right: 90, bottom: 180, left: 270, 'top right': 45, 'right top': 45, 'bottom right': 135, 'right bottom': 135, 'bottom left': 225, 'left bottom': 225, 'top left': 315, 'left top': 315 };
+    angle = map[sides] ?? 180;
+    parts.shift();
+  }
+
+  const stops: RampStop[] = [];
+  parts.forEach((part, i) => {
+    const text = part.trim();
+    const at = text.match(/\s(-?[\d.]+)%$/);
+    const colour = cssColor(at ? text.slice(0, at.index).trim() : text);
+    const offset = at ? parseFloat(at[1] as string) / 100 : parts.length > 1 ? i / (parts.length - 1) : 0;
+    stops.push({ offset, color: colour.color, alpha: colour.alpha });
+  });
+  if (stops.length < 2) return null;
+
+  const rad = (angle * Math.PI) / 180;
+  const dx = Math.sin(rad);
+  const dy = -Math.cos(rad);
+  // The length of the gradient line across a unit box, so the ends land where CSS
+  // puts them rather than inside the corners.
+  const len = Math.abs(dx) + Math.abs(dy);
+  return {
+    from: [0.5 - (dx * len) / 2, 0.5 - (dy * len) / 2],
+    to: [0.5 + (dx * len) / 2, 0.5 + (dy * len) / 2],
+    stops,
+  };
+}
+
+/** Split on the commas that are not inside brackets — a colour has commas of its own. */
+function splitTop(s: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let from = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === '(') depth++;
+    else if (c === ')') depth--;
+    else if (c === ',' && depth === 0) {
+      out.push(s.slice(from, i));
+      from = i + 1;
+    }
+  }
+  out.push(s.slice(from));
+  return out.filter((p) => p.trim());
+}

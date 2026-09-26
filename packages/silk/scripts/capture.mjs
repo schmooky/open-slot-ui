@@ -25,6 +25,12 @@ import { fileURLToPath } from 'node:url';
  *   - pseudo-element boxes, because the dim behind every modal is a ::before and a
  *     window without it looks nothing like the real one.
  *
+ * And it does this at EVERY SIZE THE SKIN LAYS OUT DIFFERENTLY. A HUD is not one
+ * design scaled up and down: the stylesheet reflows it, moves the coin, swaps the
+ * channel from desktop to touch and re-breaks every paragraph. Measuring one window
+ * and scaling it would be a photograph. So each breakpoint is walked in turn, and
+ * the canvas replays the one nearest the window it is given.
+ *
  *   node packages/silk/scripts/capture.mjs [url]
  */
 const url = process.argv[2] ?? 'http://localhost:5199/';
@@ -43,6 +49,11 @@ const STATES = [
     },
   },
   { id: 'buy', enter: () => document.getElementById('FeatureBuyToggle')?.click() },
+  // A round in flight has two looks: first the arrow dimmed while the answer is on
+  // its way, then the stop button once it can be skipped. Between them they are what
+  // a player spends the most time looking at.
+  { id: 'spinning', enter: () => document.getElementById('PlaceBetBtn')?.click(), settle: 420 },
+  { id: 'stopping', enter: () => document.getElementById('PlaceBetBtn')?.click(), settle: 900 },
   {
     id: 'history',
     enter: () => {
@@ -52,11 +63,21 @@ const STATES = [
   },
 ];
 
+/**
+ * The sizes worth measuring: the two desktop widths the bar behaves differently at,
+ * a tablet, and a phone in both orientations. Touch is what flips the stylesheet to
+ * its mobile channel, so the small ones are captured as touch devices.
+ */
+const SIZES = [
+  { w: 1920, h: 1080, touch: false },
+  { w: 1440, h: 900, touch: false },
+  { w: 1180, h: 820, touch: false },
+  { w: 834, h: 1112, touch: true },
+  { w: 932, h: 430, touch: true },
+  { w: 430, h: 932, touch: true },
+];
+
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
-await page.goto(url, { waitUntil: 'networkidle' });
-await page.waitForSelector('.UiRibbonUserPanel__container');
-await page.waitForTimeout(1500);
 
 /** Everything the canvas needs to draw one element. Runs in the page. */
 const WALK = `(() => {
@@ -131,13 +152,29 @@ const WALK = `(() => {
       const ch = (cs.content || '').replace(/^"|"$/g, '');
       if (ch && ch.codePointAt(0) >= 0xe000) continue; // an icon glyph, captured elsewhere
       const bw = px(cs.borderTopWidth);
-      if (!isPaint(cs.backgroundColor) && !(bw > 0)) continue;
+      const ramp = cs.backgroundImage && cs.backgroundImage.startsWith('linear-gradient') ? cs.backgroundImage : undefined;
+      if (!isPaint(cs.backgroundColor) && !ramp && !(bw > 0)) continue;
       const w = px(cs.width);
       const h = px(cs.height);
       if (!(w > 0) || !(h > 0)) continue;
+
       const abs = cs.position === 'absolute' || cs.position === 'fixed';
-      const left = abs && cs.left !== 'auto' ? px(cs.left) : 0;
-      const top = abs && cs.top !== 'auto' ? px(cs.top) : 0;
+      // An absolutely positioned pseudo is placed by its insets — from the right or
+      // the bottom when that is the side it was given.
+      const owner = getComputedStyle(el);
+      let left = 0;
+      let top = 0;
+      if (abs) {
+        left = cs.left !== 'auto' ? px(cs.left) : cs.right !== 'auto' ? box.w - px(cs.right) - w : 0;
+        top = cs.top !== 'auto' ? px(cs.top) : cs.bottom !== 'auto' ? box.h - px(cs.bottom) - h : 0;
+      } else if (owner.display.includes('flex') && !owner.flexDirection.startsWith('column')) {
+        // A static pseudo in a flex row is an item of that row: ::before opens it and
+        // ::after closes it. This is the "line — TITLE — line" heading of the rules.
+        const padL = px(owner.paddingLeft) + px(owner.borderLeftWidth);
+        const padR = px(owner.paddingRight) + px(owner.borderRightWidth);
+        left = pseudo === '::before' ? padL : box.w - padR - w;
+        top = (box.h - h) / 2;
+      }
       // A pseudo can be turned on its own account as well as by its owner — the
       // close button's cross is one bar at +45 and one at -45 — so the two angles
       // add up.
@@ -151,6 +188,7 @@ const WALK = `(() => {
         y: Math.round((box.y + top) * 100) / 100,
         w, h,
         bg: isPaint(cs.backgroundColor) ? cs.backgroundColor : undefined,
+        ramp,
         radius: px(cs.borderTopLeftRadius) || undefined,
         radii: [px(cs.borderTopLeftRadius), px(cs.borderTopRightRadius), px(cs.borderBottomRightRadius), px(cs.borderBottomLeftRadius)],
         border: bw > 0 && isPaint(cs.borderTopColor) ? { w: bw, color: cs.borderTopColor } : undefined,
@@ -296,7 +334,16 @@ const WALK = `(() => {
     return out;
   };
 
-  const visit = (el, depth, inherited, clip) => {
+  /**
+   * A clip belongs to a containing block, not to every ancestor.
+   *
+   * The mobile menu button lives inside a zero-width, overflow-hidden box and is
+   * still perfectly visible, because it is absolutely positioned against something
+   * further up. Treating every ancestor's overflow as a clip loses it — so an
+   * absolutely positioned element is clipped only by POSITIONED ancestors, and a
+   * fixed one by nothing at all.
+   */
+  const visit = (el, depth, inherited, clip, clipAbs) => {
     const turned = inherited.turned;
     if (seen.has(el) || depth > 24) return;
     seen.add(el);
@@ -311,8 +358,11 @@ const WALK = `(() => {
     const rank = isLayerRoot ? rankOf(el) : inherited.rank;
     // A window is its own coordinate space, so its content is not clipped by
     // whatever was clipping the bar behind it.
-    if (zone !== inherited.zone) clip = undefined;
-    const clipped = clip ? narrow(clip, b) : null;
+    if (zone !== inherited.zone) clip = clipAbs = undefined;
+    let after = [];
+    const pos = cs.position;
+    const mine = pos === 'fixed' ? undefined : pos === 'absolute' ? clipAbs : clip;
+    const clipped = mine ? narrow(mine, b) : null;
     const visible = clipped ? clipped[2] > 0.5 && clipped[3] > 0.5 : true;
     const onScreen = b.width > 0 && b.height > 0 && b.right > -200 && b.left < innerWidth + 200 && b.bottom > -200 && b.top < innerHeight + 200;
     if (onScreen && visible && el.id) {
@@ -331,7 +381,7 @@ const WALK = `(() => {
           z: nodes.length,
           zone,
           rank,
-          clip: clip || undefined,
+          clip: mine || undefined,
           ...ps,
           spin: undefined,
           rotate: turn || undefined,
@@ -342,20 +392,48 @@ const WALK = `(() => {
       for (const ps of pseudos) if (ps.pseudo === '::before') nodes.push(ps);
       const text = ownText(el);
       const glyph = glyphOf(el);
+      // An <img> is painted inside its box, not stretched across it: object-fit
+      // letterboxes it and object-position centres it. Handing the canvas the box
+      // would stretch every picture the markup fits.
+      const picture = el.tagName === 'IMG' && el.naturalWidth > 0 ? (() => {
+        const fit = cs.objectFit;
+        const iw = el.naturalWidth;
+        const ih = el.naturalHeight;
+        let pw = own.w;
+        let ph = own.h;
+        if (fit === 'contain' || fit === 'scale-down') {
+          const k = Math.min(own.w / iw, own.h / ih, fit === 'scale-down' ? 1 : Infinity);
+          pw = iw * k;
+          ph = ih * k;
+        } else if (fit === 'cover') {
+          const k = Math.max(own.w / iw, own.h / ih);
+          pw = iw * k;
+          ph = ih * k;
+        } else if (fit === 'none') {
+          pw = iw;
+          ph = ih;
+        }
+        return { x: px(own.x + (own.w - pw) / 2), y: px(own.y + (own.h - ph) / 2), w: px(pw), h: px(ph), over: pw > own.w + 0.5 || ph > own.h + 0.5 };
+      })() : null;
       const bg = cs.backgroundColor;
+      // A background can be a ramp rather than a colour — the reel cells in the
+      // rules and half the buttons are — and a flat fill where the markup has a
+      // gradient is the difference a reader notices without being able to name it.
+      const ramp = cs.backgroundImage && cs.backgroundImage.startsWith('linear-gradient') ? cs.backgroundImage : undefined;
       const bw = px(cs.borderTopWidth);
       const shadow = cs.boxShadow === 'none' ? null : cs.boxShadow;
-      const paints = isPaint(bg) || bw > 0 || text || glyph || shadow || el.tagName === 'IMG';
+      const paints = isPaint(bg) || ramp || bw > 0 || text || glyph || shadow || el.tagName === 'IMG';
       if (paints) {
         nodes.push({
           id: el.id || undefined,
           cls: (el.className || '').toString().split(' ')[0] || undefined,
-          x: own.x,
-          y: own.y,
-          w: own.w,
-          h: own.h,
+          x: picture ? picture.x : own.x,
+          y: picture ? picture.y : own.y,
+          w: picture ? picture.w : own.w,
+          h: picture ? picture.h : own.h,
           z: nodes.length,
           bg: isPaint(bg) ? bg : undefined,
+          ramp,
           radius: px(cs.borderTopLeftRadius) || undefined,
           radii: [px(cs.borderTopLeftRadius), px(cs.borderTopRightRadius), px(cs.borderBottomRightRadius), px(cs.borderBottomLeftRadius)],
           border: bw > 0 && isPaint(cs.borderTopColor) ? { w: bw, color: cs.borderTopColor } : undefined,
@@ -372,31 +450,144 @@ const WALK = `(() => {
           img: el.tagName === 'IMG' ? el.getAttribute('src') : undefined,
           zone,
           rank,
-          clip: clip || undefined,
+          // A picture that overflows its box is clipped by it, the way cover does.
+          clip: (picture && picture.over ? narrow(mine, b) : mine) || undefined,
         });
       }
-      for (const ps of pseudos) if (ps.pseudo === '::after') nodes.push(ps);
+      after = pseudos.filter((ps) => ps.pseudo === '::after');
     }
-    const inner = clips(cs) ? narrow(clip, b) : clip;
-    for (const child of el.children) visit(child, depth + 1, { zone, rank, turned: turned || !!t.a }, inner);
+    const inner = clips(cs) ? narrow(mine, b) : mine;
+    // A positioned box clips its absolute descendants; a static one does not.
+    const innerAbs = pos === 'static' ? clipAbs : inner;
+    for (const child of el.children) visit(child, depth + 1, { zone, rank, turned: turned || !!t.a }, inner, innerAbs);
+    // ::after paints as the element's LAST child — over its own content, which is
+    // what makes the fade at the bottom of a scrolling window a fade.
+    for (const ps of after) nodes.push(ps);
   };
-  visit(root, 0, { zone: 'bottom', rank: 0, turned: false }, undefined);
-  return { nodes, hits, viewport: { w: innerWidth, h: innerHeight } };
+  visit(root, 0, { zone: 'bottom', rank: 0, turned: false }, undefined, undefined);
+  return { nodes, hits, viewport: { w: innerWidth, h: innerHeight }, channel: root.dataset.channel || document.querySelector('[data-channel]')?.dataset.channel };
 })()`;
 
-const capture = { viewport: { w: 1440, h: 900 }, states: {}, hits: {} };
-for (const state of STATES) {
-  await page.reload({ waitUntil: 'networkidle' });
-  await page.waitForTimeout(1400);
-  await page.evaluate(`(${state.enter.toString()})()`);
-  await page.waitForTimeout(700);
-  const tree = await page.evaluate(WALK);
-  capture.states[state.id] = tree.nodes;
-  capture.hits[state.id] = tree.hits;
-  capture.viewport = tree.viewport ?? capture.viewport;
-  console.log(`${state.id.padEnd(9)} ${tree.nodes.length} boxes, ${tree.hits.length} named elements`);
+const capture = { sizes: [] };
+for (const size of SIZES) {
+  const context = await browser.newContext({
+    viewport: { width: size.w, height: size.h },
+    deviceScaleFactor: 1,
+    hasTouch: size.touch,
+    isMobile: size.touch,
+  });
+  const page = await context.newPage();
+  await page.goto(url, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.UiRibbonUserPanel__container');
+  await page.waitForTimeout(1200);
+  const shot = { w: size.w, h: size.h, channel: 'desktop', states: {}, hits: {} };
+  for (const state of STATES) {
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(1400);
+    await page.evaluate(`(${state.enter.toString()})()`);
+    await page.waitForTimeout(state.settle ?? 700);
+    const tree = await page.evaluate(WALK);
+    shot.states[state.id] = tree.nodes;
+    shot.hits[state.id] = tree.hits;
+    shot.channel = tree.channel ?? shot.channel;
+  }
+  capture.sizes.push(shot);
+  const boxes = Object.values(shot.states).reduce((n, list) => n + list.length, 0);
+  console.log(`${String(size.w).padStart(4)}x${String(size.h).padEnd(5)} ${shot.channel.padEnd(7)} ${boxes} boxes over ${STATES.length} states`);
+  await context.close();
 }
 await browser.close();
 
-writeFileSync(out, JSON.stringify(capture));
-console.log(`\ncapture → ${out} (${(JSON.stringify(capture).length / 1024).toFixed(0)} KB)`);
+/**
+ * The same capture, smaller.
+ *
+ * Six breakpoints of a HUD is a lot of repeated text: the same font on four hundred
+ * boxes, the same clip rect on every line of a window. Repeats are pulled into
+ * tables and referenced by index, which the binding expands on load. Nothing is
+ * rounded away — this is the same data, spelled once.
+ */
+/**
+ * The names a box is written under in the file. Long names are for reading code, not
+ * for shipping six breakpoints of them over a wire; the binding expands these on
+ * load, and the map travels with the data so the file stays self-describing.
+ */
+const SHORT = {
+  id: 'i', cls: 'c', x: 'x', y: 'y', w: 'w', h: 'h', bg: 'b', ramp: 'G', radius: 'r', radii: 'R',
+  border: 'd', shadow: 's', text: 't', lines: 'L', glyph: 'g', font: 'f', color: 'k',
+  opacity: 'o', rotate: 'a', rx: 'u', ry: 'v', img: 'm', zone: 'z', rank: 'n', clip: 'p',
+};
+const SHORT_LINE = { text: 't', x: 'x', y: 'y', w: 'w', h: 'h' };
+const SHORT_GLYPH = { ch: 'c', font: 'f', size: 's', color: 'k', ink: 'n' };
+
+const rename = (obj, map) => {
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) if (v !== undefined && map[k]) out[map[k]] = v;
+  return out;
+};
+
+function compact(shot) {
+  const fonts = [];
+  const clips = [];
+  const colors = [];
+  const ramps = [];
+  const seen = new Map();
+  const index = (list, value) => {
+    let known = seen.get(list);
+    if (!known) seen.set(list, (known = new Map()));
+    const key = JSON.stringify(value);
+    const at = known.get(key);
+    if (at !== undefined) return at;
+    const put = list.push(value) - 1;
+    known.set(key, put);
+    return put;
+  };
+  // A colour is written the same way a few hundred times; the table spells it once.
+  const hue = (v) => (v === undefined ? undefined : `#${index(colors, v)}`);
+  const round = (v) => (typeof v === 'number' ? Math.round(v * 10) / 10 : v);
+  for (const list of Object.values(shot.states)) {
+    for (const n of list) {
+      delete n.z;
+      delete n.pseudo;
+      // Four equal corners are one number.
+      if (n.radii && n.radii.every((v) => v === n.radii[0])) delete n.radii;
+      if (n.font) n.font = index(fonts, n.font);
+      if (n.clip) n.clip = index(clips, n.clip);
+      n.bg = hue(n.bg);
+      if (n.ramp) n.ramp = index(ramps, n.ramp);
+      n.color = hue(n.color);
+      if (n.border) n.border = { w: n.border.w, color: hue(n.border.color) };
+      if (n.glyph) {
+        n.glyph.color = hue(n.glyph.color);
+        delete n.glyph.pseudo;
+        if (n.glyph.ink) for (const k of ['x', 'y', 'w', 'h']) n.glyph.ink[k] = round(n.glyph.ink[k]);
+      }
+      for (const k of ['x', 'y', 'w', 'h', 'rx', 'ry', 'radius']) n[k] = round(n[k]);
+      // A single line that says what its box says need not say it twice.
+      if (n.lines) {
+        for (const l of n.lines) {
+          for (const k of ['x', 'y', 'w', 'h']) l[k] = round(l[k]);
+          if (l.text === n.text) delete l.text;
+        }
+      }
+      for (const k of Object.keys(n)) if (n[k] === undefined) delete n[k];
+    }
+  }
+  for (const [state, list] of Object.entries(shot.states)) {
+    shot.states[state] = list.map((n) => {
+      if (n.lines) n.lines = n.lines.map((l) => rename(l, SHORT_LINE));
+      if (n.glyph) n.glyph = rename(n.glyph, SHORT_GLYPH);
+      return rename(n, SHORT);
+    });
+  }
+  shot.fonts = fonts;
+  shot.clips = clips;
+  shot.colors = colors;
+  shot.ramps = ramps;
+  return shot;
+}
+
+for (const shot of capture.sizes) compact(shot);
+capture.keys = { node: SHORT, line: SHORT_LINE, glyph: SHORT_GLYPH };
+const json = JSON.stringify(capture);
+writeFileSync(out, json);
+console.log(`\ncapture → ${out} (${(json.length / 1024).toFixed(0)} KB)`);

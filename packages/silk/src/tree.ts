@@ -1,6 +1,6 @@
 import { Assets, CanvasTextMetrics, Container, Sprite, Text, Texture, type TextStyleOptions } from 'pixi.js';
-import { SilkGraphics } from 'pixi-silk';
-import { cssColor, parseShadow, anchorOf, type Anchor } from './measure';
+import { SilkGraphics, linear } from 'pixi-silk';
+import { cssColor, parseRamp, parseShadow, anchorOf, type Anchor } from './measure';
 
 export { anchorOf, type Anchor } from './measure';
 
@@ -17,6 +17,8 @@ export interface Node {
   h: number;
   z: number;
   bg?: string;
+  /** A CSS `linear-gradient(...)` background, when the box is painted with a ramp. */
+  ramp?: string;
   radius?: number;
   radii?: number[];
   border?: { w: number; color: string };
@@ -52,25 +54,6 @@ export interface Node {
   clip?: number[];
 }
 
-/**
- * A named element's box. Half the skin's buttons paint nothing of their own — their
- * look is a child glyph — so the boxes a player can press are recorded separately
- * from the boxes that get drawn.
- */
-export interface Hit {
-  id: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  zone?: 'top' | 'bottom' | 'window';
-}
-
-export interface Capture {
-  viewport: { w: number; h: number };
-  states: Record<string, Node[]>;
-  hits: Record<string, Hit[]>;
-}
 
 export interface RenderedTree {
   view: Container;
@@ -159,11 +142,14 @@ export function renderTree(nodes: Node[], viewport: { w: number; h: number }): R
    * scrolling window is drawn into a container masked to that window, so content
    * stops where the window stops instead of spilling down the screen.
    */
-  const buckets = new Map<string, { layer: Container; g: SilkGraphics }>();
+  const buckets = new Map<Anchor, { key: string; layer: Container; g: SilkGraphics }>();
   const bucket = (anchor: Anchor, clip?: number[]): { layer: Container; g: SilkGraphics } => {
     const key = `${anchor}|${clip ? clip.join(',') : ''}`;
-    let b = buckets.get(key);
-    if (b) return b;
+    const open = buckets.get(anchor);
+    // A RUN, not a set. Boxes are drawn in the order the browser painted them, so a
+    // new container starts whenever the clip changes and the old one is never
+    // reopened — reusing it would put a box back underneath what came after it.
+    if (open && open.key === key) return open;
     const layer = new Container();
     if (clip) {
       const mask = new SilkGraphics({ label: 'clip' });
@@ -174,9 +160,9 @@ export function renderTree(nodes: Node[], viewport: { w: number; h: number }): R
     const g = new SilkGraphics({ label: `boxes:${key}` });
     layer.addChild(g);
     groups[anchor].addChild(layer);
-    b = { layer, g };
-    buckets.set(key, b);
-    return b;
+    const made = { key, layer, g };
+    buckets.set(anchor, made);
+    return made;
   };
 
   /** A frame turned by a node's angle, in which that node is drawn upright. */
@@ -211,7 +197,7 @@ export function renderTree(nodes: Node[], viewport: { w: number; h: number }): R
     const { layer, g } = n.rotate ? turned(flat.layer, n) : flat;
 
     // ── the box ────────────────────────────────────────────────────────────
-    if (n.bg || n.border) {
+    if (n.bg || n.ramp || n.border) {
       const radii = n.radii && n.radii.some(Boolean) ? n.radii : n.radius ? [n.radius, n.radius, n.radius, n.radius] : undefined;
       // A radius of 50% comes back as half the box; clamp so it cannot overlap.
       const r = radii ? radii.map((v) => Math.min(v, Math.min(n.w, n.h) / 2)) : 0;
@@ -226,6 +212,19 @@ export function renderTree(nodes: Node[], viewport: { w: number; h: number }): R
       if (n.bg) {
         const c = cssColor(n.bg);
         if (c.alpha > 0) g.roundRect(n.x, n.y, n.w, n.h, r as number[] | number).fill({ color: c.color, alpha: c.alpha * (n.opacity ?? 1) });
+      }
+      // A ramp paints over the flat colour, exactly as a background image does.
+      if (n.ramp) {
+        const ramp = parseRamp(n.ramp);
+        if (ramp) {
+          g.roundRect(n.x, n.y, n.w, n.h, r as number[] | number).fill({
+            gradient: linear(
+              ramp.stops.map((s) => ({ offset: s.offset, color: s.color, alpha: s.alpha })),
+              { from: ramp.from, to: ramp.to, units: 'shape', space: 'srgb' },
+            ),
+            alpha: n.opacity ?? 1,
+          });
+        }
       }
       if (n.border) {
         const c = cssColor(n.border.color);

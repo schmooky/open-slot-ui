@@ -1,93 +1,139 @@
 import { describe, it, expect } from 'vitest';
-import capture from '../src/skin.capture.json';
+import raw from '../src/skin.capture.json';
+import { Skin, type RawCapture } from '../src/capture';
 import { anchorOf, cssColor, parseShadow } from '../src/measure';
 
 /**
  * THE CAPTURE IS THE DESIGN, so it is the thing worth guarding.
  *
- * `scripts/capture.mjs` measures the markup HUD and writes what it saw; the canvas
- * binding replays it. A re-capture that loses a button, a window or a layer would
- * silently produce a HUD that looks right and cannot be used, so the shape of the
+ * `scripts/capture.mjs` measures the markup HUD at every size the stylesheet lays it
+ * out differently and writes down what the browser painted; the canvas binding
+ * replays it. A re-capture that loses a button, a window, a breakpoint or a layer
+ * would produce a HUD that looks right and cannot be used, so the shape of the
  * capture is checked here rather than noticed later.
  */
-const STATES = ['idle', 'menu', 'autoplay', 'info', 'buy', 'history'] as const;
-const cap = capture as unknown as {
-  viewport: { w: number; h: number };
-  states: Record<string, Array<Record<string, unknown>>>;
-  hits: Record<string, Array<{ id: string; x: number; y: number; w: number; h: number; zone?: string }>>;
-};
+const STATES = ['idle', 'menu', 'autoplay', 'info', 'buy', 'spinning', 'stopping', 'history'] as const;
+const skin = new Skin(raw as unknown as RawCapture);
 
 describe('the captured skin', () => {
-  it('has every state a player can put the HUD into', () => {
-    expect(Object.keys(cap.states).sort()).toEqual([...STATES].sort());
-    expect(Object.keys(cap.hits).sort()).toEqual([...STATES].sort());
+  it('holds every size the stylesheet lays out differently', () => {
+    expect(skin.sizes.length).toBeGreaterThanOrEqual(5);
+    const widths = skin.sizes.map((s) => s.w);
+    expect(widths).toContain(1920);
+    expect(widths).toContain(1440);
+    expect(widths).toContain(430);
+    expect(skin.sizes.some((s) => s.channel === 'mobile')).toBe(true);
+    expect(skin.sizes.some((s) => s.channel === 'desktop')).toBe(true);
   });
 
-  it('was measured at one known size', () => {
-    expect(cap.viewport).toEqual({ w: 1440, h: 900 });
+  it('holds every state a player can put the HUD into, at every size', () => {
+    for (let at = 0; at < skin.sizes.length; at++) {
+      expect(skin.states(at).sort(), `size ${at}`).toEqual([...STATES].sort());
+    }
   });
 
-  it('draws the bar in every state', () => {
-    for (const state of STATES) {
-      const plate = cap.states[state]!.find((n) => n['cls'] === 'UiRibbonUserPanel__container');
-      expect(plate, `${state} has no bar`).toBeTruthy();
-      expect(plate!['w']).toBe(840);
+  it('draws the bar at every size', () => {
+    for (let at = 0; at < skin.sizes.length; at++) {
+      for (const state of STATES) {
+        // The desktop bar sits on a plate; the touch one is transparent, so what is
+        // checked is that the bar's own readouts are there.
+        const nodes = skin.nodes(at, state);
+        const bar = nodes.find((n) => n.cls === 'UiRibbonUserPanel__container') ?? nodes.find((n) => n.cls?.startsWith('DataPanelItem'));
+        expect(bar, `${skin.sizes[at]!.w}px ${state} has no bar`).toBeTruthy();
+      }
     }
   });
 
   it('gives every box a zone and a paint rank', () => {
     for (const state of STATES) {
-      for (const n of cap.states[state]!) {
-        expect(n['zone'], `${state}: ${String(n['cls'])}`).toBeTruthy();
-        expect(typeof n['rank']).toBe('number');
+      for (const n of skin.nodes(1, state)) {
+        expect(n.zone, `${state}: ${String(n.cls)}`).toBeTruthy();
+        expect(typeof n.rank).toBe('number');
       }
     }
   });
 
-  it('keeps the buttons the binding binds', () => {
+  it('keeps the buttons the binding binds, at every size', () => {
     const needs: Record<string, string[]> = {
       idle: ['MainMenuToggle', 'PlaceBetBtn', 'AutoplayBtn', 'FeatureBuyToggle', 'BetAmountIncrease', 'BetAmountDecrease'],
-      menu: ['GameInfoBtn', 'BetHistoryBtn', 'SoundToggle', 'MusicToggle', 'TurboToggle'],
+      menu: ['GameInfoBtn', 'BetHistoryBtn', 'SoundToggle', 'MusicToggle'],
       info: ['GameInfoClose'],
       history: ['BetHistoryClose'],
       buy: ['FeatureBuyClose'],
       autoplay: ['StartAutoplayBtn'],
     };
-    for (const [state, ids] of Object.entries(needs)) {
-      const have = new Set(cap.hits[state]!.map((h) => h.id));
-      for (const id of ids) expect(have.has(id), `${state} lost ${id}`).toBe(true);
+    for (let at = 0; at < skin.sizes.length; at++) {
+      for (const [state, ids] of Object.entries(needs)) {
+        const have = skin.hits(at, state);
+        for (const id of ids) expect(have.has(id), `${skin.sizes[at]!.w}px ${state} lost ${id}`).toBe(true);
+      }
     }
   });
 
   it('puts a window behind a dim that covers the screen', () => {
     for (const state of ['info', 'buy', 'history'] as const) {
-      const nodes = cap.states[state]!;
-      expect(nodes.some((n) => n['zone'] === 'window'), `${state} has no window`).toBe(true);
-      const dim = nodes.find((n) => Number(n['w']) >= 1440 && Number(n['h']) >= 900);
+      const nodes = skin.nodes(1, state);
+      expect(nodes.some((n) => n.zone === 'window'), `${state} has no window`).toBe(true);
+      const dim = nodes.find((n) => n.w >= 1440 && n.h >= 900);
       expect(dim, `${state} has no backdrop`).toBeTruthy();
-      expect(String(dim!['bg'])).toMatch(/rgba?\(/);
+      expect(String(dim!.bg)).toMatch(/rgba?\(/);
     }
   });
 
+  it('dims the round button while a round is in flight', () => {
+    const idle = skin.nodes(1, 'idle').find((n) => n.id === 'PlaceBetBtn');
+    const busy = skin.nodes(1, 'spinning').find((n) => n.id === 'PlaceBetBtn');
+    expect(idle!.opacity ?? 1).toBe(1);
+    expect(busy!.opacity ?? 1).toBeLessThan(1);
+  });
+
   it('measures where each line of text landed', () => {
-    const lines = cap.states.info!.filter((n) => Array.isArray(n['lines']) && (n['lines'] as unknown[]).length);
+    const lines = skin.nodes(1, 'info').filter((n) => n.lines?.length);
     expect(lines.length).toBeGreaterThan(20);
-    for (const n of lines) {
-      for (const l of n['lines'] as Array<{ text: string; w: number }>) {
-        expect(l.text.trim().length).toBeGreaterThan(0);
-        expect(l.w).toBeGreaterThan(0);
-      }
+    for (const n of lines) for (const l of n.lines!) {
+      expect(l.text.trim().length).toBeGreaterThan(0);
+      expect(l.w).toBeGreaterThan(0);
     }
   });
 
   it("measures where each icon's ink landed", () => {
-    const glyphs = cap.states.idle!.filter((n) => n['glyph']);
+    const glyphs = skin.nodes(1, 'idle').filter((n) => n.glyph);
     expect(glyphs.length).toBeGreaterThan(3);
     for (const n of glyphs) {
-      const g = n['glyph'] as { ch: string; ink?: { w: number; h: number } };
-      expect(g.ch.codePointAt(0)!).toBeGreaterThanOrEqual(0xe000);
-      expect(g.ink?.w, String(n['cls'])).toBeGreaterThan(0);
+      expect(n.glyph!.ch.codePointAt(0)!).toBeGreaterThanOrEqual(0xe000);
+      expect(n.glyph!.ink?.w, String(n.cls)).toBeGreaterThan(0);
     }
+  });
+
+  it('expands colours, fonts and clips out of their tables', () => {
+    const plate = skin.nodes(1, 'idle').find((n) => n.cls === 'UiRibbonUserPanel__container');
+    expect(plate!.bg).toMatch(/^rgba?\(/);
+    const text = skin.nodes(1, 'idle').find((n) => n.font);
+    expect(typeof text!.font!.size).toBe('number');
+    expect(typeof text!.font!.family).toBe('string');
+    const clipped = skin.nodes(1, 'info').find((n) => n.clip);
+    expect(clipped!.clip).toHaveLength(4);
+  });
+});
+
+describe('choosing a breakpoint for a window', () => {
+  it('draws a desktop window at the widest design that fits', () => {
+    expect(skin.sizes[skin.pick(1920, 1080)]!.w).toBe(1920);
+    expect(skin.sizes[skin.pick(1600, 900)]!.w).toBe(1440);
+    expect(skin.sizes[skin.pick(1300, 800)]!.w).toBe(1180);
+  });
+  it('keeps a portrait window on a portrait design', () => {
+    const phone = skin.sizes[skin.pick(390, 844)]!;
+    expect(phone.h).toBeGreaterThan(phone.w);
+    expect(phone.channel).toBe('mobile');
+  });
+  it('gives a phone on its side the design measured on its side', () => {
+    const landscape = skin.sizes[skin.pick(844, 390)]!;
+    expect(landscape.w).toBeGreaterThan(landscape.h);
+    expect(landscape.channel).toBe('mobile');
+  });
+  it('falls back to the narrowest design for a window narrower than any of them', () => {
+    expect(skin.sizes[skin.pick(320, 700)]!.w).toBe(430);
   });
 });
 

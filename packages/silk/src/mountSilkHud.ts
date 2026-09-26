@@ -15,7 +15,8 @@ import {
   type RgsErrorOptions,
 } from '@open-slot-ui/core';
 import capture from './skin.capture.json';
-import { anchorOf, renderTree, type Capture, type Hit, type Node, type RenderedTree } from './tree';
+import { Skin, type Hit, type RawCapture } from './capture';
+import { anchorOf, renderTree, type Node, type RenderedTree } from './tree';
 
 export interface SilkHudOptions {
   hooks?: HostHooks;
@@ -61,11 +62,18 @@ export interface SilkHud {
    * a test to click, so this is how a harness finds the menu button.
    */
   pointOf(id: string): { x: number; y: number } | null;
+  /** What a captured element currently says — the other half of what a harness needs. */
+  textOf(id: string): string | null;
   layout(width: number, height: number): void;
   dispose(): void;
 }
 
-const CAPTURE = capture as unknown as Capture;
+/**
+ * The measured skin: every state, at every size the stylesheet lays it out
+ * differently. The binding picks a breakpoint the way the stylesheet does, rather
+ * than scaling one design into every window.
+ */
+const SKIN = new Skin(capture as unknown as RawCapture);
 
 /**
  * THE HUD, REPLAYED ON CANVAS.
@@ -105,12 +113,20 @@ export function mountSilkHud(app: Application, spec: UISpec = {}, opts: SilkHudO
     if (buyOpen) return 'buy';
     if (ui.autoplayPanel.isOpen) return 'autoplay';
     if (ui.mainMenuPanel.isOpen) return 'menu';
+    // A round in flight is a look of its own: the arrow dims while the answer is on
+    // its way, and becomes a stop button once it can be skipped.
+    const spin = ui.spin.current;
+    if (spin === 'stop') return 'stopping';
+    if (spin === 'spinning' || spin === 'auto') return 'spinning';
     return 'idle';
   };
   let drawn: RenderedTree | undefined;
   let drawnState = '';
+  /** Which breakpoint is on screen, and which one was drawn. */
+  let size = 0;
+  let drawnSize = -1;
   /** The window the HUD is being drawn into. Named so it cannot shadow the global. */
-  const window$ = { w: CAPTURE.viewport.w, h: CAPTURE.viewport.h };
+  const window$ = { w: SKIN.viewport(0).w, h: SKIN.viewport(0).h };
   /** How large the captured design may be drawn. Never upscaled, by default. */
   const maxScale = opts.maxScale ?? 1;
   // The buy sheet is the host's panel in the markup binding (the game owns the
@@ -140,16 +156,16 @@ export function mountSilkHud(app: Application, spec: UISpec = {}, opts: SilkHudO
     // A redraw is needed when the state changes AND when the fonts arrive: text
     // measured in a fallback face is text at the wrong width, and an icon measured
     // in a fallback face is an icon in the wrong place.
-    if (drawn && drawnState === state && drawnInFinalFonts === fontsReady) {
+    if (drawn && drawnState === state && drawnSize === size && drawnInFinalFonts === fontsReady) {
       paintValues();
       return;
     }
     drawn?.view.destroy({ children: true });
-    const nodes = (CAPTURE.states[state] ?? CAPTURE.states.idle ?? []) as Node[];
-    drawn = renderTree(nodes, CAPTURE.viewport);
+    drawn = renderTree(SKIN.nodes(size, state), SKIN.viewport(size));
     drawnState = state;
+    drawnSize = size;
     drawnInFinalFonts = fontsReady;
-    hits = hitsOf(state);
+    hits = SKIN.hits(size, state);
     stage.removeChildren();
     stage.addChild(drawn.view);
     bindHits(drawn);
@@ -180,17 +196,16 @@ export function mountSilkHud(app: Application, spec: UISpec = {}, opts: SilkHudO
   const baseSizes = new Map<string, number>();
   const nodeFontSize = (tree: RenderedTree, id: string): number | undefined => {
     if (baseSizes.has(id)) return baseSizes.get(id);
-    const n = tree.boxes.get(id);
-    const size = n?.font?.size;
-    if (size) baseSizes.set(id, size);
-    return size;
+    const measured = tree.boxes.get(id)?.font?.size;
+    if (measured) baseSizes.set(id, measured);
+    return measured;
   };
 
   // ── what the player can press ─────────────────────────────────────────────
   /** Element id → what pressing it does. The ids are the skin's own. */
   const ACTIONS: Record<string, () => void> = {
     PlaceBetBtn: () => ui.spin.activate(),
-    StopBtn: () => ui.bus.emit('skipRequested', undefined as never),
+    StopBtn: () => ui.spin.activate(),
     MainMenuToggle: () => ui.mainMenuPanel.toggle(),
     AutoplayBtn: () => ui.autoplayPanel.toggle(),
     FeatureBuyToggle: () => {
@@ -219,12 +234,7 @@ export function mountSilkHud(app: Application, spec: UISpec = {}, opts: SilkHudO
   };
 
   /** The pressable boxes of the state on screen, by element id. */
-  const hitsOf = (state: string): Map<string, Hit> => {
-    const map = new Map<string, Hit>();
-    for (const h of CAPTURE.hits?.[state] ?? []) map.set(h.id, h);
-    return map;
-  };
-  let hits = hitsOf('idle');
+  let hits: Map<string, Hit> = SKIN.hits(0, 'idle');
 
   function bindHits(tree: RenderedTree): void {
     // A press on the window itself stays on the window. Without this it would fall
@@ -251,7 +261,7 @@ export function mountSilkHud(app: Application, spec: UISpec = {}, opts: SilkHudO
       });
       // The hit box lives in the same group as the box it belongs to, so it moves
       // with it when the window is scaled.
-      tree.groups[anchorOf(n as Node, CAPTURE.viewport)].addChild(hit);
+      tree.groups[anchorOf(n as Node, SKIN.viewport(size))].addChild(hit);
     }
     // Tapping the dimmed backdrop of a window closes it, as it does in the markup.
     // Pressing anywhere that is not part of an open window closes it, the way
@@ -294,13 +304,16 @@ export function mountSilkHud(app: Application, spec: UISpec = {}, opts: SilkHudO
     ui.locale.subscribe(redraw),
   );
 
+  // Which design to draw is decided before the first one is drawn, so a phone never
+  // sees a desktop bar on its first frame.
+  size = SKIN.pick(app.screen.width, app.screen.height);
   draw();
 
   // ── where it sits ─────────────────────────────────────────────────────────
   function place(): void {
     if (!drawn) return;
     const { w, h } = window$;
-    const cap = CAPTURE.viewport;
+    const cap = SKIN.viewport(drawnSize < 0 ? size : drawnSize);
     // Scale by width, so the bar spans the window the way CSS makes it span; a
     // window taller than the capture gets more room above the bar, not a gap below.
     const k = Math.min(maxScale, w / cap.w);
@@ -326,6 +339,14 @@ export function mountSilkHud(app: Application, spec: UISpec = {}, opts: SilkHudO
     ui.setScreen(width, height);
     window$.w = width;
     window$.h = height;
+    // A window that has crossed into another breakpoint gets that breakpoint's
+    // design, measured at that size — the same thing the stylesheet does.
+    const want = SKIN.pick(width, height);
+    if (want !== size) {
+      size = want;
+      draw();
+      return;
+    }
     place();
   }
   layout(app.screen.width, app.screen.height);
@@ -367,9 +388,10 @@ export function mountSilkHud(app: Application, spec: UISpec = {}, opts: SilkHudO
       if (!drawn) return null;
       const n = hits.get(id) ?? drawn.boxes.get(id);
       if (!n) return null;
-      const p = drawn.groups[anchorOf(n as Node, CAPTURE.viewport)].toGlobal({ x: n.x + n.w / 2, y: n.y + n.h / 2 });
+      const p = drawn.groups[anchorOf(n as Node, SKIN.viewport(size))].toGlobal({ x: n.x + n.w / 2, y: n.y + n.h / 2 });
       return { x: Math.round(p.x), y: Math.round(p.y) };
     },
+    textOf: (id) => drawn?.texts.get(id)?.text ?? null,
     layout,
     dispose: () => {
       for (const d of disposers.splice(0)) d();

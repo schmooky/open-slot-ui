@@ -68,6 +68,25 @@ for (const [i, step] of steps.entries()) {
   await page.screenshot({ path: `${dir}/${String(i).padStart(2, '0')}-${step.press ?? 'load'}-${got}.png` });
 }
 
+// The doors are one half of it; the other is that the buttons do something. These
+// press the ones that change a number and read the number back off the canvas.
+const valueOf = (id) => page.evaluate((elId) => window.__silk?.textOf(elId) ?? null, id);
+const before = await valueOf('BetAmountValue');
+await press('BetAmountIncrease');
+const up = await valueOf('BetAmountValue');
+await press('BetAmountDecrease');
+const back = await valueOf('BetAmountValue');
+const stepped = before !== up && back === before;
+if (!stepped) bad++;
+console.log(`${stepped ? 'ok  ' : 'FAIL'} 11 bet changers      → ${before} → ${up} → ${back}`);
+
+const balance = await valueOf('BalanceValue');
+await press('PlaceBetBtn');
+await page.waitForTimeout(1200);
+const spun = (await valueOf('BalanceValue')) !== balance;
+if (!spun) bad++;
+console.log(`${spun ? 'ok  ' : 'FAIL'} 12 round button       → balance ${balance} → ${await valueOf('BalanceValue')}`);
+
 if (errors.length) console.log(`\nconsole errors:\n  ${errors.slice(0, 6).join('\n  ')}`);
 console.log(`\n${bad === 0 && errors.length === 0 ? 'all doors open' : `${bad} bad transitions, ${errors.length} console errors`}`);
 await browser.close();

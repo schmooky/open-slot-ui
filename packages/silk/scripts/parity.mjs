@@ -17,7 +17,19 @@ const base = process.argv[2] ?? 'http://localhost:5199';
 const out = fileURLToPath(new URL('../parity/', import.meta.url));
 mkdirSync(out, { recursive: true });
 
-const VIEW = { width: 1440, height: 900 };
+/**
+ * The sizes the skin is captured at, and so the sizes the two renderers are compared
+ * at. A HUD that matches at one width and not at another has not been ported; it has
+ * been traced.
+ */
+const VIEWS = [
+  { w: 1920, h: 1080, touch: false },
+  { w: 1440, h: 900, touch: false },
+  { w: 1180, h: 820, touch: false },
+  { w: 834, h: 1112, touch: true },
+  { w: 932, h: 430, touch: true },
+  { w: 430, h: 932, touch: true },
+];
 /**
  * The plate is semi-transparent, so whatever is behind it is part of its colour.
  * Both pages are given the same flat backdrop and no game, which is what makes the
@@ -36,14 +48,40 @@ const STATES = [
   { name: 'history', press: ['MainMenuToggle', 'BetHistoryBtn'] },
 ];
 
+/** `node parity.mjs [url] [state] [width]` narrows the run while chasing one diff. */
+const onlyState = process.argv[3];
+const onlyWidth = Number(process.argv[4]) || 0;
+
 const browser = await chromium.launch();
 
 /** Open the client, walk it into one state, photograph the whole window. */
-async function shoot(renderer, state) {
+async function shoot(renderer, state, view) {
   const q = renderer === 'silk' ? `?renderer=silk&${FLAGS}` : `?${FLAGS}`;
-  const page = await browser.newPage({ viewport: VIEW, deviceScaleFactor: 1 });
+  const context = await browser.newContext({
+    viewport: { width: view.w, height: view.h },
+    deviceScaleFactor: 1,
+    hasTouch: view.touch,
+    isMobile: view.touch,
+  });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+  page.on('pageerror', (e) => errors.push(String(e)));
   await page.goto(`${base}/${q}`, { waitUntil: 'networkidle' });
-  if (renderer === 'silk') await page.waitForFunction(() => !!window.__silk, null, { timeout: 15000 });
+  if (renderer === 'silk') {
+    // A dev server that is busy rebuilding can miss the first load; one reload is
+    // the difference between a flaky harness and a useful one.
+    try {
+      await page.waitForFunction(() => !!window.__silk, null, { timeout: 20000 });
+    } catch {
+      await page.reload({ waitUntil: 'networkidle' });
+      try {
+        await page.waitForFunction(() => !!window.__silk, null, { timeout: 20000 });
+      } catch {
+        throw new Error(`the canvas binding never published itself at ${view.w}x${view.h}: ${errors.slice(0, 3).join(' | ') || 'no console errors'}`);
+      }
+    }
+  }
   else await page.waitForSelector('.UiRibbonUserPanel__container');
   await page.waitForTimeout(1600);
   for (const id of state.press) {
@@ -58,7 +96,7 @@ async function shoot(renderer, state) {
   }
   await page.waitForTimeout(400);
   const buf = await page.screenshot();
-  await page.close();
+  await context.close();
   return buf;
 }
 
@@ -109,19 +147,33 @@ async function diff(aBuf, bBuf) {
   return result;
 }
 
-const only = process.argv[3];
-let worst = 0;
-for (const state of STATES) {
-  if (only && state.name !== only) continue;
-  const dom = await shoot('dom', state);
-  const silk = await shoot('silk', state);
-  writeFileSync(`${out}${state.name}-dom.png`, dom);
-  writeFileSync(`${out}${state.name}-silk.png`, silk);
-  const d = await diff(dom, silk);
-  writeFileSync(`${out}${state.name}-diff.png`, Buffer.from(d.png, 'base64'));
-  const pct = (d.differing / d.total) * 100;
-  worst = Math.max(worst, pct);
-  console.log(`${state.name.padEnd(9)} ${pct.toFixed(2)}% of pixels differ  → parity/${state.name}-diff.png`);
+let worst = { pct: 0, where: '' };
+const table = [];
+for (const view of VIEWS) {
+  if (onlyWidth && view.w !== onlyWidth) continue;
+  const row = { view: `${view.w}x${view.h}`, cells: [] };
+  for (const state of STATES) {
+    if (onlyState && state.name !== onlyState) continue;
+    const dom = await shoot('dom', state, view);
+    const silk = await shoot('silk', state, view);
+    const tag = `${view.w}-${state.name}`;
+    writeFileSync(`${out}${tag}-dom.png`, dom);
+    writeFileSync(`${out}${tag}-silk.png`, silk);
+    const d = await diff(dom, silk);
+    writeFileSync(`${out}${tag}-diff.png`, Buffer.from(d.png, 'base64'));
+    const pct = (d.differing / d.total) * 100;
+    if (pct > worst.pct) worst = { pct, where: tag };
+    row.cells.push({ state: state.name, pct });
+    process.stdout.write(`${tag.padEnd(22)} ${pct.toFixed(2)}%\n`);
+  }
+  table.push(row);
 }
-console.log(`\nworst state: ${worst.toFixed(2)}%`);
+
+console.log('');
+const names = table[0]?.cells.map((c) => c.state) ?? [];
+console.log(['window'.padEnd(10), ...names.map((n) => n.padStart(9))].join(''));
+for (const row of table) {
+  console.log([row.view.padEnd(10), ...row.cells.map((c) => `${c.pct.toFixed(2)}%`.padStart(9))].join(''));
+}
+console.log(`\nworst: ${worst.pct.toFixed(2)}% (${worst.where})`);
 await browser.close();
