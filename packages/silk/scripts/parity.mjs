@@ -5,10 +5,11 @@ import { fileURLToPath } from 'node:url';
 /**
  * ARE THE TWO RENDERERS THE SAME PICTURE?
  *
- * Photographs the DOM bar and the silk bar at the same size, over the same clip,
- * and compares them pixel by pixel. It reports the share of pixels that differ by
- * more than a tolerance, and writes the two shots plus a difference map so a
- * regression can be looked at rather than argued about.
+ * The same client, the same spec, the same flat backdrop — once with the markup
+ * binding and once with the canvas one — driven through every window a player can
+ * open, and compared pixel by pixel. It reports the share of pixels that differ per
+ * state and writes the two shots plus a difference map, so a regression is something
+ * to look at rather than argue about.
  *
  *   node packages/silk/scripts/parity.mjs [baseUrl]
  */
@@ -17,50 +18,49 @@ const out = fileURLToPath(new URL('../parity/', import.meta.url));
 mkdirSync(out, { recursive: true });
 
 const VIEW = { width: 1440, height: 900 };
-const CASES = [
-  { name: 'usd', query: '' },
-  { name: 'irr', query: '?currency=IRR' },
-];
-
 /**
- * Both pages are given the same flat backdrop. The plate is semi-transparent, so
- * what is behind it is part of its colour — and the example client has a whole slot
- * back there. Flattening both is what makes the comparison about the HUD.
+ * The plate is semi-transparent, so whatever is behind it is part of its colour.
+ * Both pages are given the same flat backdrop and no game, which is what makes the
+ * comparison about the HUD.
  */
 const BACKDROP = '1a1d21';
+const FLAGS = `bare=1&bg=${BACKDROP}`;
+
+/** The doors, and the buttons that open them — by the skin's own element ids. */
+const STATES = [
+  { name: 'idle', press: [] },
+  { name: 'menu', press: ['MainMenuToggle'] },
+  { name: 'autoplay', press: ['AutoplayBtn'] },
+  { name: 'info', press: ['MainMenuToggle', 'GameInfoBtn'] },
+  { name: 'buy', press: ['FeatureBuyToggle'] },
+  { name: 'history', press: ['MainMenuToggle', 'BetHistoryBtn'] },
+];
 
 const browser = await chromium.launch();
 
-/** The clip both renderers are judged over: the plate plus the parts that hang off it. */
-const CLIP = async (page) =>
-  page.evaluate(() => {
-    const sel = ['#UiWrapper', '.ToggleButton__container--feature-buy', '.ActionPanel__container--game-actions'];
-    const boxes = sel.flatMap((s) => [...document.querySelectorAll(s)]).map((el) => el.getBoundingClientRect());
-    if (boxes.length) {
-      const pad = 24;
-      const x = Math.max(0, Math.min(...boxes.map((b) => b.left)) - pad);
-      const y = Math.max(0, Math.min(...boxes.map((b) => b.top)) - pad);
-      const r = Math.min(innerWidth, Math.max(...boxes.map((b) => b.right)) + pad);
-      const bo = Math.min(innerHeight, Math.max(...boxes.map((b) => b.bottom)) + pad);
-      return { x: Math.round(x), y: Math.round(y), width: Math.round(r - x), height: Math.round(bo - y) };
-    }
-    // The canvas renderer has no elements to measure: it reports its own box.
-    const hud = window.hud;
-    return hud?.clip?.() ?? null;
-  });
-
-const shoot = async (url, clip) => {
+/** Open the client, walk it into one state, photograph the whole window. */
+async function shoot(renderer, state) {
+  const q = renderer === 'silk' ? `?renderer=silk&${FLAGS}` : `?${FLAGS}`;
   const page = await browser.newPage({ viewport: VIEW, deviceScaleFactor: 1 });
-  await page.goto(url, { waitUntil: 'networkidle' });
-  await page.addStyleTag({
-    content: `#GameWrapper, body { background: #${BACKDROP} !important; } #GameWrapper > canvas { display: none !important; }`,
-  });
-  await page.waitForTimeout(1500);
-  const region = clip ?? (await CLIP(page));
-  const buf = await page.screenshot(region ? { clip: region } : {});
+  await page.goto(`${base}/${q}`, { waitUntil: 'networkidle' });
+  if (renderer === 'silk') await page.waitForFunction(() => !!window.__silk, null, { timeout: 15000 });
+  else await page.waitForSelector('.UiRibbonUserPanel__container');
+  await page.waitForTimeout(1600);
+  for (const id of state.press) {
+    if (renderer === 'silk') {
+      const at = await page.evaluate((elId) => window.__silk.pointOf(elId), id);
+      if (!at) throw new Error(`silk has no box for ${id} in ${state.name}`);
+      await page.mouse.click(at.x, at.y);
+    } else {
+      await page.click(`#${id}`);
+    }
+    await page.waitForTimeout(500);
+  }
+  await page.waitForTimeout(400);
+  const buf = await page.screenshot();
   await page.close();
-  return { buf, region };
-};
+  return buf;
+}
 
 /** Compare two PNGs in a browser page: decode both, count differing pixels. */
 async function diff(aBuf, bBuf) {
@@ -109,18 +109,19 @@ async function diff(aBuf, bBuf) {
   return result;
 }
 
+const only = process.argv[3];
 let worst = 0;
-for (const c of CASES) {
-  const dom = await shoot(`${base}/${c.query}`);
-  const sep = c.query ? '&' : '?';
-  const silk = await shoot(`${base}/tests/fixtures/silk-hud.html${c.query}${sep}bg=${BACKDROP}`, dom.region);
-  writeFileSync(`${out}${c.name}-dom.png`, dom.buf);
-  writeFileSync(`${out}${c.name}-silk.png`, silk.buf);
-  const d = await diff(dom.buf, silk.buf);
-  writeFileSync(`${out}${c.name}-diff.png`, Buffer.from(d.png, 'base64'));
+for (const state of STATES) {
+  if (only && state.name !== only) continue;
+  const dom = await shoot('dom', state);
+  const silk = await shoot('silk', state);
+  writeFileSync(`${out}${state.name}-dom.png`, dom);
+  writeFileSync(`${out}${state.name}-silk.png`, silk);
+  const d = await diff(dom, silk);
+  writeFileSync(`${out}${state.name}-diff.png`, Buffer.from(d.png, 'base64'));
   const pct = (d.differing / d.total) * 100;
   worst = Math.max(worst, pct);
-  console.log(`${c.name.padEnd(4)} ${d.w}×${d.h}  ${pct.toFixed(2)}% of pixels differ  → parity/${c.name}-diff.png`);
+  console.log(`${state.name.padEnd(9)} ${pct.toFixed(2)}% of pixels differ  → parity/${state.name}-diff.png`);
 }
-console.log(`\nworst: ${worst.toFixed(2)}%`);
+console.log(`\nworst state: ${worst.toFixed(2)}%`);
 await browser.close();

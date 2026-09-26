@@ -76,7 +76,7 @@ export function suites(): Suite[] {
     purpose: PURPOSE[file] ?? '',
     cases: casesOf(read(`examples/demo/tests/${file}`)),
   }));
-  const unit = ['core', 'dom'].flatMap((pkg) =>
+  const unit = ['core', 'dom', 'silk'].flatMap((pkg) =>
     list(`packages/${pkg}/tests/`, '.test.ts').map((file) => ({
       file: `${pkg}/${file}`,
       kind: 'unit' as const,

@@ -1,5 +1,8 @@
 import { Container, Text, type TextStyleOptions } from 'pixi.js';
 import { SilkGraphics } from 'pixi-silk';
+import { cssColor } from './measure';
+
+export { cssColor } from './measure';
 
 /**
  * The drawing primitives this binding builds the bar out of.
@@ -11,13 +14,6 @@ import { SilkGraphics } from 'pixi-silk';
  * re-drawing anything by eye.
  */
 
-/** `rgba(0, 0, 0, 0.6)` / `rgb(255, 198, 55)` as Pixi wants them. */
-export function cssColor(css: string): { color: number; alpha: number } {
-  const m = css.match(/rgba?\(([^)]+)\)/);
-  if (!m) return { color: 0x000000, alpha: css === 'transparent' ? 0 : 1 };
-  const [r = 0, g = 0, b = 0, a = 1] = (m[1] as string).split(',').map((n) => parseFloat(n));
-  return { color: ((r & 255) << 16) | ((g & 255) << 8) | (b & 255), alpha: a };
-}
 
 export interface BoxStyle {
   radius?: number;

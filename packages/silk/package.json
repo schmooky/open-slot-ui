@@ -1,7 +1,7 @@
 {
   "name": "@open-slot-ui/silk",
   "version": "0.14.0",
-  "description": "Canvas view + controller binding for open-ui — the same HUD as the DOM binding, drawn with pixi-silk on a PixiJS stage instead of markup and CSS.",
+  "description": "Canvas view + controller binding for open-ui \u2014 the same HUD as the DOM binding, drawn with pixi-silk on a PixiJS stage instead of markup and CSS.",
   "keywords": [
     "slot",
     "slots",
@@ -51,7 +51,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "extract-skin": "node scripts/extract-skin.mjs",
-    "parity": "node scripts/parity.mjs"
+    "capture": "node scripts/capture.mjs",
+    "parity": "node scripts/parity.mjs",
+    "doors": "node scripts/click-through.mjs"
   },
   "dependencies": {
     "@open-slot-ui/core": "workspace:*"

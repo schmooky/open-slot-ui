@@ -107,6 +107,18 @@ const FEATURES = [
 const FORGOTTEN = new Set(['r-stats', 'r-f-ss-h', 'r-f-ss', 'r-f-ab-h', 'r-f-ab']);
 const forget = q.get('forget') === '1';
 
+/**
+ * Two flags the parity check needs and nothing else uses.
+ *
+ * `?bg=RRGGBB` paints one flat colour behind the HUD in either renderer, and
+ * `?bare=1` leaves the game out. The bar's plate is semi-transparent, so what is
+ * behind it is part of its colour: two renderers can only be compared over the same
+ * backdrop, and the fairest backdrop is no game at all.
+ */
+const backdrop = /^[0-9a-f]{6}$/i.test(q.get('bg') ?? '') ? `#${q.get('bg')}` : undefined;
+const bare = q.get('bare') === '1';
+if (backdrop) document.documentElement.style.setProperty('--demo-backdrop', backdrop);
+
 const SPEC: UISpec = {
   currency: money0.spec,
   betLadder: resolveBetLadder(LADDER, LADDER[Math.min(3, LADDER.length - 1)]!),
@@ -117,6 +129,9 @@ const SPEC: UISpec = {
   rules: forget ? dropBlocks(RULES_BLOCKS, FORGOTTEN) : RULES_BLOCKS,
   facts: forget ? { ...FACTS, freeSpins: undefined } : FACTS,
 };
+
+/** The canvas the silk binding draws on, when `?renderer=silk` asks for it. */
+let silkApp: import('pixi.js').Application | undefined;
 
 /** Resolves after the browser has actually put a frame on the screen. */
 const painted = (): Promise<void> =>
@@ -129,7 +144,33 @@ async function main(): Promise<void> {
   // whole of it. The HUD is cheap and is what the player is waiting for: it mounts
   // first, paints (with its own boot spinner running), and the game is built after.
   let reels: Slot | undefined;
-  const hud = mountDomHud(SPEC, {
+
+  /**
+   * `?renderer=silk` mounts the CANVAS binding instead of the markup one.
+   *
+   * Same client, same spec, same round loop — the only difference is which package
+   * draws the HUD. It is a query flag rather than a second page on purpose: two
+   * routes is how a project ends up with two products.
+   */
+  const useSilk = q.get('renderer') === 'silk';
+
+  /** The same HUD, drawn on a PixiJS stage with pixi-silk instead of as markup. */
+  async function mountSilk(): Promise<ReturnType<typeof mountDomHud>> {
+    const [{ Application }, { mountSilkHud }] = await Promise.all([import('pixi.js'), import('@open-slot-ui/silk')]);
+    const app = new Application();
+    await app.init({ resizeTo: window, background: backdrop ?? '#0d0d0d', antialias: true, autoDensity: true, resolution: Math.min(devicePixelRatio || 1, 2) });
+    document.getElementById('GameWrapper')!.appendChild(app.canvas);
+    silkApp = app;
+    const silk = mountSilkHud(app, SPEC, { fonts: [{ family: 'icomoon', src: iconFont }] });
+    app.stage.addChild(silk.view);
+    // A canvas has no markup to click, so the binding's own view of itself — which
+    // state it drew, and where each captured element ended up — is published for the
+    // click-through harness that checks the doors all still open.
+    (window as unknown as { __silk?: unknown }).__silk = { state: silk.state, pointOf: silk.pointOf };
+    return silk as unknown as ReturnType<typeof mountDomHud>;
+  }
+
+  const hud = useSilk ? await mountSilk() : mountDomHud(SPEC, {
     skin: { href: skinHref, font: { family: 'icomoon', src: iconFont } },
     features: FEATURES,
     onBuy: (id, cost) => {
@@ -172,17 +213,25 @@ async function main(): Promise<void> {
   // ── the game, once the HUD is on screen ──────────────────────────────────
   await painted();
   const [{ Application }, { buildReels, evaluate }] = await Promise.all([import('pixi.js'), import('./reels')]);
-  const app = new Application();
-  await app.init({ resizeTo: window, backgroundAlpha: 0, antialias: true, autoDensity: true, resolution: Math.min(devicePixelRatio || 1, 2) });
-  document.getElementById('GameWrapper')!.appendChild(app.canvas);
+  // With the canvas binding there is already a stage on screen — the HUD's — and the
+  // reels share it, exactly as a canvas-only client would have them share it.
+  const app = silkApp ?? new Application();
+  if (!silkApp) {
+    await app.init({ resizeTo: window, backgroundAlpha: 0, antialias: true, autoDensity: true, resolution: Math.min(devicePixelRatio || 1, 2) });
+    document.getElementById('GameWrapper')!.appendChild(app.canvas);
+  }
   // One more frame before the reels: `init` alone is a long task on a cheap phone,
   // and cramming the build into the same one drops the frame either way.
   await painted();
-  reels = buildReels(app);
-  app.stage.addChild(reels.container);
+  if (!bare) {
+    reels = buildReels(app);
+    // Under the HUD, never over it.
+    app.stage.addChildAt(reels.container, 0);
+  }
 
   /** The bar reserves a strip at the bottom of the screen; ask the DOM how tall it is. */
-  const barHeight = (): number => document.querySelector('.UiUserPanelWrapper')?.getBoundingClientRect().height ?? 0;
+  const barHeight = (): number =>
+    useSilk ? 132 : (document.querySelector('.UiUserPanelWrapper')?.getBoundingClientRect().height ?? 0);
   // The bar reserves a strip at the bottom; the reels get everything above it.
   const layout = (): void => reels?.layout(app.screen.width, app.screen.height, barHeight());
   app.renderer.on('resize', layout);
