@@ -30,6 +30,7 @@ const hud = mountHud(app, spec?, opts?);
 | `setCurrency` | `(spec): void` | Re-format balance + bet. |
 | `snapshot` | `(): ControlSnapshot[]` | Serializable state of every control. |
 | `lockInput` / `unlockInput` | `(): void` | Ref-counted whole-HUD input lock. |
+| `ready` | `(): void` | Hide the boot spinner. There is none unless `mountDomHud(spec, { spinner: true })` asked for one — most clients have their own loading screen behind the bar. |
 | `dispose` | `(): void` | Remove the layer + every listener, tween and timer. |
 
 The `spec` is the [`UISpec`](/guides/configuration/); `opts` carries renderer art
@@ -56,6 +57,7 @@ The game accesses controls through named handles — never raw lookups:
 
 ```ts
 ui.spin           // SpinControl
+ui.speeds         // one per hud.speeds entry: { id, base, bonus, isOn, set }
 ui.balance        // ValueDisplay
 ui.bet            // ValueDisplay
 ui.betStepper     // StepperControl

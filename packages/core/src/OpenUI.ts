@@ -33,7 +33,7 @@ import {
 import { DictionaryTranslator, type Translator } from './i18n/translator';
 import { resolveCurrency } from './format/currency';
 import { mergeFacts, type GameFacts } from './spec/facts';
-import { defaultHudChrome, type HudChrome } from './chrome/hud';
+import { defaultHudChrome, type HudChrome, type SpeedScope } from './chrome/hud';
 import { ToggleControl } from './controls/ToggleControl';
 
 export interface OpenUIOptions {
@@ -97,6 +97,24 @@ export interface HistoryRow {
  * screen state, and the typed event bus. This is the object the game holds and
  * "talks to" (Charter P1/P4). Renderer-agnostic — a renderer binds to it.
  */
+/**
+ * One speed's switches: the row in the menu, and the toggle behind each scope.
+ *
+ * `isOn` is the row's own state — a speed is on when any scope it has is on — and
+ * `set` moves every scope at once, which is what pressing the row does.
+ */
+export interface SpeedControls {
+  readonly id: string;
+  readonly name: string;
+  /** Icon class stem; the HUD appends `-on` / `-off`. */
+  readonly icon: string;
+  readonly scopes: readonly SpeedScope[];
+  readonly base: ToggleControl;
+  readonly bonus: ToggleControl;
+  readonly isOn: boolean;
+  set(on: boolean): void;
+}
+
 export class OpenUI {
   readonly theme: Theme;
   /** Which parts of the ribbon exist + how it docks (resolved, always complete). */
@@ -208,7 +226,19 @@ export class OpenUI {
   readonly autoplayPanel: PanelControl;
   /** The bet-history modal. */
   readonly historyPanel: PanelControl;
-  /** Per-phase turbo scopes — the reference's TURBO / SUPER TURBO accordions. */
+  /**
+   * EVERY SPEED THE GAME HAS, in the order the HUD shows them.
+   *
+   * The reference ships two — TURBO and SUPER TURBO™ — and this used to be two
+   * hard-wired pairs of toggles. A game with three speeds, or one, or one of its
+   * own name, now says so in `hud.speeds` and gets a switch set per speed.
+   */
+  readonly speeds: readonly SpeedControls[];
+  /**
+   * Per-phase turbo scopes — the reference's TURBO / SUPER TURBO accordions.
+   * They are the first two speeds when a game keeps the defaults, and stand-alone
+   * switches when it replaces them, so host code written against them keeps working.
+   */
   readonly turboBase: ToggleControl;
   readonly turboBonus: ToggleControl;
   readonly superTurboBase: ToggleControl;
@@ -339,10 +369,36 @@ export class OpenUI {
     // BASE GAME and a BONUS GAME switch, so a player can keep the bonus at full speed.
     // Every speed scope starts OFF: turbo is something a player asks for, and a game
     // that boots already in turbo has made that choice for them.
-    this.turboBase = new ToggleControl({ id: 'turbo-base', layout: { anchor: 'center' } }, this.bus);
-    this.turboBonus = new ToggleControl({ id: 'turbo-bonus', layout: { anchor: 'center' } }, this.bus);
-    this.superTurboBase = new ToggleControl({ id: 'super-turbo-base', layout: { anchor: 'center' } }, this.bus);
-    this.superTurboBonus = new ToggleControl({ id: 'super-turbo-bonus', layout: { anchor: 'center' } }, this.bus);
+    // One switch set per speed the chrome resolved, plus the two the reference's own
+    // rows are named after — aliased onto the matching speeds when they exist, so
+    // `ui.turboBase` still means what it always meant.
+    const speeds: SpeedControls[] = this.chrome.speeds.map((speed) => {
+      const scopes = speed.scopes.length ? speed.scopes : (['base'] as SpeedScope[]);
+      const base = new ToggleControl({ id: `${speed.id}-base`, layout: { anchor: 'center' }, on: speed.initial }, this.bus);
+      const bonus = new ToggleControl({ id: `${speed.id}-bonus`, layout: { anchor: 'center' }, on: speed.initial }, this.bus);
+      return {
+        id: speed.id,
+        name: speed.name,
+        icon: speed.icon,
+        scopes,
+        base,
+        bonus,
+        get isOn(): boolean {
+          return (scopes.includes('base') && base.isOn) || (scopes.includes('bonus') && bonus.isOn);
+        },
+        set(on: boolean) {
+          if (scopes.includes('base')) base.set(on);
+          if (scopes.includes('bonus')) bonus.set(on);
+        },
+      };
+    });
+    this.speeds = Object.freeze(speeds);
+    const speedById = new Map(speeds.map((s) => [s.id, s]));
+    const spare = (id: string): ToggleControl => new ToggleControl({ id, layout: { anchor: 'center' } }, this.bus);
+    this.turboBase = speedById.get('turbo')?.base ?? spare('turbo-base');
+    this.turboBonus = speedById.get('turbo')?.bonus ?? spare('turbo-bonus');
+    this.superTurboBase = speedById.get('super-turbo')?.base ?? spare('super-turbo-base');
+    this.superTurboBonus = speedById.get('super-turbo')?.bonus ?? spare('super-turbo-bonus');
     this.stopOnFeature = new ToggleControl({ id: 'stop-on-feature', layout: { anchor: 'center' }, on: false }, this.bus);
 
     for (const c of [
@@ -375,6 +431,7 @@ export class OpenUI {
       this.superTurboBase,
       this.superTurboBonus,
       this.stopOnFeature,
+      ...speeds.flatMap((s) => [s.base, s.bonus]),
     ]) {
       this.register(c);
     }

@@ -64,6 +64,8 @@ See the doctrine in [CHARTER.md](./CHARTER.md).
 | Option | Values | What it does |
 | --- | --- | --- |
 | `hud.features` | ~30 booleans | Which parts of the bar EXIST — `buyFeature`, `history`, `autoplayAdvanced`, `betProgress`, `clock`, `maxWin`, … A part that is off is never built. |
+| `hud.speeds` | `[{ id, name?, icon?, scopes?, initial? }]` | How many speeds the game has and what they are called. Default: TURBO (and SUPER TURBO™ when its flag is on). A speed gets a menu row, a BASE / BONUS switch per scope, and its own toggles on `ui.speeds`. |
+| `hud.menu` | `[{ kind, … }]` | The ☰ menu, row by row, in order — `sound`, `music`, `speed`, `history`, `info`, `realMoney`, `deposit`, `lobby`, or `action` for a row of the game's own (its press arrives as `buttonActivated`). Default: the rows the feature flags leave on. |
 | `hud.dock` | `'bottom' \| 'top'` | Which edge the ribbon docks to (the whole bar mirrors). |
 | `hud.scale` · `hud.maxWidth` | `0.5..2` · rem | One knob scales the whole bar; the desktop plate's width cap. |
 | `hud.reveal` | `'drop' \| 'rotate' \| 'spin' \| 'twist' \| 'none'` | How a changed readout animates in. |

@@ -231,8 +231,10 @@ export function bindMainMenu(ui: OpenUI, ctx: BindContext): Dispose {
   const toggle = $(r, 'MainMenuToggle');
   const sound = $(r, 'SoundToggle');
   const music = $(r, 'MusicToggle');
-  const turbo = $(r, 'TurboToggle');
-  const superTurbo = $(r, 'SuperTurboToggle');
+  /** `super-turbo` → `SuperTurbo`, the way the reference names its element ids. */
+  const pascal = (id: string): string => id.replace(/(^|[-_ ]+)([a-z0-9])/g, (_, __, c: string) => c.toUpperCase());
+  /** Every speed row on screen, paired with the switches behind it. */
+  const speedRows = ui.speeds.map((speed) => ({ speed, title: $(r, `${pascal(speed.id)}Toggle`) }));
 
   let lastSfx = 0.5;
   let lastMusic = 0.7;
@@ -251,23 +253,16 @@ export function bindMainMenu(ui: OpenUI, ctx: BindContext): Dispose {
     toggleClass(music, 'music-on', musicOn);
     toggleClass(music, 'music-off', !musicOn);
 
-    const turboOn = ui.turboBase.isOn || ui.turboBonus.isOn;
-    const superOn = ui.superTurboBase.isOn || ui.superTurboBonus.isOn;
-    toggleClass(turbo, 'turbo-on', turboOn);
-    toggleClass(turbo, 'turbo-off', !turboOn);
-    setIcon(turbo?.querySelector('[class^=icon-]') ?? null, turboOn ? 'icon-turbo-on' : 'icon-turbo-off');
-    toggleClass(superTurbo, 'super-turbo-on', superOn);
-    toggleClass(superTurbo, 'super-turbo-off', !superOn);
-    setIcon(superTurbo?.querySelector('[class^=icon-]') ?? null, superOn ? 'icon-super-turbo-on' : 'icon-super-turbo-off');
-
-    for (const [id, control] of [
-      ['TurboBaseGameToggler', ui.turboBase],
-      ['TurboBonusGameToggler', ui.turboBonus],
-      ['SuperTurboBaseGameToggler', ui.superTurboBase],
-      ['SuperTurboBonusGameToggler', ui.superTurboBonus],
-    ] as const) {
-      const input = $<HTMLInputElement>(r, id);
-      if (input) input.checked = control.isOn;
+    // However many speeds the game declared: the row wears its own on/off classes
+    // and its own icon, and each scope's switch shows that scope.
+    for (const { speed, title } of speedRows) {
+      toggleClass(title, `${speed.id}-on`, speed.isOn);
+      toggleClass(title, `${speed.id}-off`, !speed.isOn);
+      setIcon(title?.querySelector('[class^=icon-]') ?? null, `${speed.icon}-${speed.isOn ? 'on' : 'off'}`);
+      for (const scope of speed.scopes) {
+        const input = $<HTMLInputElement>(r, `${pascal(speed.id)}${scope === 'base' ? 'BaseGame' : 'BonusGame'}Toggler`);
+        if (input) input.checked = (scope === 'base' ? speed.base : speed.bonus).isOn;
+      }
     }
   };
   paint();
@@ -278,34 +273,26 @@ export function bindMainMenu(ui: OpenUI, ctx: BindContext): Dispose {
    * FOLLOWS that state: on opens the panel with the BASE / BONUS switches, off
    * collapses it. The switches inside then adjust one scope each.
    */
-  const turboRow = (
-    title: HTMLElement | null,
-    base: OpenUI['turboBase'],
-    bonus: OpenUI['turboBonus'],
-  ): Dispose => {
-    const item = title?.closest('.Accordion') as HTMLElement | null;
-    return on(title, 'click', () => {
-      const next = !(base.isOn || bonus.isOn);
-      base.set(next);
-      bonus.set(next);
+  const turboRow = (row: (typeof speedRows)[number]): Dispose => {
+    const item = row.title?.closest('.Accordion') as HTMLElement | null;
+    return on(row.title, 'click', () => {
+      const next = !row.speed.isOn;
+      row.speed.set(next);
       toggleClass(item, 'is-open', next);
       syncTurbo();
     });
   };
 
-  /** Keep the shared turbo control in step with the two ladders (a game reads it). */
+  /** Keep the shared turbo control in step with the speeds (a game reads it). */
   const syncTurbo = (): void => {
-    const want = ui.turboBase.isOn || ui.turboBonus.isOn || ui.superTurboBase.isOn || ui.superTurboBonus.isOn;
+    const want = ui.speeds.some((s) => s.isOn);
     if (ui.turbo.isOn !== want) ui.turbo.toggle();
   };
 
   /** Opening the menu re-syncs each accordion to what its feature is doing. */
   const syncAccordions = (): void => {
-    for (const [title, on_] of [
-      [turbo, ui.turboBase.isOn || ui.turboBonus.isOn],
-      [superTurbo, ui.superTurboBase.isOn || ui.superTurboBonus.isOn],
-    ] as const) {
-      toggleClass(title?.closest('.Accordion') ?? null, 'is-open', on_);
+    for (const { speed, title } of speedRows) {
+      toggleClass(title?.closest('.Accordion') ?? null, 'is-open', speed.isOn);
     }
   };
 
@@ -338,12 +325,12 @@ export function bindMainMenu(ui: OpenUI, ctx: BindContext): Dispose {
       if (onNow) lastMusic = ui.musicSlider.value.get();
       ui.musicSlider.setNormalized(onNow ? 0 : lastMusic || 0.7);
     }),
-    turboRow(turbo, ui.turboBase, ui.turboBonus),
-    turboRow(superTurbo, ui.superTurboBase, ui.superTurboBonus),
-    togglerBind('TurboBaseGameToggler', ui.turboBase),
-    togglerBind('TurboBonusGameToggler', ui.turboBonus),
-    togglerBind('SuperTurboBaseGameToggler', ui.superTurboBase),
-    togglerBind('SuperTurboBonusGameToggler', ui.superTurboBonus),
+    ...speedRows.map(turboRow),
+    ...speedRows.flatMap(({ speed }) =>
+      speed.scopes.map((scope) =>
+        togglerBind(`${pascal(speed.id)}${scope === 'base' ? 'BaseGame' : 'BonusGame'}Toggler`, scope === 'base' ? speed.base : speed.bonus),
+      ),
+    ),
     on($(r, 'BetHistoryBtn'), 'click', () => {
       ui.mainMenuPanel.closePanel();
       ui.historyPanel.openPanel();
@@ -355,13 +342,19 @@ export function bindMainMenu(ui: OpenUI, ctx: BindContext): Dispose {
     on($(r, 'MoveToMoneyBtn'), 'click', () => ui.bus.emit('buttonActivated', { id: 'real-money' })),
     on($(r, 'DepositBtn'), 'click', () => ui.bus.emit('buttonActivated', { id: 'deposit' })),
     on($(r, 'LobbyAnchor'), 'click', () => ui.bus.emit('buttonActivated', { id: 'lobby' })),
+    // A game's own row does what the game says: the press is reported, the host acts.
+    ...ui.chrome.menu
+      .filter((row) => row.kind === 'action')
+      .map((row) =>
+        on($(r, `MenuAction-${row.id}`), 'click', () => {
+          ui.mainMenuPanel.closePanel();
+          ui.bus.emit('buttonActivated', { id: row.id });
+        }),
+      ),
     ui.mainMenuPanel.state.subscribe(paint),
     ui.sfxSlider.value.subscribe(paint),
     ui.musicSlider.value.subscribe(paint),
-    ui.turboBase.state.subscribe(paint),
-    ui.turboBonus.state.subscribe(paint),
-    ui.superTurboBase.state.subscribe(paint),
-    ui.superTurboBonus.state.subscribe(paint),
+    ...ui.speeds.flatMap((s) => [s.base.state.subscribe(paint), s.bonus.state.subscribe(paint)]),
   );
 }
 

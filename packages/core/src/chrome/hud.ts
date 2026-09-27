@@ -118,6 +118,97 @@ export const defaultHudFeatures: Readonly<HudFeatures> = Object.freeze({
 
 export type HudFeatureId = keyof HudFeatures;
 
+// ─── speeds ──────────────────────────────────────────────────────────────────
+
+/** Which half of the game a speed switch applies to. */
+export type SpeedScope = 'base' | 'bonus';
+
+/**
+ * A SPEED the player can switch on.
+ *
+ * The reference ships two — TURBO and SUPER TURBO™ — and for a long time this
+ * library shipped exactly those two, hard-wired, because that is what the markup
+ * had. A game with three speeds, or one, or one called something else, had nowhere
+ * to say so. A speed is now data: an id, what to call it, the icon the skin draws
+ * it with, and which scopes it has switches for. The HUD renders however many there
+ * are, in the order given.
+ */
+export interface SpeedSpec {
+  /** Stable id — what events carry and what a menu row points at. */
+  id: string;
+  /** Label key (or literal text). Default: the id. */
+  name?: string;
+  /**
+   * The icon class STEM the skin draws it with; the HUD appends `-on` / `-off`.
+   * Default `icon-<id>`, which is the convention the reference skin follows.
+   */
+  icon?: string;
+  /** The scopes it can be switched for. Default both. An empty list means one plain switch. */
+  scopes?: SpeedScope[];
+  /** Start switched on (per scope). Default off. */
+  initial?: boolean;
+}
+
+/** A resolved speed: every field present. */
+export interface SpeedConfig {
+  id: string;
+  name: string;
+  icon: string;
+  scopes: SpeedScope[];
+  initial: boolean;
+}
+
+/** The two the reference ships, as data. A game replaces them with its own. */
+export const defaultSpeeds: readonly SpeedConfig[] = Object.freeze([
+  Object.freeze({ id: 'turbo', name: 'turbo', icon: 'icon-turbo', scopes: ['base', 'bonus'] as SpeedScope[], initial: false }),
+  Object.freeze({ id: 'super-turbo', name: 'super_turbo_uc', icon: 'icon-super-turbo', scopes: ['base', 'bonus'] as SpeedScope[], initial: false }),
+]);
+
+// ─── the main menu ───────────────────────────────────────────────────────────
+
+/**
+ * What a main-menu row IS. Everything but `action` is a row the library already
+ * knows how to wire; `action` is the game's own, which reports a press and leaves
+ * the doing to the host.
+ */
+export type MenuItemKind = 'sound' | 'music' | 'speed' | 'history' | 'info' | 'realMoney' | 'deposit' | 'lobby' | 'action';
+
+/** A row in the main menu. */
+export interface MenuItemSpec {
+  /** Stable id. For a `speed` row it may be left out and taken from `speed`. */
+  id?: string;
+  kind: MenuItemKind;
+  /** Which speed this row switches, for `kind: 'speed'`. Default: the row's id. */
+  speed?: string;
+  /** Label key (or literal). Default: the kind's own. */
+  label?: string;
+  /** Icon class. Default: the kind's own; for a speed, the speed's. */
+  icon?: string;
+}
+
+/** A resolved menu row. */
+export interface MenuItemConfig {
+  id: string;
+  kind: MenuItemKind;
+  speed?: string;
+  label: string;
+  icon: string;
+}
+
+/** The default label and icon of each built-in row. */
+const MENU_DEFAULTS: Record<Exclude<MenuItemKind, 'speed' | 'action'>, { label: string; icon: string; feature: HudFeatureId }> = {
+  sound: { label: 'sound', icon: 'icon-sound-on', feature: 'sound' },
+  music: { label: 'music', icon: 'icon-music-on', feature: 'music' },
+  history: { label: 'history', icon: 'icon-history', feature: 'history' },
+  info: { label: 'info_uc', icon: 'icon-info-a', feature: 'info' },
+  realMoney: { label: 'real_money_uc', icon: 'icon-chip', feature: 'realMoney' },
+  deposit: { label: 'deposit_uc', icon: 'icon-coins', feature: 'deposit' },
+  lobby: { label: 'home', icon: 'icon-home', feature: 'lobby' },
+};
+
+/** The ids of the rows the library knows how to wire by itself. */
+export const MENU_KINDS = Object.freeze(Object.keys(MENU_DEFAULTS) as Array<keyof typeof MENU_DEFAULTS>);
+
 export const HUD_FEATURE_IDS = Object.freeze(Object.keys(defaultHudFeatures) as HudFeatureId[]);
 
 /** Where the ribbon docks. `'bottom'` is the design; `'top'` mirrors it. */
@@ -133,6 +224,17 @@ export type WinRepresentation = 'ticker' | 'standalone';
 export interface HudChromeSpec {
   dock?: HudDock;
   features?: Partial<Record<HudFeatureId, boolean>>;
+  /**
+   * The speeds this game has. Default: TURBO and SUPER TURBO™, gated by the
+   * `turbo` / `superTurbo` feature flags, which is what the reference ships.
+   */
+  speeds?: SpeedSpec[];
+  /**
+   * The main menu, row by row, in order. Default: the built-in rows their feature
+   * flags leave on, with one row per speed between the audio rows and HISTORY —
+   * the order the reference uses.
+   */
+  menu?: MenuItemSpec[];
   winRepresentation?: WinRepresentation;
   reveal?: RevealBehavior;
   /** Multiplier on the ribbon's base unit — 1 is the reference size. Clamped 0.5..2. */
@@ -145,15 +247,48 @@ export interface HudChromeSpec {
 export interface HudChrome {
   dock: HudDock;
   features: Readonly<HudFeatures>;
+  /** Every speed the HUD offers, resolved. */
+  speeds: readonly SpeedConfig[];
+  /** The main menu's rows, in order, resolved. */
+  menu: readonly MenuItemConfig[];
   winRepresentation: WinRepresentation;
   reveal: RevealBehavior;
   scale: number;
   maxWidth: number;
 }
 
+/** Fill a speed's blanks: a name, an icon stem, and the scopes it switches. */
+export function resolveSpeed(spec: SpeedSpec): SpeedConfig {
+  const id = spec.id;
+  return {
+    id,
+    name: spec.name ?? id,
+    icon: spec.icon ?? `icon-${id}`,
+    scopes: spec.scopes ?? ['base', 'bonus'],
+    initial: spec.initial ?? false,
+  };
+}
+
+/**
+ * The menu a set of feature flags asks for: the audio rows, then one row per speed,
+ * then the rest — the order the reference's own markup is in.
+ */
+export function defaultMenu(features: Readonly<HudFeatures>, speeds: readonly SpeedConfig[]): MenuItemConfig[] {
+  const row = (kind: keyof typeof MENU_DEFAULTS): MenuItemConfig | null => {
+    const d = MENU_DEFAULTS[kind];
+    return features[d.feature] ? { id: kind, kind, label: d.label, icon: d.icon } : null;
+  };
+  const speedRows: MenuItemConfig[] = speeds.map((s) => ({ id: s.id, kind: 'speed' as const, speed: s.id, label: s.name, icon: `${s.icon}-off` }));
+  return [row('sound'), row('music'), ...speedRows, row('history'), row('info'), row('realMoney'), row('deposit'), row('lobby')].filter(
+    (r): r is MenuItemConfig => r !== null,
+  );
+}
+
 export const defaultHudChrome: Readonly<HudChrome> = Object.freeze({
   dock: 'bottom' as HudDock,
   features: defaultHudFeatures,
+  speeds: Object.freeze(defaultSpeeds.filter((s) => s.id !== 'super-turbo')),
+  menu: Object.freeze(defaultMenu(defaultHudFeatures, defaultSpeeds.filter((s) => s.id !== 'super-turbo'))),
   winRepresentation: 'ticker' as WinRepresentation,
   reveal: 'drop' as RevealBehavior,
   scale: 1,
@@ -212,9 +347,71 @@ export function resolveHudChrome(spec?: HudChromeSpec, onIssue?: (i: ChromeIssue
     return clamp(value, lo, hi);
   };
 
+  // ── speeds ────────────────────────────────────────────────────────────────
+  // Given none, the game gets the two the reference ships, minus whichever of the
+  // `turbo` / `superTurbo` flags it switched off. Given some, they ARE the speeds:
+  // a list is a statement, and a flag cannot argue with it.
+  let speeds: SpeedConfig[];
+  if (spec.speeds) {
+    speeds = [];
+    const seen = new Set<string>();
+    for (const [i, entry] of spec.speeds.entries()) {
+      if (!entry || typeof entry.id !== 'string' || !entry.id.trim()) {
+        onIssue?.({ level: 'warn', path: `hud.speeds[${i}]`, code: 'bad-speed', message: 'a speed needs an id — dropped' });
+        continue;
+      }
+      if (seen.has(entry.id)) {
+        onIssue?.({ level: 'warn', path: `hud.speeds[${i}]`, code: 'duplicate-speed', message: `"${entry.id}" is already a speed — dropped` });
+        continue;
+      }
+      seen.add(entry.id);
+      speeds.push(resolveSpeed(entry));
+    }
+  } else {
+    speeds = defaultSpeeds.filter((s) => (s.id === 'super-turbo' ? features.superTurbo : features.turbo)).map((s) => ({ ...s }));
+  }
+
+  // ── the menu ──────────────────────────────────────────────────────────────
+  const byId = new Map(speeds.map((s) => [s.id, s]));
+  let menu: MenuItemConfig[];
+  if (spec.menu) {
+    menu = [];
+    for (const [i, entry] of spec.menu.entries()) {
+      const kind = entry?.kind;
+      if (!kind || (kind !== 'speed' && kind !== 'action' && !(kind in MENU_DEFAULTS))) {
+        onIssue?.({ level: 'warn', path: `hud.menu[${i}]`, code: 'unknown-menu-item', message: `"${String(kind)}" is not a menu row — dropped` });
+        continue;
+      }
+      if (kind === 'speed') {
+        const speedId = entry.speed ?? entry.id;
+        const speed = speedId ? byId.get(speedId) : undefined;
+        if (!speed) {
+          onIssue?.({ level: 'warn', path: `hud.menu[${i}]`, code: 'unknown-speed', message: `"${String(speedId)}" is not one of the speeds — dropped` });
+          continue;
+        }
+        menu.push({ id: entry.id ?? speed.id, kind, speed: speed.id, label: entry.label ?? speed.name, icon: entry.icon ?? `${speed.icon}-off` });
+        continue;
+      }
+      if (kind === 'action') {
+        if (!entry.id) {
+          onIssue?.({ level: 'warn', path: `hud.menu[${i}]`, code: 'bad-menu-item', message: 'an action row needs an id — dropped' });
+          continue;
+        }
+        menu.push({ id: entry.id, kind, label: entry.label ?? entry.id, icon: entry.icon ?? 'icon-dots' });
+        continue;
+      }
+      const d = MENU_DEFAULTS[kind];
+      menu.push({ id: entry.id ?? kind, kind, label: entry.label ?? d.label, icon: entry.icon ?? d.icon });
+    }
+  } else {
+    menu = defaultMenu(features, speeds);
+  }
+
   return Object.freeze({
     dock: pick(spec.dock, DOCKS, defaultHudChrome.dock, 'hud.dock'),
     features: Object.freeze(features),
+    speeds: Object.freeze(speeds),
+    menu: Object.freeze(menu),
     winRepresentation: pick(spec.winRepresentation, WIN_REPS, defaultHudChrome.winRepresentation, 'hud.winRepresentation'),
     reveal: pick(spec.reveal, REVEALS, defaultHudChrome.reveal, 'hud.reveal'),
     scale: num(spec.scale, 0.5, 2, defaultHudChrome.scale, 'hud.scale'),

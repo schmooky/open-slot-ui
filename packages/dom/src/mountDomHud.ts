@@ -17,6 +17,7 @@ import {
 } from '@open-slot-ui/core';
 import {
   TPL_PROGRESS_INDICATOR,
+  menuItemsHtml,
   TPL_FULLSCREEN_INDICATOR,
   TPL_DIALOG_WINDOW,
   TPL_NOTIFICATION_HOLDER,
@@ -64,6 +65,15 @@ export interface DomHudOptions {
   /** Content for the INFO window. Default: the spec's own menu + rules blocks. */
   info?: BindContext['infoBlocks'];
   onBuy?: BindContext['onBuy'];
+  /**
+   * Show the boot spinner while the game loads. Default OFF.
+   *
+   * A HUD that is on screen before the game is the point of mounting it first, and
+   * a spinner over it says the opposite — most clients have their own loading
+   * screen behind the bar and do not want a second one. Hosts that do want it ask
+   * for it, and hide it with `ready()` as before.
+   */
+  spinner?: boolean;
   /** Design width of the desktop bar in px, for the fit. Default 840 (52.5rem). */
   designWidth?: number;
   /** Clamp on the fit scale. Default `[0.7, 1.6]`. */
@@ -107,7 +117,10 @@ export interface DomHud {
   showRgsError(code: string, opts?: RgsErrorOptions): void;
   showFatal(message: string, opts?: NoticeOptions): void;
   setReplay(on: boolean): void;
-  /** Hide the boot spinner — the game calls it when it is ready to play. */
+  /**
+   * Hide the boot spinner — the game calls it when it is ready to play. With no
+   * spinner asked for there is nothing to hide, and this does nothing.
+   */
   ready(): void;
   dispose(): void;
 }
@@ -135,7 +148,7 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
   root.dataset.layoutType = opts.layout?.type ?? 'ribbon';
   root.dataset.layoutPosition = opts.layout?.position ?? 'dock_bottom';
   root.innerHTML = [
-    TPL_PROGRESS_INDICATOR,
+    opts.spinner ? TPL_PROGRESS_INDICATOR : '',
     f.fullscreen ? TPL_FULLSCREEN_INDICATOR : '',
     TPL_DIALOG_WINDOW,
     TPL_NOTIFICATION_HOLDER,
@@ -146,6 +159,11 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
     TPL_UI_WRAPPER,
   ].join('');
   container.appendChild(root);
+
+  // The menu's rows are the chrome's, not the template's: however many speeds the
+  // game declared, in the order it listed them, plus whatever rows its flags left on.
+  const menuList = root.querySelector('#MainMenu ul');
+  if (menuList) menuList.innerHTML = menuItemsHtml(ui.chrome.menu, ui.chrome.speeds);
 
   /**
    * THE FIRST FRAMES.
@@ -527,6 +545,37 @@ div[data-layout-type="ribbon"][data-channel="mobile"] .FeatureBuyWindow .Feature
 /* Same for the history table and the info window on small screens. */
 div[data-channel="mobile"] .BetHistoryWindow .BetHistory__table-container,
 div[data-channel="mobile"] .GameInfoWindow .GameInfo__body { overflow-y: auto; }
+
+/* THE MENU IS A SCREEN, NOT A FLYOUT.
+   It used to grow out of the bar and share it: the balance, the stake, the round
+   button and the buy coin all stayed lit underneath, which reads as two things
+   open at once and, on a short window, puts menu rows on top of the controls they
+   are not part of. While the menu is up the bar's own panels step back — only the
+   ☰, now an ✕, stays, because that is what closes it — and the menu sits above
+   everything the bar draws. */
+.MainPanel.main-menu-active .DataPanel__container,
+.MainPanel.main-menu-active .FeaturePanel,
+.MainPanel.main-menu-active .ActionPanel,
+.MainPanel.main-menu-active .divider--vertical,
+.MainPanel.main-menu-active #FeedbackMsg,
+.MainPanel.main-menu-active .ToggleButton__container--feature-buy,
+.MainPanel.main-menu-active .ToggleButton__container--feature-promotion {
+  visibility: hidden;
+  pointer-events: none;
+}
+.MainPanel.main-menu-active .MainMenu {
+  z-index: 20;
+}
+.MainPanel.main-menu-active .ToggleButton__container--main-menu {
+  z-index: 21;
+}
+/* A menu taller than the window scrolls instead of running off the top of it. */
+.MainPanel .MainMenu {
+  max-height: calc(100vh - 7rem);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
 `;
 
 /**

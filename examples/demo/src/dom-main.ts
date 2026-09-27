@@ -191,7 +191,6 @@ async function main(): Promise<void> {
   layout();
   ui.unlock();
   ui.showFeedback('press_play', { ms: 0 }); // only now is there anything to press play ON
-  hud.ready(); // the boot spinner stops when there is a game behind the bar
 
   const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
   const snap = (n: number): number => Math.round(n * 100) / 100;
