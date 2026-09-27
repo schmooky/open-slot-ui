@@ -95,6 +95,7 @@ value is reported and dropped, never fatal. You can localize and theme it; you
 can't break it.
 
 Full reference: **[the Configuration guide](https://open-ui.schmooky.dev/guides/configuration/)**.
+A page-long walkthrough of putting it in a game: **[USAGE.md](./USAGE.md)**.
 
 ## Rules as building blocks
 
