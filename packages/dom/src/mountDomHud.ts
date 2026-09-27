@@ -111,7 +111,7 @@ export interface DomHudOptions {
 /** What `mountDomHud` hands back: the core, the tree, and the day-to-day verbs. */
 export interface DomHud {
   readonly ui: OpenUI;
-  /** The mounted root (`.HacksawCasinoUiContainer`-shaped). */
+  /** The mounted root (`.OpenSlotUiContainer`-shaped). */
   readonly root: HTMLElement;
   on<K extends keyof OpenUIEvents>(type: K, fn: (p: OpenUIEvents[K]) => void): Dispose;
   setBalance(major: number): void;
@@ -162,8 +162,8 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
 
   // ── the tree ───────────────────────────────────────────────────────────────
   const root = document.createElement('div');
-  root.className = 'HacksawCasinoUiContainer';
-  root.id = 'hacksaw-casino';
+  root.className = 'OpenSlotUiContainer';
+  root.id = 'open-slot-ui';
   root.dataset.theme = 'default';
   root.dataset.state = 'idle';
   root.dataset.layoutType = opts.layout?.type ?? 'ribbon';

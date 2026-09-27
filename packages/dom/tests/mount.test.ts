@@ -19,7 +19,7 @@ afterEach(() => hud.dispose());
 
 describe('mountDomHud', () => {
   it('mounts the tree the stylesheet expects', () => {
-    const root = document.querySelector<HTMLElement>('.HacksawCasinoUiContainer');
+    const root = document.querySelector<HTMLElement>('.OpenSlotUiContainer');
     expect(root).not.toBeNull();
     expect(root!.dataset.layoutType).toBe('ribbon');
     expect(root!.dataset.layoutPosition).toBe('dock_bottom');
@@ -82,7 +82,7 @@ describe('mountDomHud', () => {
   it('a free-spins round tells the stylesheet what state it is in', () => {
     hud.setFreeSpins(8);
     hud.setHudState('featurePlay');
-    const root = document.querySelector<HTMLElement>('.HacksawCasinoUiContainer')!;
+    const root = document.querySelector<HTMLElement>('.OpenSlotUiContainer')!;
     expect(root.dataset.state).toBe('featurePlay-freespins');
     expect(id('FeatureCounterValue')?.textContent).toBe('8');
     expect(id('WinAmountItem')!.classList.contains('is-visible')).toBe(false);
@@ -97,7 +97,7 @@ describe('mountDomHud', () => {
 
   it('teardown removes the tree and every listener', () => {
     hud.dispose();
-    expect(document.querySelector('.HacksawCasinoUiContainer')).toBeNull();
+    expect(document.querySelector('.OpenSlotUiContainer')).toBeNull();
     // a fresh mount for afterEach to dispose
     hud = mountDomHud({});
   });
@@ -167,7 +167,7 @@ describe('the ☰ menu behaves the way the design does', () => {
   });
 
   it('an autoplay run puts the HUD in the state the stylesheet dims rows from', () => {
-    const root = document.querySelector<HTMLElement>('.HacksawCasinoUiContainer')!;
+    const root = document.querySelector<HTMLElement>('.OpenSlotUiContainer')!;
     expect(root.dataset.state).toBe('idle');
     hud.ui.autoplay.begin(10);
     expect(root.dataset.state).toBe('autoplay');
@@ -420,7 +420,7 @@ describe('the compliance verbs', () => {
     expect(typeof hud.showFatal).toBe('function');
     expect(typeof hud.setReplay).toBe('function');
     hud.setReplay(true);
-    expect(document.querySelector('.HacksawCasinoUiContainer')!.classList.contains('is-locked')).toBe(true);
+    expect(document.querySelector('.OpenSlotUiContainer')!.classList.contains('is-locked')).toBe(true);
   });
 });
 

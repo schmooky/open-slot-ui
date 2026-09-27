@@ -153,7 +153,7 @@ body {
     --hg-branding-logo-width: 1.5rem;
     --hg-branding-logo-height: 1.5rem;
     --hg-typography-font-size: 0.5rem;
-    --hg-typography-font-family: HacksawUI, sans-serif;
+    --hg-typography-font-family: OpenSlotUI, sans-serif;
     --hg-typography-font-weight: 400;
     --hg-typography-line-height: 1.25;
     --hg-typography-color: #fff;
@@ -8819,7 +8819,7 @@ div[data-channel=mobile][data-orientation=landscape] .FeaturePromotionWindow .Fe
     width: 100%
 }
 
-.HacksawCasinoGameContainer {
+.OpenSlotGameContainer {
     backface-visibility: hidden;
     background: var(--hg-bg-primary);
     height: 100%;
@@ -8830,39 +8830,39 @@ div[data-channel=mobile][data-orientation=landscape] .FeaturePromotionWindow .Fe
     zoom: reset
 }
 
-.HacksawCasinoGameContainer--left,
-.HacksawCasinoGameContainer--top {
+.OpenSlotGameContainer--left,
+.OpenSlotGameContainer--top {
     transform-origin: "top left"
 }
 
-.HacksawCasinoGameContainer--right {
+.OpenSlotGameContainer--right {
     transform-origin: "top right"
 }
 
-.HacksawCasinoGameContainer--bottom {
+.OpenSlotGameContainer--bottom {
     transform-origin: "bottom left"
 }
 
-.HacksawCasinoGameContainer canvas {
+.OpenSlotGameContainer canvas {
     background: #212529;
     -webkit-user-select: none;
     -moz-user-select: none;
     user-select: none
 }
 
-.HacksawCasinoUiContainer {
+.OpenSlotUiContainer {
     bottom: 0;
     position: relative;
     width: 100%;
     zoom: reset
 }
 
-.HacksawCasinoUiContainer[data-channel=desktop][data-layout-type=aside_panel],
-.HacksawCasinoUiContainer[data-channel=desktop][data-layout-type=ribbon] {
+.OpenSlotUiContainer[data-channel=desktop][data-layout-type=aside_panel],
+.OpenSlotUiContainer[data-channel=desktop][data-layout-type=ribbon] {
     --hg-overlay-info-font-size: 12px
 }
 
-.HacksawCasinoUiContainer[data-layout-type=ada_plain] {
+.OpenSlotUiContainer[data-layout-type=ada_plain] {
     bottom: unset;
     height: 100%;
     --hg-overlay-info-font-size: 14px

@@ -1,6 +1,6 @@
 {
   "name": "@open-slot-ui/dom",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "DOM view + controller binding for open-ui \u2014 mount the HUD as real HTML, dressed by your own stylesheet, driven by the headless core.",
   "keywords": [
     "slot",

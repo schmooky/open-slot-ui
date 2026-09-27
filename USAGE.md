@@ -22,7 +22,7 @@ const hud = mountDomHud(
   {
     currency: { code: 'USD', symbol: '$', display: 'symbol', position: 'prefix', decimals: 2 },
     betLadder: { levels: [0.2, 0.5, 1, 2, 5, 10], index: 2 },
-    game: { name: 'Max Win Machine' },
+    game: { name: 'Neon Reels' },
   },
   { skin: { href: '/skin/ui.css', font: { family: 'icomoon', src: '/skin/icomoon.woff2' } } },
 );

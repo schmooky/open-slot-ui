@@ -101,7 +101,7 @@ describe('the boot spinner', () => {
 describe('the look a host can configure', () => {
   it('writes only the theme tokens the host changed', () => {
     mount({ theme: { color: { accent: '#00ff00' } } });
-    const root = document.querySelector<HTMLElement>('.HacksawCasinoUiContainer')!;
+    const root = document.querySelector<HTMLElement>('.OpenSlotUiContainer')!;
     expect(root.style.getPropertyValue('--hg-bg-accent')).toBe('#00ff00');
     // ...and its faded copies, or the HUD ends up two-toned
     expect(root.style.getPropertyValue('--hg-bg-accent-rgb')).toBe('0, 255, 0');
@@ -112,23 +112,23 @@ describe('the look a host can configure', () => {
 
   it('leaves the skin alone when no theme is given', () => {
     mount({});
-    const root = document.querySelector<HTMLElement>('.HacksawCasinoUiContainer')!;
+    const root = document.querySelector<HTMLElement>('.OpenSlotUiContainer')!;
     expect(root.getAttribute('style') ?? '').not.toContain('--hg-');
   });
 
   it('publishes the motion durations a theme asks for', () => {
     mount({ theme: { overrides: { motion: { base: 400 } } } });
-    const root = document.querySelector<HTMLElement>('.HacksawCasinoUiContainer')!;
+    const root = document.querySelector<HTMLElement>('.OpenSlotUiContainer')!;
     expect(root.style.getPropertyValue('--ohm-motion-base')).toBe('400ms');
     expect(root.style.getPropertyValue('--hg-ui-transition-duration')).toBe('400ms');
   });
 
   it('says how much may move, and takes the host over the player', () => {
     mount({});
-    expect(document.querySelector<HTMLElement>('.HacksawCasinoUiContainer')!.dataset.motion).toBe('full');
+    expect(document.querySelector<HTMLElement>('.OpenSlotUiContainer')!.dataset.motion).toBe('full');
     hud!.dispose();
     hud = mountDomHud({}, { motion: 'none' });
-    expect(document.querySelector<HTMLElement>('.HacksawCasinoUiContainer')!.dataset.motion).toBe('none');
+    expect(document.querySelector<HTMLElement>('.OpenSlotUiContainer')!.dataset.motion).toBe('none');
   });
 
   it('swaps the glyphs a host names, and keeps the skin classes beside them', () => {

@@ -121,7 +121,7 @@ test.describe('long money keeps the shape of the bar', () => {
 
   test('the whole bar, overhangs included, stays inside the window', async ({ page }) => {
     await page.goto(`/?${HUGE}`);
-    await page.waitForFunction(() => !!document.querySelector('.HacksawCasinoUiContainer'));
+    await page.waitForFunction(() => !!document.querySelector('.OpenSlotUiContainer'));
     await page.waitForTimeout(700);
     const view = page.viewportSize()!;
     // The round button on the right and the buy coin on the left hang OUTSIDE the
@@ -139,7 +139,7 @@ test.describe('long money keeps the shape of the bar', () => {
 
   test('a long value shrinks itself instead of stretching its slot', async ({ page }) => {
     await page.goto(`/?${HUGE}`);
-    await page.waitForFunction(() => !!document.querySelector('.HacksawCasinoUiContainer'));
+    await page.waitForFunction(() => !!document.querySelector('.OpenSlotUiContainer'));
     await page.waitForTimeout(700);
     const long = await page.evaluate(() => {
       const el = document.getElementById('BalanceValue')!;
@@ -149,7 +149,7 @@ test.describe('long money keeps the shape of the bar', () => {
     const plateLong = await widthOf(page, '.UiRibbonUserPanel__container');
 
     await page.goto('/?currency=USD&balance=12345.67&bet=1&win=0');
-    await page.waitForFunction(() => !!document.querySelector('.HacksawCasinoUiContainer'));
+    await page.waitForFunction(() => !!document.querySelector('.OpenSlotUiContainer'));
     await page.waitForTimeout(700);
     const short = await page.evaluate(() => {
       const el = document.getElementById('BalanceValue')!;

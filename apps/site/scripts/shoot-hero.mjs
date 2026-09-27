@@ -21,7 +21,7 @@ mkdirSync(out, { recursive: true });
 const SHOTS = [
   { id: 'bar-idle', file: 'hud-desktop.png', w: 1440, h: 900, clip: { sel: '#UiWrapper, .ToggleButton__container--feature-buy, .ActionPanel__container--game-actions', pad: 40 } },
   { id: 'bar-phone', file: 'hud-mobile.png', w: 390, h: 844, clip: { sel: '#UiWrapper, .ToggleButton__container--feature-buy', pad: 24 } },
-  { id: 'control-autoplay-panel', file: 'autoplay-drawer.png', w: 1440, h: 900, clip: { sel: '.HacksawCasinoUiContainer', pad: 0, bottom: 520 } },
+  { id: 'control-autoplay-panel', file: 'autoplay-drawer.png', w: 1440, h: 900, clip: { sel: '.OpenSlotUiContainer', pad: 0, bottom: 520 } },
   { id: 'window-info', file: 'menu.png', w: 1440, h: 900, clip: { sel: '#GameInfoWindow', pad: 0 } },
   { id: 'window-buy', file: 'buy-sheet.png', w: 1440, h: 900, clip: { sel: '#FeatureBuyWindow', pad: 0 } },
 ];

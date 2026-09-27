@@ -54,7 +54,7 @@ await page.addInitScript(() => {
   const seen = new Set();
   const poll = () => {
     const hit = (name, cond) => { if (cond && !seen.has(name)) { seen.add(name); mark(name); } };
-    const root = document.querySelector('.HacksawCasinoUiContainer');
+    const root = document.querySelector('.OpenSlotUiContainer');
     const link = document.querySelector('link[rel=stylesheet]');
     hit('hud-mounted', !!root);
     hit('skin-loaded', !!link && !!link.sheet);
