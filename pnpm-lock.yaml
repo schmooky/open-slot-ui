@@ -54,9 +54,6 @@ importers:
       '@open-slot-ui/pixi':
         specifier: workspace:*
         version: link:../../packages/pixi
-      '@open-slot-ui/silk':
-        specifier: workspace:*
-        version: link:../../packages/silk
       gsap:
         specifier: ^3.13.0
         version: 3.15.0
@@ -133,31 +130,6 @@ importers:
       tsup:
         specifier: ^8.3.5
         version: 8.5.1(jiti@2.7.0)(postcss@8.5.15)(typescript@5.9.3)
-
-  packages/silk:
-    dependencies:
-      '@open-slot-ui/core':
-        specifier: workspace:*
-        version: link:../core
-    devDependencies:
-      '@playwright/test':
-        specifier: ^1.50.0
-        version: 1.61.0
-      pixi-silk:
-        specifier: ^0.1.0
-        version: 0.1.0(pixi.js@8.19.0)
-      pixi.js:
-        specifier: ^8.6.6
-        version: 8.19.0
-      tsup:
-        specifier: ^8.3.5
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.15)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
-      vitest:
-        specifier: ^3.0.5
-        version: 3.2.6(@types/debug@4.1.13)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)
 
 packages:
 
@@ -2070,11 +2042,6 @@ packages:
     peerDependenciesMeta:
       '@esotericsoftware/spine-pixi-v8':
         optional: true
-
-  pixi-silk@0.1.0:
-    resolution: {integrity: sha512-PpgCdVyGPBdgahn/Dp0Kh2ChXmah13jrhNwRaMYh6E+AluHcoY7qojhf/qe3HZl+yXcUaI9otMHmedq+3aUeeg==}
-    peerDependencies:
-      pixi.js: ^8.6.0
 
   pixi.js@8.19.0:
     resolution: {integrity: sha512-pq1O6emA/GFjjeF+8d3Pb5t7knD8FsnfWGqQcRjYjsqFZ7QdzG1XgjLDUu0DFJRbafjV5+g8iNLFBx0b9649lg==}
@@ -4862,10 +4829,6 @@ snapshots:
   pixi-reels@2.8.0(gsap@3.15.0)(pixi.js@8.19.0):
     dependencies:
       gsap: 3.15.0
-      pixi.js: 8.19.0
-
-  pixi-silk@0.1.0(pixi.js@8.19.0):
-    dependencies:
       pixi.js: 8.19.0
 
   pixi.js@8.19.0:
