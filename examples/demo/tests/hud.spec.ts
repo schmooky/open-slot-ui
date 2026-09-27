@@ -33,12 +33,12 @@ const boundsOf = (page: Page, id: string): Promise<Rect> =>
 test.describe('open-ui HUD — device screenshots', () => {
   for (const cfg of CONFIGS) {
     test(`renders the ${cfg.name} HUD`, async ({ page }, testInfo) => {
-      await page.goto(`/?${cfg.query}`);
+      await page.goto(`/tests/fixtures/pixi-hud.html?${cfg.query}`);
       await waitForHud(page);
 
       // It actually mounted, and the reference controls are present.
       const present = await ids(page);
-      for (const id of ['spin', 'turbo', 'autoplay', 'balance', 'bet']) expect(present).toContain(id);
+      for (const id of ['spin', 'autoplay', 'balance', 'bet', 'win']) expect(present).toContain(id);
 
       await page.screenshot({ path: `${SHOTS}${testInfo.project.name}__${cfg.name}.png` });
     });
@@ -47,7 +47,7 @@ test.describe('open-ui HUD — device screenshots', () => {
 
 test.describe('open-ui HUD — behavior via __OPENUI__', () => {
   test('the showcase config is applied end to end', async ({ page }) => {
-    await page.goto('/?bare=1&turbo=3&autoplay=infinite&spin=hold');
+    await page.goto('/tests/fixtures/pixi-hud.html?bare=1&turbo=3&autoplay=infinite&spin=hold');
     await waitForHud(page);
     const state = await page.evaluate(() => {
       const ui = (window as unknown as { ui: { turbo: { modeCount: number }; autoplay: { mode: string }; spin: { holdToSpin: boolean } } }).ui;
@@ -57,7 +57,7 @@ test.describe('open-ui HUD — behavior via __OPENUI__', () => {
   });
 
   test('the menu is closed on load and does not cover the HUD (spin is clickable)', async ({ page }) => {
-    await page.goto('/?bare=1');
+    await page.goto('/tests/fixtures/pixi-hud.html?bare=1');
     await waitForHud(page);
     // panel state is closed AND a real click reaches the spin button (a covering
     // menu overlay would eat the click — the regression we just fixed).
@@ -71,26 +71,27 @@ test.describe('open-ui HUD — behavior via __OPENUI__', () => {
       .not.toBe(before); // the click reached spin → the stake was taken
   });
 
-  // Guards the headline positioning bug: the right-anchored bet rendered UNDER the
-  // centre spin button (a fit-pivot double-shift), and the readouts must hug their
-  // own corners. Asserts ordering + non-overlap directly from the live render bounds.
+  // The ribbon's own ordering, asserted from live render bounds: the readouts sit in
+  // the data panel on the LEFT, the round button is in the action box on the RIGHT,
+  // and nothing renders under the round button (the old layout bug that put the
+  // right-anchored bet beneath it).
   for (const currency of ['USD', 'BTC']) {
-    test(`balance sits left of spin and bet sits right of spin (${currency})`, async ({ page }, testInfo) => {
-      test.skip(testInfo.project.name !== 'desktop', 'corner geometry asserted on the desktop layout (phones reflow/scale the bar)');
-      await page.goto(`/?bare=1&currency=${currency}`);
+    test(`the readouts sit left of the round button (${currency})`, async ({ page }, testInfo) => {
+      test.skip(testInfo.project.name !== 'desktop', 'bar geometry asserted on the desktop layout (phones reflow the bar)');
+      await page.goto(`/tests/fixtures/pixi-hud.html?bare=1&currency=${currency}`);
       await waitForHud(page);
-      const [balance, spin, bet] = await Promise.all([boundsOf(page, 'balance'), boundsOf(page, 'spin'), boundsOf(page, 'bet')]);
+      const [balance, spin, bet, win] = await Promise.all([boundsOf(page, 'balance'), boundsOf(page, 'spin'), boundsOf(page, 'bet'), boundsOf(page, 'win')]);
       const TOL = 6;
-      // balance entirely left of the spin button; bet entirely right of it (not under it).
-      expect(balance.x + balance.width).toBeLessThanOrEqual(spin.x + TOL);
-      expect(bet.x).toBeGreaterThanOrEqual(spin.x + spin.width - TOL);
-      // and a small value's readout is TIGHT (symbol hugs) — well under a 9-column reserve.
+      for (const readout of [balance, bet, win]) expect(readout.x + readout.width).toBeLessThanOrEqual(spin.x + TOL);
+      // balance → bet → win, in that order, and each one TIGHT (a symbol hugs its number).
+      expect(balance.x).toBeLessThan(bet.x);
+      expect(bet.x).toBeLessThan(win.x);
       expect(bet.width).toBeLessThan(9 * 26 * 1.6);
     });
   }
 
   test('a spin locks the whole HUD (derived interactability)', async ({ page }) => {
-    await page.goto('/?bare=1');
+    await page.goto('/tests/fixtures/pixi-hud.html?bare=1');
     await waitForHud(page);
     const locked = await page.evaluate(() => {
       const w = window as unknown as { ui: { spin: { busy(): void } }; __OPENUI__: { isInteractable(id: string): boolean } };
@@ -102,7 +103,7 @@ test.describe('open-ui HUD — behavior via __OPENUI__', () => {
   });
 
   test('intro=slide-in settles to an interactive, on-screen HUD', async ({ page }) => {
-    await page.goto('/?bare=1&intro=slide-in');
+    await page.goto('/tests/fixtures/pixi-hud.html?bare=1&intro=slide-in');
     // wait for the slide-in to FINISH (controlsReady true) — proves it doesn't stall
     await page.waitForFunction(
       () => {
@@ -123,7 +124,7 @@ test.describe('open-ui HUD — behavior via __OPENUI__', () => {
   });
 
   test('intro=hidden starts off-screen + locked', async ({ page }) => {
-    await page.goto('/?bare=1&intro=hidden');
+    await page.goto('/tests/fixtures/pixi-hud.html?bare=1&intro=hidden');
     await waitForHud(page);
     const r = await page.evaluate(() => {
       const api = (window as unknown as { __OPENUI__: { bounds(id: string): { y: number } } }).__OPENUI__;
@@ -139,7 +140,7 @@ test.describe('open-ui HUD — behavior via __OPENUI__', () => {
 test.describe('open-ui HUD — UI states', () => {
   test('autoplay drawer and settings menu', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'state shots captured on desktop only');
-    await page.goto('/?bare=1');
+    await page.goto('/tests/fixtures/pixi-hud.html?bare=1');
     await waitForHud(page);
 
     await page.evaluate(() => (window as unknown as { ui: { autoplay: { press(): void } } }).ui.autoplay.press());

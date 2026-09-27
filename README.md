@@ -9,6 +9,11 @@ A **biased, themeable PixiJS UI library for slot games**. Mount the whole HUD on
 your existing Pixi scene in one call, then set how it looks and behaves with plain,
 typed, string-literal options.
 
+The HUD is **one docked ribbon**: the ☰ menu and the BALANCE / BET / WIN readouts on
+the left, a dark action box (bet · ▲▼ · the round button · autoplay) on the right,
+and the sheets and windows that open out of it — the menu, the autoplay panel, the
+buy sheet, history, rules and the notice modal.
+
 ```bash
 pnpm add @open-slot-ui/core @open-slot-ui/pixi pixi.js
 ```
@@ -17,15 +22,16 @@ pnpm add @open-slot-ui/core @open-slot-ui/pixi pixi.js
 import { mountHud } from '@open-slot-ui/pixi';
 
 const hud = mountHud(app, {
-  theme:    'neon',              // 'default' | 'midnight' | 'neon'
-  turbo:    { modes: 3 },        // 2-mode toggle or 3-mode switcher
-  autoplay: { mode: 'options' }, // 'options' drawer, or 'infinite'
-  spin:     { press: 'hold-to-spin' }, // 'tap', or hold-to-turbo-spin
+  hud:      { dock: 'bottom', features: { buyFeature: false } }, // which parts EXIST
+  autoplay: { mode: 'options' },        // 'options' panel, or 'infinite'
+  spin:     { press: 'hold-to-spin' },  // 'tap', or hold-to-turbo-spin
 });
 
 hud.on('spinRequested', () => game.spin()); // events out
 hud.ui.spin.busy();                          // commands in
 hud.setBalance(1234);
+hud.setWin(25);                              // the WIN readout counts up
+game.keepReelsAbove(hud.pixi.barHeight);     // the strip the bar reserves
 ```
 
 That's the whole integration. The HUD owns its layout, theming, animation,
@@ -50,26 +56,107 @@ See the doctrine in [CHARTER.md](./CHARTER.md).
 | Package | Role |
 | --- | --- |
 | [`@open-slot-ui/core`](./packages/core) | Headless M + C — signals, control state-machines, theme tokens, layout, façade, event bus, introspection. **Zero dependencies.** |
-| [`@open-slot-ui/pixi`](./packages/pixi) | The PixiJS v8 view + controller binding. Mounts one `Container`. Peer-dep `pixi.js ^8`. |
+| [`@open-slot-ui/pixi`](./packages/pixi) | The PixiJS v8 view + controller binding. Mounts one `Container`, draws the bar itself. Peer-dep `pixi.js ^8`. |
+| [`@open-slot-ui/dom`](./packages/dom) | The DOM binding: the HUD as real markup, dressed by **your** stylesheet. Draws nothing — use it when the design already exists as CSS. |
 
 ## Configuration at a glance
 
 | Option | Values | What it does |
 | --- | --- | --- |
-| `theme` | `'default' \| 'midnight' \| 'neon'` | Re-skins the whole HUD by tokens. |
+| `hud.features` | ~30 booleans | Which parts of the bar EXIST — `buyFeature`, `history`, `autoplayAdvanced`, `betProgress`, `clock`, `maxWin`, … A part that is off is never built. |
+| `hud.speeds` | `[{ id, name?, icon?, scopes?, initial? }]` | How many speeds the game has and what they are called. Default: TURBO (and SUPER TURBO™ when its flag is on). A speed gets a menu row, a BASE / BONUS switch per scope, and its own toggles on `ui.speeds`. |
+| `hud.menu` | `[{ kind, … }]` | The ☰ menu, row by row, in order — `sound`, `music`, `speed`, `history`, `info`, `realMoney`, `deposit`, `lobby`, or `action` for a row of the game's own (its press arrives as `buttonActivated`). Default: the rows the feature flags leave on. |
+| `hud.readouts` | `['balance','bet','win',…]` | Which readouts the data panel shows, left to right. Default: the reference's order, gated by the flags. |
+| `hud.dock` | `'bottom' \| 'top'` | Which edge the ribbon docks to (the whole bar mirrors). |
+| `hud.scale` · `hud.maxWidth` | `0.5..2` · rem | One knob scales the whole bar; the desktop plate's width cap. |
+| `hud.reveal` | `'drop' \| 'rotate' \| 'spin' \| 'twist' \| 'none'` | How a changed readout animates in. |
+| `theme` | `'default'` or safe overrides | Re-skins the bar, sheets and windows together, by tokens — colours, radii, font family and how long things take. In the markup binding these become the custom properties the stylesheet already reads, and only the tokens you changed are written. |
 | `turbo.modes` | `2 \| 3 \| string[]` | 2-mode toggle or 3-mode (off/turbo/super) switcher. |
-| `autoplay.mode` | `'options' \| 'infinite'` | A bottom drawer to pick a count, or one-tap infinite. |
+| `autoplay` | `{ mode, options, lossLimits, winLimits, requireLimits, stopOnAnyWin }` | The panel's round list and its responsible-gambling stops, including STOP ON ANY WIN for markets that want a stop a player need not express as a multiplier. |
 | `spin.press` | `'tap' \| 'hold-to-spin'` | One spin per tap, or turbo-spin while held. |
 | `responsive` | `{ mobile, tablet, desktop, portrait, landscape }` | Reflow / hide controls per device & orientation. |
-| `menu` | `{ settings, paytable, rules }` | One scrollable ☰ menu — Settings → Paytable → Rules. |
+| `menu` | `{ settings, paytable, rules }` | The scrollable INFO window — Settings → Paytable → Rules. |
 | `locale` | `{ messages, locale }` | i18n — safe key fall-through, with an auto Language switch. |
 | `currency`, `betLadder`, `controls` | … | Money, formatting, per-control overrides. |
+
+`mountDomHud` takes four more that belong to the browser rather than the game:
+
+```ts
+mountDomHud(spec, {
+  spinner: false,                                   // default: no boot spinner
+  icons: { spin: 'icon-play', betUp: 'icon-plus' }, // any of the bar's glyphs
+  motion: 'auto',                                   // 'full' | 'reduced' | 'none'
+  keyboard: { spin: [' '], close: ['Escape'] },     // or { enabled: false }
+});
+```
 
 Configuration is the **only** way to change the UI — and it's guardrailed: a bad
 value is reported and dropped, never fatal. You can localize and theme it; you
 can't break it.
 
 Full reference: **[the Configuration guide](https://open-ui.schmooky.dev/guides/configuration/)**.
+A page-long walkthrough of putting it in a game: **[USAGE.md](./USAGE.md)**.
+
+## Rules as building blocks
+
+The info window's Settings / Paytable / **Rules** are not prose you hand the
+library — they are **blocks**, a vocabulary both renderers speak. The same
+declaration draws on canvas (PixiJS) and in the DOM, is validated, is translated,
+and is **audited**: every declared game mode must have its own section, with its
+RTP, max win and price actually stated.
+
+| Group | Kinds |
+| --- | --- |
+| Prose | `heading` · `subheading` · `text` · `callout` · `quote` · `legal` · `divider` · `spacer` · `link` |
+| Tables & data | `table` · `kv` · `compare` · `stat-grid` · `mode-stats` (auto, from the declared facts) · `symbols` · `paytable` |
+| The reels | `paylines` · `grid` (any cells lit — a scatter pattern, a cluster, a way) |
+| At a glance | `badges` · `meter` · `timeline` · `steps` |
+| Pictures | `image` · `media` (image + text) · `gallery` · `cards` |
+| Containers | `sections` · `tabs` (both render as an open stack) · `columns` · `group` |
+| Interactive | `toggle` · `slider` · `select` · `stepper` · `button` · `value` |
+
+**Nothing in the vocabulary hides content.** `sections` renders titled panels, all
+of them open, and `tabs` — kept because authors think in tabs — renders as the same
+stack rather than as a strip. There is deliberately no flag to collapse either:
+content a player had to click to reveal is content they can later say they never
+saw, and a rules page is a legal document before it is a UI.
+
+Write them as objects, or **as markup** — a rules page is content, so it can live
+in a file a writer edits and a translator reads:
+
+```xml
+<rules>
+  <badges><badge tone="accent">20 lines</badge><badge tone="bonus">Free spins</badge></badges>
+  <tabs>
+    <tab id="play" label="How to play">
+      <list ordered><item>Set your bet.</item><item>Press spin.</item></list>
+      <grid reels="5" rows="3" symbol="S" label="Scatters trigger anywhere">
+        <cell reel="0" row="1"/><cell reel="2" row="0"/><cell reel="4" row="2"/>
+      </grid>
+    </tab>
+    <tab id="pays" label="Symbols">
+      <symbols counts="3 of a kind, 4 of a kind, 5 of a kind">
+        <symbol name="Wild" icon="wild.png" pays="5x, 20x, 50x"/>
+      </symbols>
+    </tab>
+  </tabs>
+  <heading>Free Spins</heading>
+  <text>Buy it for {{cost.free-spins}} your bet to start {{freeSpins.count}} free spins.</text>
+</rules>
+```
+
+```ts
+import { parseBlocks } from '@open-slot-ui/core';
+
+const { blocks, issues } = parseBlocks(rulesXml); // JSON is accepted too; never throws
+hud.mount({ menu: { rules: blocks } });
+```
+
+`{{cost.free-spins}}`, `{{rtp.base}}`, `{{maxWin.bonus}}`, `{{freeSpins.count}}`
+interpolate from the **declared facts** at render time — a price or an RTP in the
+rules can never drift from the configuration, and the audit checks the copy *as
+rendered*. Every text is also its own i18n key, so a rules file translates against
+one dictionary.
 
 ## Stake Engine compliance
 
@@ -100,21 +187,21 @@ hud.showError('Session expired.', {           // …or your exact text + custom 
 | `disabled{Turbo,SuperTurbo,Autoplay,Slamstop,Spacebar,BuyFeature,Fullscreen}` | hides / locks the control (resize-proof) |
 | `display{RTP,NetPosition,SessionTimer}` | reveals the matching readout |
 | `socialCasino` · social coins (XGC→GC, XSC→SC) · zero-decimal currencies (JPY…) | currency table + `resolveCurrency` |
-| Autoplay **loss-limit** + **single-win stop** + stop-anytime | in the picker; enforced via `reportRound` |
+| Autoplay **loss-limit** + **single-win stop** + stop-anytime | in the panel's ADVANCED half (presets + a CUSTOM chip); enforced via `reportRound` |
 | Slam-stop disabled | the spin button dims + locks during the spin |
 | Insufficient funds / session expired / gambling-limit / maintenance / location | `hud.showRgsError(code)` — localizable defaults, per-call overridable, custom action buttons |
-| Master mute + fullscreen | black-and-white icon controls at the screen edge |
+| Master mute + fullscreen | SOUND / MUSIC rows in the ☰ menu; fullscreen in the top overlay |
 | Keyboard spin (Space/Enter, gated by `disabledSpacebar`) · replay mode · reality-check (RTS 13) | built in — `realityCheck`, `setReplay`, keyboard handler |
 | Bet ladder + stake from RGS limits · `currency: 'JPY'` shorthand · never celebrate a win ≤ stake | `buildBetLadder` / `clampBet` / `resolveCurrency` / `winTier` helpers |
 
-Put the readouts in a thin strip with **`statusBar: 'top' | 'bottom'`** (otherwise
-they sit at screen corners). `minimumRoundDuration` is surfaced as
-`ui.minimumRoundDuration` for the **game** to enforce — open-ui never throttles the
-round. Slide the whole interactive HUD in/out with **`hud.showControls()` /
-`hud.hideControls()`** — bottom controls drop, top ones rise behind the plaque (pure
-translation, non-interactive while moving). Choose how it first appears at mount with
+The compliance readouts (RTP · session · net) live in the **top overlay**, opposite
+the bar — `hud.dock: 'top'` moves the bar up and the overlay down, so the two never
+collide. `minimumRoundDuration` is surfaced as `ui.minimumRoundDuration` for the
+**game** to enforce — open-ui never throttles the round. Slide the whole HUD in/out
+with **`hud.showControls()` / `hud.hideControls()`** (pure translation,
+non-interactive while moving), and choose how it first appears with
 **`intro: 'shown' | 'hidden' | 'slide-in'`**. Try the flags live:
-`localhost:5199/?juris=rtp,net,timer,noturbo,noslam&statusbar=top&intro=slide-in`
+`localhost:5199/?juris=rtp,net,timer,noturbo,noslam&off=buyFeature,history&intro=slide-in`
 (press **H** to slide the HUD).
 
 ## Repo layout
@@ -126,6 +213,12 @@ examples/demo     standalone example client + Playwright device tests
 apps/site         the docs site (Astro)
 ```
 
+## Deploy the example
+
+The example client is a static build — `pnpm build:demo` → `examples/demo/dist`. See
+[DEPLOY.md](./DEPLOY.md) for the exact settings (including Timeweb App Platform, which
+redeploys on every push).
+
 ## Develop
 
 ```bash
@@ -136,11 +229,25 @@ pnpm typecheck                # all packages
 pnpm build                    # build both libraries
 
 pnpm --dir examples/demo test:visual   # Playwright device screenshots → screenshots/
-pnpm --dir apps/site dev               # the docs site → http://localhost:5210
+pnpm --dir examples/demo specimen      # the rules blocks on their own page → screenshots/specimen.html
+pnpm --dir examples/demo boot          # what the first second of load looks like
+pnpm --dir apps/site dev               # the docs site + gallery → http://localhost:5210
 ```
 
+The **gallery** (`/gallery/`) is the storybook: every part of the HUD — the bar in each
+state, each control, each window, the money shapes that break layouts — mounted live from
+source, each one on its own URL (`/stories/?id=bar-slam`) so it can be opened alone or
+linked to. Beside it, `/gallery/blocks/` renders every block kind next to the markup that
+produced it, and `/gallery/cases/` lists what the suites actually assert, read out of the
+suite files at build time.
+
+The **specimen** is the design view of the block vocabulary: the example's own
+`rules.xml`, rendered on the default light card with nothing else around it — the
+quickest way to judge spacing and colour while changing `BLOCK_CSS`, and a
+reference for anyone writing a skin.
+
 The example client reads its config from the URL, so you can see any permutation —
-e.g. `localhost:5199/?theme=neon&turbo=3&autoplay=infinite&spin=hold`.
+e.g. `localhost:5199/?off=buyFeature,history&dock=top&autoplay=infinite&spin=hold`.
 
 ## License
 

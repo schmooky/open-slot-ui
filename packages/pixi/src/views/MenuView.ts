@@ -2,6 +2,7 @@ import { Container, Graphics, Text, Rectangle, type FederatedPointerEvent, type 
 import { type PanelControl, type Control, type BlockSpec, type OpenUI, type ScreenState } from '@open-slot-ui/core';
 import { ControlView } from './ControlView';
 import { buildBlockColumn, type ControlViewFactory } from './blockColumn';
+import { windowPalette, type WindowPalette } from '../chrome/palette';
 
 export interface MenuViewOptions {
   controlSkins?: Partial<Record<string, ControlViewFactory>>;
@@ -13,18 +14,28 @@ export interface MenuViewOptions {
 
 const MARGIN = 16;
 const HEADER_H = 62;
+/**
+ * `requestIdleCallback`, where it exists — and deliberately with NO timeout: a
+ * forced deadline would fire the build back into the boot it was moved out of. If
+ * the thread never goes idle, the menu simply builds when it is first opened.
+ * Safari has no idle callback at all, hence the timer, set well clear of boot.
+ */
+type IdleHandle = { cancel: () => void };
+function idleCallback(fn: () => void): IdleHandle {
+  const g = globalThis as { requestIdleCallback?: (cb: () => void) => number; cancelIdleCallback?: (h: number) => void };
+  if (typeof g.requestIdleCallback === 'function') {
+    const h = g.requestIdleCallback(fn);
+    return { cancel: () => g.cancelIdleCallback?.(h) };
+  }
+  const t = setTimeout(fn, 2500);
+  return { cancel: () => clearTimeout(t) };
+}
+const cancelIdle = (h: IdleHandle | undefined): void => h?.cancel();
+
 const INSET = 24;
 
-/** The menu ships in ONE look — the light/default card — independent of the game
- *  theme, so it can never be switched to a dark variant (matches the notice modal). */
-const LIGHT = {
-  surface: '#ffffff',
-  surfaceAlt: '#eef1f6',
-  text: '#181b20',
-  textDim: '#5b6472',
-  border: '#000000',
-  accent: '#d99000',
-} as const;
+// The window palette is derived from the theme (see `chrome/palette`), so the menu
+// is the same near-black plate as the bar it opens from, with the same accent rule.
 
 /**
  * The unified MENU: one full-screen, scrollable sheet (Settings → Paytable →
@@ -48,6 +59,8 @@ export class MenuView extends ControlView {
   private readonly dropdownLayer = new Container();
   private childViews: ControlView[] = [];
 
+  /** The window palette, derived from the theme (see `chrome/palette`). */
+  private palette!: WindowPalette;
   private readonly titleKey: string;
   private readonly maxWidth: number;
   /** `ui` proxy with a light theme — feeds the shared block renderer dark-on-white. */
@@ -55,6 +68,9 @@ export class MenuView extends ControlView {
   private vpW = 0;
   private vpH = 0;
   private scrollY = 0;
+  /** The column is stale (never built, or the width changed) — see `ensureContent`. */
+  private needsRebuild = true;
+  private warmHandle: IdleHandle;
   private contentH = 0;
   private dragging = false;
   private lastY = 0;
@@ -75,7 +91,9 @@ export class MenuView extends ControlView {
 
     // A light-themed view of `ui` (only `theme.color` swapped) so the shared block
     // renderer always paints the menu dark-on-white — the theme can't darken it.
-    const lightTheme = { ...ui.theme, color: { ...ui.theme.color, surface: LIGHT.surface, surfaceAlt: LIGHT.surfaceAlt, text: LIGHT.text, textDim: LIGHT.textDim, accent: LIGHT.accent } };
+    const PALETTE = windowPalette(ui.theme);
+    this.palette = PALETTE;
+    const lightTheme = { ...ui.theme, color: { ...ui.theme.color, surface: PALETTE.surface, surfaceAlt: PALETTE.surfaceAlt, text: PALETTE.text, textDim: PALETTE.textDim, accent: PALETTE.accent } };
     this.lightUi = new Proxy(ui, { get: (t, p) => (p === 'theme' ? lightTheme : Reflect.get(t, p)) }) as OpenUI;
 
     this.backdrop.eventMode = 'static';
@@ -83,7 +101,7 @@ export class MenuView extends ControlView {
 
     // The game title reads as a big centered logo over the sheet (no filled header band) —
     // matching the reference menu, where the name headlines the top of the card.
-    this.title = new Text({ text: ui.t(this.titleKey), style: { fontFamily: ui.theme.type.family, fontSize: 28, fill: LIGHT.text, fontWeight: '900', letterSpacing: 1 } });
+    this.title = new Text({ text: ui.t(this.titleKey), style: { fontFamily: ui.theme.type.family, fontSize: 28, fill: PALETTE.accent, fontWeight: '900', letterSpacing: 1 } });
     this.title.anchor.set(0.5, 0.5);
 
     this.buildClose();
@@ -100,14 +118,20 @@ export class MenuView extends ControlView {
 
     this.addChild(this.backdrop, this.card, this.viewport, this.maskG, this.headerBar, this.title, this.closeBtn, this.dropdownLayer);
 
-    this.rebuildContent();
+    // The menu is a DOCUMENT — paytable grids, symbol tables, a page of rules — and
+    // building it is the most expensive thing this view does. It is not built here:
+    // at mount the player is waiting for the game, not for a menu they have not
+    // opened. It builds on first open, and warms itself when the main thread is next
+    // idle so that open is instant anyway.
+    this.warmHandle = idleCallback(() => this.ensureContent());
     this.applyOpen(this.panel.isOpen);
     this.disposers.push(
+      () => cancelIdle(this.warmHandle),
       this.panel.state.subscribe(() => this.applyOpen(this.panel.isOpen)),
       this.ui.locale.subscribe(() => {
         if (this.destroyed) return;
         this.title.text = this.ui.t(this.titleKey);
-        this.rebuildContent();
+        this.invalidateContent();
       }),
     );
   }
@@ -115,15 +139,29 @@ export class MenuView extends ControlView {
   private buildClose(): void {
     const r = 22;
     // Solid black circle with a white ✕ (matches the notice modal).
-    const bg = new Graphics().circle(0, 0, r).fill({ color: LIGHT.border });
+    // A bare ✕ in the corner — the reference's window close, no button chrome.
+    const hit = new Graphics().circle(0, 0, r).fill({ color: 0xffffff, alpha: 0.0001 });
     const x = new Graphics()
-      .moveTo(-7, -7).lineTo(7, 7).moveTo(7, -7).lineTo(-7, 7)
-      .stroke({ width: 3, color: '#ffffff', cap: 'round' });
-    this.closeBtn.addChild(bg, x);
+      .moveTo(-8, -8).lineTo(8, 8).moveTo(8, -8).lineTo(-8, 8)
+      .stroke({ width: 3, color: this.palette.text, cap: 'round' });
+    this.closeBtn.addChild(hit, x);
     this.closeBtn.eventMode = 'static';
     this.closeBtn.cursor = 'pointer';
     this.closeBtn.hitArea = new Rectangle(-r, -r, r * 2, r * 2);
     this.closeBtn.on('pointertap', () => this.panel.closePanel());
+  }
+
+  /** Mark the column stale. A closed menu rebuilds when it is next opened. */
+  private invalidateContent(): void {
+    this.needsRebuild = true;
+    if (this.panel.isOpen) this.ensureContent();
+  }
+
+  /** Build the column if it is missing or stale — the only caller of the builder. */
+  private ensureContent(): void {
+    if (this.destroyed || !this.needsRebuild) return;
+    this.needsRebuild = false;
+    this.rebuildContent();
   }
 
   private rebuildContent(): void {
@@ -157,7 +195,7 @@ export class MenuView extends ControlView {
     const cx = (W - cardW) / 2;
     const cy = MARGIN;
     // Always the light card with a thin black border, small radius (never themed dark).
-    this.card.clear().roundRect(cx, cy, cardW, cardH, 8).fill({ color: LIGHT.surface }).stroke({ width: 1.5, color: LIGHT.border });
+    this.card.clear().roundRect(cx, cy, cardW, cardH, 8).fill({ color: this.palette.surface }).stroke({ width: 1.5, color: this.palette.border });
 
     // No filled header band — the title floats centered as a logo; the close hugs the corner.
     this.headerBar.clear();
@@ -167,6 +205,7 @@ export class MenuView extends ControlView {
     const vpX = cx + INSET;
     const vpY = cy + HEADER_H + INSET;
     const newVpW = cardW - INSET * 2;
+    const widthChanged = newVpW !== this.vpW;
     this.vpW = newVpW;
     this.vpH = cardH - HEADER_H - INSET * 2;
     this.viewport.position.set(vpX, vpY);
@@ -174,8 +213,11 @@ export class MenuView extends ControlView {
     this.catcher.clear().rect(0, 0, this.vpW, this.vpH).fill({ color: 0xffffff, alpha: 0.0001 });
     this.catcher.hitArea = new Rectangle(0, 0, this.vpW, this.vpH);
 
-    // Rebuild the column to the live viewport width (so wrapping is correct).
-    this.rebuildContent();
+    // The column wraps to the viewport width, so a WIDTH change invalidates it —
+    // and only a width change. Every other layout pass (a resize that keeps the card
+    // the same width, a rotation that only changes height) used to rebuild the whole
+    // document for nothing.
+    if (widthChanged) this.invalidateContent();
     this.clampScroll();
   }
 
@@ -209,6 +251,7 @@ export class MenuView extends ControlView {
   }
 
   private applyOpen(open: boolean): void {
+    if (open) this.ensureContent();
     this.visible = open;
     this.eventMode = open ? 'static' : 'none';
     if (open) {

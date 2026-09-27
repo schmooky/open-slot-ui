@@ -12,7 +12,7 @@
 import { Container, Graphics, Sprite, Text, Texture, Rectangle, Assets, type FederatedPointerEvent } from 'pixi.js';
 import type { Application } from 'pixi.js';
 import type { BootedHud } from './mountHud';
-import { formatAmountPrecise, type CurrencySpec, type OpenUI, type ScreenState } from '@open-slot-ui/core';
+import { PanelControl, formatAmountPrecise, type CurrencySpec, type OpenUI, type ScreenState } from '@open-slot-ui/core';
 
 /** A buy-feature card. */
 export interface FeatureSpec {
@@ -42,17 +42,18 @@ export interface BuyFeatureOptions {
   getBet?: () => number;
 }
 
-/** The Figma "default" white card look (independent of the dark game theme) — matches
- *  the notice/menu sheets: dark text on white, black border, gold accent. */
-const LIGHT = {
+/**
+ * The buy sheet keeps LIGHT cards on a dark scrim — that is the reference's own look
+ * (`--hg-fb-*-grid-card-bg: #fff` over a 65% black backdrop) and it is what makes the
+ * feature art read. What comes from the THEME is the accent: a buy card's strip and
+ * call-to-action take the feature-buy colour, a bonus card the bonus colour.
+ */
+const CARD = {
   surface: '#ffffff',
   surfaceAlt: '#eef1f6',
   text: '#181b20',
   textDim: '#5b6472',
-  border: '#000000',
-  accent: '#d99000',
-  accentText: '#1a1200',
-  scrim: '#080604',
+  border: '#495057',
 } as const;
 
 // Base (design) geometry — the whole sheet is uniformly scaled to fit any viewport.
@@ -106,18 +107,28 @@ class FeatureCard extends Container {
   private readonly actionLabel: Text;
   private readonly action = new Container();
 
+  /** A buy card wears the feature-buy colour; a bet boost wears the bonus colour. */
+  private readonly cardTint: string;
+  private readonly cardTintActive: string;
+  private readonly actionText: string;
+  private readonly actionTextActive: string;
+
   constructor(spec: FeatureSpec, ui: OpenUI, onAction: () => void) {
     super();
     const fam = ui.theme.type.family;
+    this.cardTint = spec.variant === 'buy' ? ui.theme.color.featureBuy : ui.theme.color.bonus;
+    this.cardTintActive = ui.theme.color.accent;
+    this.actionText = ui.theme.color.featureBuyText;
+    this.actionTextActive = ui.theme.color.accentText;
 
     // Rounded white frame (fill under, black stroke over the clipped content).
-    const fill = new Graphics().roundRect(0, 0, CARD_W, CARD_H, 14).fill({ color: LIGHT.surface });
+    const fill = new Graphics().roundRect(0, 0, CARD_W, CARD_H, 14).fill({ color: CARD.surface });
     const clip = new Container();
     const clipMask = new Graphics().roundRect(0, 0, CARD_W, CARD_H, 14).fill({ color: 0xffffff });
     clip.mask = clipMask;
 
     // Image (or neutral gradient placeholder) in the top band.
-    const placeholder = new Graphics().rect(0, 0, CARD_W, IMG_H).fill({ color: LIGHT.surfaceAlt });
+    const placeholder = new Graphics().rect(0, 0, CARD_W, IMG_H).fill({ color: CARD.surfaceAlt });
     clip.addChild(placeholder);
     if (spec.image) {
       void loadTex(spec.image).then((tex) => {
@@ -130,20 +141,20 @@ class FeatureCard extends Container {
         clip.addChildAt(sp, 1);
       });
     }
-    const strip = new Graphics().rect(0, IMG_H, CARD_W, STRIP_H).fill({ color: LIGHT.accent });
-    const name = new Text({ text: ui.t(spec.name), style: { fontFamily: fam, fontSize: 16, fontWeight: '600', fill: LIGHT.text } });
+    const strip = new Graphics().rect(0, IMG_H, CARD_W, STRIP_H).fill({ color: this.cardTint });
+    const name = new Text({ text: ui.t(spec.name), style: { fontFamily: fam, fontSize: 16, fontWeight: '600', fill: CARD.text } });
     name.anchor.set(0.5, 0);
     name.position.set(CARD_W / 2, IMG_H + STRIP_H + 12);
-    this.priceText = new Text({ text: '', style: { fontFamily: fam, fontSize: 22, fontWeight: '800', fill: LIGHT.text } });
+    this.priceText = new Text({ text: '', style: { fontFamily: fam, fontSize: 22, fontWeight: '800', fill: CARD.text } });
     this.priceText.anchor.set(0.5, 0);
     this.priceText.position.set(CARD_W / 2, IMG_H + STRIP_H + 36);
     clip.addChild(strip, name, this.priceText);
 
-    const stroke = new Graphics().roundRect(0, 0, CARD_W, CARD_H, 14).stroke({ width: 4, color: LIGHT.border });
+    const stroke = new Graphics().roundRect(0, 0, CARD_W, CARD_H, 14).stroke({ width: 4, color: CARD.border });
     this.addChild(fill, clip, clipMask, stroke);
 
     // Action button (Buy / Activate / Activated), pinned below the card.
-    this.actionLabel = new Text({ text: '', style: { fontFamily: fam, fontSize: 15, fontWeight: '800', fill: LIGHT.text, letterSpacing: 0.5 } });
+    this.actionLabel = new Text({ text: '', style: { fontFamily: fam, fontSize: 15, fontWeight: '800', fill: CARD.text, letterSpacing: 0.5 } });
     this.actionLabel.anchor.set(0.5);
     this.actionLabel.position.set(CARD_W / 2, CARD_H + ACT_GAP + ACT_H / 2);
     this.action.addChild(this.actionBg, this.actionLabel);
@@ -155,9 +166,9 @@ class FeatureCard extends Container {
   update(price: string, label: string, active: boolean, blocked: boolean): void {
     this.priceText.text = price;
     this.actionLabel.text = label;
-    this.actionLabel.style.fill = active ? LIGHT.accentText : LIGHT.text;
+    this.actionLabel.style.fill = active ? this.actionTextActive : this.actionText;
     this.actionBg.clear().roundRect(0, CARD_H + ACT_GAP, CARD_W, ACT_H, 12)
-      .fill({ color: active ? LIGHT.accent : LIGHT.surface }).stroke({ width: 4, color: LIGHT.border });
+      .fill({ color: active ? this.cardTintActive : this.cardTint });
     this.action.eventMode = blocked ? 'none' : 'static';
     this.action.alpha = blocked ? 0.38 : 1;
   }
@@ -193,17 +204,18 @@ class BuyFeatureModalView extends Container {
     this.backdrop.on('pointertap', () => this.close());
 
     // Title.
-    this.title = new Text({ text: ui.t('Buy Feature'), style: { fontFamily: fam, fontSize: 30, fontWeight: '800', fill: '#ffffff', letterSpacing: 1 } });
+    this.title = new Text({ text: ui.t('openui.buyFeature.title'), style: { fontFamily: fam, fontSize: 30, fontWeight: '800', fill: ui.theme.color.accent, letterSpacing: 1 } });
     this.title.anchor.set(0.5, 0);
 
     // Bet stepper row: − [ BET / value ] +
     const minus = this.stepButton('−', () => ui.betStepper.dec());
     const plus = this.stepButton('+', () => ui.betStepper.inc());
     const betBox = new Container();
-    const betBg = new Graphics().roundRect(-BET_W / 2, -BET_H / 2, BET_W, BET_H, 12).fill({ color: LIGHT.surface }).stroke({ width: 3, color: LIGHT.border });
-    const betLabel = new Text({ text: ui.t('Bet'), style: { fontFamily: fam, fontSize: 12, fontWeight: '700', fill: LIGHT.textDim, letterSpacing: 1 } });
+    // The bet pill matches the BAR (dark plate, accent rule), not the light cards.
+    const betBg = new Graphics().roundRect(-BET_W / 2, -BET_H / 2, BET_W, BET_H, 8).fill({ color: ui.theme.color.menu }).stroke({ width: 3, color: ui.theme.color.accent });
+    const betLabel = new Text({ text: ui.t('openui.bet'), style: { fontFamily: fam, fontSize: 12, fontWeight: '700', fill: ui.theme.color.label, letterSpacing: 1 } });
     betLabel.anchor.set(0.5, 0); betLabel.position.set(0, -BET_H / 2 + 8);
-    this.betValue = new Text({ text: '', style: { fontFamily: fam, fontSize: 24, fontWeight: '800', fill: LIGHT.text } });
+    this.betValue = new Text({ text: '', style: { fontFamily: fam, fontSize: 24, fontWeight: '800', fill: ui.theme.color.text } });
     this.betValue.anchor.set(0.5, 1); this.betValue.position.set(0, BET_H / 2 - 8);
     betBox.addChild(betBg, betLabel, this.betValue);
     const betRow = new Container();
@@ -223,7 +235,7 @@ class BuyFeatureModalView extends Container {
     this.content.addChild(this.title, betRow, this.cardsRow);
 
     // Close ✕ — dark circle top-right of the viewport (not scaled with content).
-    const cbg = new Graphics().circle(0, 0, 23).fill({ color: LIGHT.scrim, alpha: 0.85 });
+    const cbg = new Graphics().circle(0, 0, 23).fill({ color: '#000000', alpha: 0.85 });
     const cx = new Graphics().moveTo(-7, -7).lineTo(7, 7).moveTo(7, -7).lineTo(-7, 7).stroke({ width: 3, color: '#ffffff', cap: 'round' });
     this.closeBtn.addChild(cbg, cx);
     wireTap(this.closeBtn, new Rectangle(-23, -23, 46, 46), () => this.close());
@@ -246,8 +258,9 @@ class BuyFeatureModalView extends Container {
   private stepButton(glyph: string, onTap: () => void): Container {
     const c = new Container();
     const fam = this.hud.ui.theme.type.family;
-    const bg = new Graphics().circle(0, 0, STEP_R).fill({ color: LIGHT.surface }).stroke({ width: 3, color: LIGHT.border });
-    const t = new Text({ text: glyph, style: { fontFamily: fam, fontSize: 28, fontWeight: '800', fill: LIGHT.text } });
+    const theme = this.hud.ui.theme;
+    const bg = new Graphics().circle(0, 0, STEP_R).fill({ color: theme.color.surface }).stroke({ width: 3, color: theme.color.edge });
+    const t = new Text({ text: glyph, style: { fontFamily: fam, fontSize: 28, fontWeight: '800', fill: theme.color.text } });
     t.anchor.set(0.5); t.position.set(0, -1);
     c.addChild(bg, t);
     wireTap(c, new Rectangle(-STEP_R, -STEP_R, STEP_R * 2, STEP_R * 2), onTap);
@@ -331,7 +344,7 @@ class BuyFeatureModalView extends Container {
     const W = s.width;
     const H = s.height;
 
-    this.backdrop.clear().rect(0, 0, W, H).fill({ color: LIGHT.scrim, alpha: 0.55 });
+    this.backdrop.clear().rect(0, 0, W, H).fill({ color: '#000000', alpha: this.hud.ui.theme.alpha.backdrop });
     this.backdrop.hitArea = new Rectangle(0, 0, W, H);
 
     // Column count — 4 across only when there's real width (else 2, which scales taller/bigger).
@@ -391,7 +404,13 @@ class BuyFeatureModalView extends Container {
   }
 }
 
-/** Mount the buy-feature modal (in-canvas Pixi). Returns a leak-free teardown. */
+/**
+ * Mount the buy-feature modal (in-canvas Pixi). Returns a leak-free teardown.
+ *
+ * The sheet registers a `buy-feature-panel` control, so whether it is open is STATE
+ * the core owns — `__OPENUI__.getState('buy-feature-panel')` reads `open`/`closed`
+ * and an e2e test never has to look at pixels (Charter: introspection is first-class).
+ */
 export function mountBuyFeatureModal(
   _app: Application,
   hud: BootedHud,
@@ -402,9 +421,29 @@ export function mountBuyFeatureModal(
   const view = new BuyFeatureModalView(hud, features, opts);
   hud.pixi.root.addChild(view);
   view.layout(ui.screen.get());
+
+  const panel = (ui.control('buy-feature-panel') as PanelControl | undefined) ?? new PanelControl({ id: 'buy-feature-panel', variant: 'modal', layout: { anchor: 'center' } }, ui.bus);
+  if (!ui.control('buy-feature-panel')) ui.register(panel);
+  panel.viewInspect = () => ({ bounds: null, animating: false });
+  const sync = (): void => {
+    if (view.isOpen && !panel.isOpen) panel.openPanel();
+    else if (!view.isOpen && panel.isOpen) panel.closePanel();
+  };
+
   const offScreen = ui.screen.subscribe(() => view.layout(ui.screen.get()));
-  const offOpen = ui.on('buttonActivated', ({ id }) => { if (id === 'bonus') view.open(); });
+  const offOpen = ui.on('buttonActivated', ({ id }) => {
+    if (id !== 'bonus') return;
+    view.open();
+    sync();
+  });
+  // The sheet closes itself (✕ / backdrop / after a buy), so mirror it back each frame
+  // the panel state could drift — cheap, and it keeps state the single source of truth.
+  const ticker = _app.ticker;
+  const tick = (): void => sync();
+  ticker.add(tick);
+
   return () => {
+    ticker.remove(tick);
     offScreen();
     offOpen();
     view.dispose();

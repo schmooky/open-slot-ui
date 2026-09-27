@@ -16,6 +16,7 @@ import type { OpenUIEvents } from '../types';
 import type { MenuSpec } from './menu';
 import type { JurisdictionConfig } from './jurisdiction';
 import type { GameFacts } from './facts';
+import type { HudChromeSpec } from '../chrome/hud';
 
 /** The reference-HUD control ids — typed so a typo is a compile error. */
 export type KnownControlId =
@@ -40,7 +41,16 @@ export type KnownControlId =
   | 'rtp'
   | 'net-position'
   | 'session-timer'
-  | 'notice-panel';
+  | 'notice-panel'
+  | 'win'
+  | 'main-menu-panel'
+  | 'autoplay-panel'
+  | 'history-panel'
+  | 'turbo-base'
+  | 'turbo-bonus'
+  | 'super-turbo-base'
+  | 'super-turbo-bonus'
+  | 'stop-on-feature';
 
 /** One issue from the never-throw validator. */
 export interface SpecIssue {
@@ -138,6 +148,42 @@ export type BlockSpec = {
   // A grid of little REELS×ROWS payline masks — one cell lit per reel (the row that line pays
   // on). Black-and-white, no outlines/rounding. `lines[i][reel] = rowIndex` (0-based).
   | { kind: 'paylines'; id: string; reels: number; rows: number; lines: number[][] }
+  // ── more building blocks: the vocabulary rules are actually written in ───────
+  // A REEL GRID with any cells lit — the general form of `paylines`: a scatter
+  // pattern, a cluster, a winning way, a "this lands here" illustration.
+  | { kind: 'grid'; id: string; reels: number; rows: number; cells: Array<[reel: number, row: number]>; label?: string; symbol?: string }
+  // The SYMBOL TABLE: one row per symbol, its name, and what each count pays.
+  | { kind: 'symbols'; id: string; counts?: string[]; rows: Array<{ symbol?: string; icon?: string; name?: string; pays: string[] }> }
+  // TERM / DESCRIPTION pairs — a glossary, a spec sheet, "what this word means".
+  | { kind: 'kv'; id: string; items: Array<{ term: string; text: string }> }
+  // A 0..max METER — volatility, risk, hit rate. Reads at a glance; `label` names it.
+  | { kind: 'meter'; id: string; label?: string; value: number; max?: number; caption?: string }
+  // Short CHIPS: mechanic tags, "ways 243", "max win 5,000x".
+  | { kind: 'badges'; id: string; items: Array<{ text: string; tone?: 'neutral' | 'accent' | 'bonus' | 'warning' }> }
+  // A group of titled parts, written the way an author thinks about them — "Base
+  // game", "Symbols", "Numbers". It RENDERS as the same open stack as `sections`:
+  // a tab is a panel nobody clicked, and an unclicked panel is one a player can
+  // say they never saw. Kept as its own kind so existing rules keep working.
+  | { kind: 'tabs'; id: string; tabs: Array<{ id: string; label: string; children: BlockSpec[] }> }
+  // TITLED sections in a bordered stack — the long tail of a rules page (RG,
+  // disconnections, terms). They do NOT collapse, and there is deliberately no
+  // flag to make them: content a player has to open is content they can later say
+  // they never saw, and every word of the rules has to be on the page.
+  | { kind: 'sections'; id: string; items: Array<{ id: string; title: string; children: BlockSpec[] }> }
+  // SIDE-BY-SIDE columns of blocks. `of` is how many across on a wide screen.
+  | { kind: 'columns'; id: string; of?: 2 | 3 | 4; children: BlockSpec[][] }
+  // A pulled-out NOTE in the author's voice — not a callout, not body text.
+  | { kind: 'quote'; id: string; text: string; cite?: string }
+  // An IMAGE STRIP with captions.
+  | { kind: 'gallery'; id: string; items: Array<{ src: string; alt?: string; caption?: string }>; columns?: number }
+  // An ordered TIMELINE of what happens when — a bonus round, a feature sequence.
+  | { kind: 'timeline'; id: string; items: Array<{ title: string; text?: string; marker?: string }> }
+  // A/B COMPARISON — base game vs bonus, this mode vs that one.
+  | { kind: 'compare'; id: string; columns: [string, string]; rows: Array<{ label: string; a: string; b: string }> }
+  // A LINK out (operator terms, a help page). `external` marks it as leaving the game.
+  | { kind: 'link'; id: string; text: string; href: string; external?: boolean }
+  // Deliberate vertical AIR between blocks. `size` in steps, not pixels.
+  | { kind: 'spacer'; id: string; size?: 'sm' | 'md' | 'lg' }
   | { kind: 'image'; id: string; src: string; alt?: string; width?: number; height?: number }
   | { kind: 'media'; id: string; src: string; alt?: string; side?: 'left' | 'right'; title?: string; text: string; width?: number; height?: number }
   | { kind: 'cards'; id: string; items: Array<{ icon?: string; title: string; text?: string }> }
@@ -164,6 +210,20 @@ export const BLOCK_KINDS = [
   'table',
   'paytable',
   'paylines',
+  'grid',
+  'symbols',
+  'kv',
+  'meter',
+  'badges',
+  'tabs',
+  'sections',
+  'columns',
+  'quote',
+  'gallery',
+  'timeline',
+  'compare',
+  'link',
+  'spacer',
   'image',
   'media',
   'cards',
@@ -184,6 +244,13 @@ export interface PanelSpec {
 export interface UISpec {
   meta?: { id: string; version: number };
   theme?: ThemeChoice;
+  /**
+   * The ribbon HUD itself: where it docks, and WHICH PARTS EXIST. Every piece of the
+   * bar is a switch (`hud.features.buyFeature: false` drops the BUY BONUS pill and its
+   * modal, `history: false` drops the row and the window, and so on), so a game keeps
+   * the shipped look while carrying only the features it actually has.
+   */
+  hud?: HudChromeSpec;
   layout?: LayoutConfig;
   /** Balance + bet currency: a full spec, or a code string (e.g. `'JPY'`, `'XGC'`)
    *  auto-resolved (decimals, social coins) via the built-in currency table. */
@@ -198,7 +265,23 @@ export interface UISpec {
    * unable to cover the next round, show the same insufficient-funds modal a manual
    * spin shows (ERR_IPB) instead of ending silently.
    */
-  autoplay?: { options?: number[]; mode?: AutoplayMode; lossLimits?: number[]; winLimits?: number[]; insufficientFundsNotice?: boolean };
+  autoplay?: {
+    options?: number[];
+    mode?: AutoplayMode;
+    lossLimits?: number[];
+    winLimits?: number[];
+    insufficientFundsNotice?: boolean;
+    /** Some jurisdictions require a loss limit AND a single-win limit before autoplay
+     *  may start. With this on, the panel's START stays disabled until both are chosen
+     *  and says which one is missing — the reference's own behavior. */
+    requireLimits?: boolean;
+    /**
+     * Offer STOP ON ANY WIN in the ADVANCED section — a stop a player does not have
+     * to express as a multiple of their stake. Off by default; the row only exists
+     * when a game asks for it.
+     */
+    stopOnAnyWin?: boolean;
+  };
   /** Turbo switcher: 2-mode (off/on) or 3-mode (off/turbo/super). */
   turbo?: TurboSpec;
   /** Spin button behavior: single `'tap'` or `'hold-to-spin'` turbo. */

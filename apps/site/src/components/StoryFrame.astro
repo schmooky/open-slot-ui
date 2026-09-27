@@ -1,0 +1,77 @@
+---
+import type { Story } from '../stories/catalogue';
+
+interface Props { story: Story }
+const { story } = Astro.props as Props;
+const height = story.height ?? 340;
+// A focused story renders at a fixed desktop viewport and is then zoomed by the
+// parent; a phone story renders at phone width and is scaled to fit the card.
+const frameW = story.phone ? 390 : story.focus ? 1100 : 0;
+const frameH = story.phone ? Math.round(height / 0.62) : story.focus ? 620 : 0;
+---
+<article class="rounded-lg border border-border bg-card overflow-hidden" id={story.id}>
+  <div class="flex items-baseline justify-between gap-4 border-b border-border/70 px-4 py-3">
+    <div>
+      <h3 class="font-mono text-sm font-semibold">{story.title}</h3>
+      <p class="mt-1 text-sm leading-6 text-muted-foreground">{story.blurb}</p>
+    </div>
+    <a
+      href={`/stories/?id=${story.id}`}
+      target="_blank"
+      rel="noopener"
+      class="shrink-0 rounded-md border border-border px-2.5 py-1 font-mono text-[11px] text-muted-foreground transition-colors hover:text-foreground hover:bg-secondary/60"
+      title="Open this story on its own"
+    >open ↗</a>
+  </div>
+
+  {/* The live thing. An iframe, so the skin's stylesheet and the docs' own never
+      meet, and so a phone story really is laid out at phone width. */}
+  <div class="relative overflow-hidden bg-[#0c0e12]" style={`height:${height}px`} data-stage={story.id}>
+    <iframe
+      src={`/stories/?id=${story.id}`}
+      title={story.title}
+      loading="lazy"
+      data-story={story.id}
+      data-focus={story.focus ?? ''}
+      class="block border-0"
+      style={frameW
+        ? `width:${frameW}px;height:${frameH}px;position:absolute;left:50%;top:0;transform:translateX(-50%)${story.phone ? ' scale(.62)' : ''};transform-origin:top center`
+        : 'width:100%;height:100%'}
+    ></iframe>
+  </div>
+
+  {story.code && (
+    <pre class="overflow-x-auto border-t border-border/70 bg-secondary/30 px-4 py-3 text-[12.5px] leading-6"><code class="font-mono">{story.code}</code></pre>
+  )}
+</article>
+
+<script>
+  /**
+   * Zoom a focused story onto its subject.
+   *
+   * The story page measures the control it is about and posts the rectangle; this
+   * scales and shifts the IFRAME so that rectangle fills the card. Doing it out
+   * here means the page inside keeps its real viewport, and the skin's fixed
+   * positioning is never disturbed.
+   */
+  const frames = document.querySelectorAll<HTMLIFrameElement>('iframe[data-focus]:not([data-focus=""])');
+  if (frames.length) {
+    addEventListener('message', (e: MessageEvent) => {
+      const msg = e.data as { type?: string; id?: string; rect?: { x: number; y: number; w: number; h: number } };
+      if (msg?.type !== 'ohm-focus' || !msg.rect || !msg.id) return;
+      const frame = document.querySelector<HTMLIFrameElement>(`iframe[data-story="${msg.id}"]`);
+      const stage = frame?.parentElement;
+      if (!frame || !stage) return;
+      const pad = 26;
+      const k = Math.min(
+        3,
+        Math.max(0.6, Math.min(stage.clientWidth / (msg.rect.w + pad * 2), stage.clientHeight / (msg.rect.h + pad * 2))),
+      );
+      const cx = msg.rect.x + msg.rect.w / 2;
+      const cy = msg.rect.y + msg.rect.h / 2;
+      frame.style.left = '0';
+      frame.style.transformOrigin = '0 0';
+      frame.style.transform = `translate(${(stage.clientWidth / 2 - cx * k).toFixed(1)}px, ${(stage.clientHeight / 2 - cy * k).toFixed(1)}px) scale(${k.toFixed(3)})`;
+    });
+  }
+</script>

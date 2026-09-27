@@ -1,0 +1,95 @@
+---
+import Base from '../../layouts/Base.astro';
+import { parseBlocks, renderBlocksHtml, BLOCK_CSS, INFO_MENU_VARS, factsVars, type GameFacts } from '@open-slot-ui/core';
+import { BLOCKS, BLOCK_GROUPS } from '../../stories/blocks';
+
+/**
+ * Every block kind, rendered by the library at build time. The sample above each
+ * frame is the markup that produced the frame below it — parsed by `parseBlocks`
+ * and drawn by `renderBlocksHtml`, the same two functions the game calls.
+ */
+const FACTS: GameFacts = {
+  modes: [
+    { id: 'base', name: 'Base game', kind: 'base', rtp: 96.5, maxWinX: 5000 },
+    { id: 'free-spins', name: 'Free Spins', kind: 'buy', cost: 100, rtp: 96.5, maxWinX: 5000 },
+  ],
+  freeSpins: { count: 10, retrigger: false },
+  volatility: 'High',
+  maxWinCapX: 5000,
+};
+const vars = factsVars(FACTS);
+const tr = (s: string): string => s.replace(/\{\{([\w.-]+)\}\}/g, (m, k: string) => String(vars[k] ?? m));
+
+const rendered = BLOCKS.map((b) => {
+  const parsed = parseBlocks(b.xml);
+  return { ...b, html: renderBlocksHtml(parsed.blocks, tr, FACTS), issues: parsed.issues };
+});
+const byKind = new Map(rendered.map((r) => [r.kind, r]));
+// The block stylesheet wants six colour properties; these are the library's own
+// defaults for a dark card, so the preview reads like the game's info window.
+const paletteDark = {
+  '--accent': '#ffc529',
+  '--accent-text': '#000000',
+  '--surface': '#1b1d22',
+  '--surface-alt': '#101216',
+  '--text': '#fafafa',
+  '--text-dim': '#adb5bd',
+};
+const paletteCss = Object.entries(paletteDark).map(([k, v]) => `${k}:${v}`).join(';');
+void INFO_MENU_VARS;
+---
+<Base
+  title="Menu blocks — open-ui"
+  description="Every block the info menu is written in: the markup, and what the library renders from it."
+>
+  <section class="container py-14">
+    <p class="font-mono text-xs uppercase tracking-widest text-muted-foreground">Gallery</p>
+    <h1 class="mt-3 text-4xl font-bold tracking-tight">Menu blocks</h1>
+    <p class="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
+      The rules, the paytable and the settings are written in <strong class="text-foreground">blocks</strong> —
+      a vocabulary both renderers speak. Below is every kind: the markup on the left as you would write it in a
+      <code class="font-mono text-foreground">.xml</code> file, and on the right exactly what
+      <code class="font-mono text-foreground">parseBlocks</code> +
+      <code class="font-mono text-foreground">renderBlocksHtml</code> made of it when this page was built.
+    </p>
+    <p class="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+      Nothing here collapses or hides. A rule a player had to click to reveal is a rule they can later say they
+      never saw, so <code class="font-mono">sections</code> and <code class="font-mono">tabs</code> both render as
+      an open stack, and there is no flag to change that.
+    </p>
+
+    <nav class="mt-8 flex flex-wrap gap-2">
+      {BLOCK_GROUPS.map((g) => (
+        <a href={`#${g.title.toLowerCase().replace(/[^a-z]+/g, '-')}`} class="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground hover:bg-secondary/60">{g.title}</a>
+      ))}
+    </nav>
+
+    {BLOCK_GROUPS.map((g) => (
+      <section id={g.title.toLowerCase().replace(/[^a-z]+/g, '-')} class="mt-14 scroll-mt-20">
+        <h2 class="text-2xl font-semibold tracking-tight">{g.title}</h2>
+        <p class="mt-2 text-sm text-muted-foreground">{g.blurb}</p>
+        <div class="mt-6 grid gap-6">
+          {g.kinds.map((kind) => {
+            const b = byKind.get(kind);
+            if (!b) return null;
+            return (
+              <article class="rounded-lg border border-border bg-card overflow-hidden" id={`block-${b.kind}`}>
+                <div class="border-b border-border/70 px-4 py-3">
+                  <h3 class="font-mono text-sm font-semibold">{b.title}</h3>
+                  <p class="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">{b.blurb}</p>
+                </div>
+                <div class="grid lg:grid-cols-2">
+                  <pre class="overflow-x-auto bg-secondary/30 px-4 py-4 text-[12.5px] leading-6 lg:border-r border-border/70"><code class="font-mono">{b.xml}</code></pre>
+                  <div class="ohm-preview ohm-body" style={paletteCss} set:html={b.html} />
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    ))}
+  </section>
+
+  {/* The vocabulary's own stylesheet, scoped to the previews on this page. */}
+  <style is:inline set:html={`.ohm-preview{background:#1b1d22;color:#fafafa;padding:20px 22px;font:400 14px/1.6 system-ui,sans-serif}\n${BLOCK_CSS}`} />
+</Base>

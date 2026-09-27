@@ -9,13 +9,26 @@ import { resolvePlacement, type Control, type OpenUI, type Rect, type ScreenStat
 export abstract class ControlView extends Container {
   protected animating = false;
   protected readonly disposers: Array<() => void> = [];
+  /** Whoever reported this control's bounds before this view claimed them. */
+  private readonly priorInspect?: Control['viewInspect'];
 
   constructor(
     protected readonly control: Control,
     protected readonly ui: OpenUI,
   ) {
     super();
+    this.priorInspect = control.viewInspect;
     this.control.viewInspect = () => ({ bounds: this.computeRect(), animating: this.animating });
+  }
+
+  /**
+   * Hand introspection back to the view that had it. The ribbon renders one control
+   * through TWO views (the BET readout in the data panel and the bet widget in the
+   * action box); exactly one of them should answer `bounds('bet')`, or an e2e test
+   * reads whichever happened to mount last.
+   */
+  protected disownInspect(): void {
+    if (this.priorInspect) this.control.viewInspect = this.priorInspect;
   }
 
   /** Position + fit-scale from the control's layout spec against the screen. */

@@ -1,4 +1,4 @@
-import { Container, Graphics, Text, type Application, type Texture, type Ticker } from 'pixi.js';
+import { Container, Graphics, Text, type Application, type Ticker } from 'pixi.js';
 import {
   type OpenUI,
   type BlockSpec,
@@ -7,80 +7,38 @@ import {
   buildBlocks,
   buttonBlocks,
   composeMenu,
+  remFor,
+  barHeightFor,
 } from '@open-slot-ui/core';
 import { type ControlView } from './views/ControlView';
-import { SpinView } from './views/SpinView';
-import { ValueDisplayView } from './views/ValueDisplayView';
-import { ButtonView } from './views/ButtonView';
-import { TurboView } from './views/TurboView';
-import { AutoplayView } from './views/AutoplayView';
-import { AutoplayDrawerView } from './views/AutoplayDrawerView';
 import { MenuView } from './views/MenuView';
-import { ReadoutView } from './views/ReadoutView';
 import { DialogView } from './views/DialogView';
 import { type ControlViewFactory } from './views/blockColumn';
-import { type SpinSkinFactory } from './skin/SpinSkin';
-import { type GsapLike } from 'pixi-text-counter';
-
-export interface OpenUIIcons {
-  settingsIdle?: Texture;
-  settingsActive?: Texture;
-  close?: Texture;
-  rules?: Texture;
-  sliderMusic?: Texture;
-  sliderSound?: Texture;
-  turboOff?: Texture;
-  turboOn?: Texture;
-  /** One texture per turbo mode (index-aligned) — for 3-mode art. Wins over off/on. */
-  turboModes?: Texture[];
-  autoIdle?: Texture;
-  autoActive?: Texture;
-  bonus?: Texture;
-  betPlus?: Texture;
-  betMinus?: Texture;
-}
+import { RibbonHud } from './chrome/RibbonHud';
+import { TopOverlay } from './chrome/TopOverlay';
+import { HistoryModal } from './chrome/HistoryModal';
 
 export interface OpenUIPixiOptions {
   /** Expose `window.__OPENUI__` for e2e/introspection. Default true. */
   expose?: boolean;
-  /** Override the spin control's skin (default = the art-free Graphics placeholder). */
-  spinSkin?: SpinSkinFactory;
-  /** Real art for the menu/close/slider controls (else neutral placeholders). */
-  icons?: OpenUIIcons;
   /**
-   * The composed MENU blocks (Settings → Paytable → Rules) the ☰ button opens in a
-   * scrollable sheet. Usually built by `mountHud` via `composeMenu(spec.menu, …)`;
-   * omitted → a default Settings-only menu (Music/Sound). Pass `false` to skip the
-   * built-in Pixi menu entirely (e.g. when supplying your own HTML/DOM menu).
+   * The composed MENU blocks (Settings → Paytable → Rules) the INFO row opens in a
+   * scrollable window. Usually built by `mountHud` via `composeMenu(spec.menu, …)`;
+   * omitted → a default Settings-only menu. Pass `false` to skip the built-in window
+   * entirely (e.g. when supplying your own HTML/DOM menu).
    */
   menu?: BlockSpec[] | false;
-  /** Header title for the menu sheet (localizable). Default 'Menu'. */
+  /** Header title for the menu window (localizable). Default 'Menu'. */
   menuTitle?: string;
-  /** Per-id view override — swap a control's renderer without forking (Charter P7). */
+  /** Per-id view override for menu/dialog content controls (Charter P7). */
   controlSkins?: Partial<Record<string, ControlViewFactory>>;
   /**
-   * Host `gsap` — enables the value counter's auto-downscale so wide currencies
-   * (8-decimal BTC, big SATS counts, long codes) shrink to fit instead of spilling.
-   * Kept out of the lib's deps (Charter B5); the host passes its own gsap.
-   */
-  gsap?: GsapLike;
-  /**
-   * Autoplay count-picker presentation. `'drawer'` (default) is a bottom sheet;
-   * `'radial'` fans the count chips around the spin button.
-   */
-  autoplayPicker?: 'drawer' | 'radial';
-  /**
-   * Text colour for the top-corner compliance readouts (RTP / net / session). Defaults
-   * to the theme text colour; a light-background host can pass a dark colour so the
-   * Figma-style `Label: value` block stays legible.
-   */
-  readoutColor?: string;
-  /**
-   * How the interactive HUD appears on mount: `'shown'` (default), `'hidden'` (off
-   * screen + non-interactive; reveal later with `showControls()`), or `'slide-in'`
-   * (start hidden, then slide in from the edges).
+   * How the HUD appears on mount: `'shown'` (default), `'hidden'` (off screen +
+   * non-interactive; reveal later with `showControls()`), or `'slide-in'`.
    */
   intro?: 'shown' | 'hidden' | 'slide-in';
+  /** Pressed when the player taps BUY BONUS (the host opens its own buy flow). */
+  onBuy?: () => void;
 }
 
 /** Smooth S-curve for the show/hide slide (translation only — no scaling). */
@@ -89,33 +47,30 @@ function easeInOutCubic(p: number): number {
 }
 
 /**
- * The controller: mounts ONE root Container onto the host's existing stage,
- * shares the host ticker/renderer, drives resize, and exposes introspection.
- * `unmount()` removes the layer and every listener it created (Charter P2/P12).
+ * The controller: mounts ONE root Container onto the host's existing stage, shares
+ * the host ticker/renderer, drives resize, and exposes introspection. `unmount()`
+ * removes the layer and every listener it created (Charter P2/P12).
+ *
+ * What it mounts is the RIBBON — one docked bar that owns the everyday controls —
+ * plus the overlays that belong with it: the top info strip, the ☰ menu window, the
+ * history window and the notice/error modal. There are no free-floating controls
+ * any more: if it is on screen, the ribbon put it there.
  */
 export class OpenUIPixi {
   readonly root = new Container();
-  private readonly views: ControlView[] = [];
-  /** Full-screen overlays (e.g. the autoplay drawer) that own their own layout. */
+  private ribbon?: RibbonHud;
+  private topOverlay?: TopOverlay;
+  private historyModal?: HistoryModal;
+  /** Overlays that own their own layout (menu window, dialog, replay badge). */
   private readonly overlays: Array<{ applyLayout(s: ScreenState): void; dispose(): void }> = [];
   private readonly disposers: Array<() => void> = [];
   private _eventLog?: EventLog;
-  /** Show/hide slide: each interactive view slides toward its anchored edge (bottom
-   *  controls down, top up — behind the status-bar plaque). Views stay direct children
-   *  of `root` (introspection bounds unchanged); only their y moves, and the
-   *  ref-counted input lock makes them non-interactive while moving/hidden. */
-  private slideProg = 0; // 0 = shown · 1 = fully hidden (set per `intro` on mount)
+  private slideProg = 0; // 0 = shown · 1 = fully hidden
   private slideTarget = 1;
   private slideHeld = false;
   private lastScreenH = 1080;
   private appTicker?: Ticker;
   private slideTickFn?: (t: Ticker) => void;
-  private readonly slideBaseY = new Map<ControlView, number>();
-  private readonly slideSign = new Map<ControlView, number>();
-  /** Buy-feature ⇄ total-win swap: only one shows at a time (see `setupBonusSwap`). */
-  private bonusView?: ButtonView;
-  private totalWinView?: ValueDisplayView;
-  private readonly fadeFns = new Map<Container, (t: Ticker) => void>();
 
   constructor(
     private readonly ui: OpenUI,
@@ -127,6 +82,11 @@ export class OpenUIPixi {
     return this._eventLog;
   }
 
+  /** The height of the docked bar in px — what the game keeps its reels clear of. */
+  get barHeight(): number {
+    return barHeightFor(this.ui.screen.get(), this.ui.chrome);
+  }
+
   mount(app: Application): void {
     const { stage, renderer, ticker } = app;
     this.appTicker = ticker;
@@ -135,324 +95,158 @@ export class OpenUIPixi {
     this.root.sortableChildren = true;
     stage.addChild(this.root);
 
-    const ic = this.opts.icons ?? {};
+    // ── the bar ──────────────────────────────────────────────────────────────
+    const ribbon = new RibbonHud(this.ui, ticker, { onBuy: this.opts.onBuy });
+    ribbon.zIndex = 20;
+    this.ribbon = ribbon;
+    this.root.addChild(ribbon);
 
-    // spin + balance/bet value displays
-    const spinView = new SpinView(this.ui.spin, this.ui, ticker, this.opts.spinSkin);
-    const balanceView = new ValueDisplayView(this.ui.balance, this.ui, ticker, this.opts.gsap);
-    const betView = new ValueDisplayView(this.ui.bet, this.ui, ticker, this.opts.gsap);
+    // ── the overlays that belong with it ─────────────────────────────────────
+    const top = new TopOverlay(this.ui, ticker, () => this.toggleFullscreen(app));
+    top.zIndex = 10;
+    this.topOverlay = top;
+    this.root.addChild(top);
 
-    // settings button (☰) → the unified scrollable MENU (settings/paytable/rules)
-    const settingsView = new ButtonView(this.ui.settingsButton, this.ui, ticker, {
-      shape: 'circle',
-      radius: 40,
-      glyph: 'menu',
-      iconTexture: ic.settingsIdle,
-      iconTarget: 88,
-      dark: true, // Figma ☰: solid black circle, white bars, no ring
-    });
-    settingsView.zIndex = 5;
-
-    // `menu: false` skips the built-in Pixi menu (e.g. a host-supplied HTML menu).
-    const menuView = this.opts.menu === false ? undefined : this.buildMenu(ticker);
-
-    // bottom bar: turbo / autoplay / bonus / bet ± stepper
-    const turboView = new TurboView(this.ui.turbo, this.ui, ticker, {
-      offTexture: ic.turboOff,
-      onTexture: ic.turboOn,
-      modeTextures: ic.turboModes,
-      target: 79,
-    });
-    const spinOff = this.ui.spin.layout.offset ?? [0, 0];
-    const autoOff = this.ui.autoplay.layout.offset ?? [0, 0];
-    const picker = this.opts.autoplayPicker ?? 'drawer';
-    const autoplayView = new AutoplayView(this.ui.autoplay, this.ui, ticker, {
-      idleTexture: ic.autoIdle,
-      activeTexture: ic.autoActive,
-      target: 73,
-      picker,
-      arcCenter: { x: spinOff[0] - autoOff[0], y: spinOff[1] - autoOff[1] },
-      arcStepDeg: 22,
-    });
-    autoplayView.zIndex = 20;
-    const bonusView = new ButtonView(this.ui.bonusButton, this.ui, ticker, { shape: 'circle', radius: 60, iconTexture: ic.bonus, iconTarget: 130 });
-    const betPlusView = new ButtonView(this.ui.betPlus, this.ui, ticker, { shape: 'circle', radius: 30, iconTexture: ic.betPlus, iconTarget: 64 });
-    const betMinusView = new ButtonView(this.ui.betMinus, this.ui, ticker, { shape: 'circle', radius: 30, iconTexture: ic.betMinus, iconTarget: 64 });
-    // Bonus total-win readout — the same value renderer as balance/bet (caption pill +
-    // rolling counter, same currency/locale money logic). Parked in the buy-feature
-    // slot; shown only in a bonus (free-spins) round, swapped for the buy button.
-    const totalWinView = new ValueDisplayView(this.ui.totalWin, this.ui, ticker, this.opts.gsap);
-    this.bonusView = bonusView;
-    this.totalWinView = totalWinView;
-
-    // edge controls (master mute + fullscreen) — b&w "mono" buttons like turbo.
-    const muteView = new ButtonView(this.ui.muteButton, this.ui, ticker, { shape: 'circle', radius: 30, glyph: 'speaker', iconTarget: 60, mono: true });
-    const fullscreenView = new ButtonView(this.ui.fullscreenButton, this.ui, ticker, { shape: 'circle', radius: 30, glyph: 'fullscreen', iconTarget: 60, mono: true });
-    muteView.zIndex = 65;
-    fullscreenView.zIndex = 65;
-    // Compliance readouts (RTP / net / session) — a plain `Label: value` block in the
-    // top-left corner. Each readout still only shows when its jurisdiction flag is set.
-    const roOpts = { prefix: true, fill: this.opts.readoutColor } as const;
-    const rtpView = new ReadoutView(this.ui.rtp, this.ui, ticker, roOpts);
-    const netView = new ReadoutView(this.ui.netPosition, this.ui, ticker, roOpts);
-    const timerView = new ReadoutView(this.ui.sessionTimer, this.ui, ticker, roOpts);
-
-    // Every view is mounted; `ui.hidden` only toggles VISIBILITY (so a responsive
-    // breakpoint can show/hide a control at runtime — Charter P10). Hidden views
-    // stay laid out + introspectable in snapshot, they're just not drawn.
-    const entries: Array<[string, ControlView]> = [
-      [this.ui.spin.id, spinView],
-      [this.ui.balance.id, balanceView],
-      [this.ui.bet.id, betView],
-      [this.ui.settingsButton.id, settingsView],
-      [this.ui.turbo.id, turboView],
-      [this.ui.autoplay.id, autoplayView],
-      [this.ui.bonusButton.id, bonusView],
-      [this.ui.totalWin.id, totalWinView],
-      [this.ui.betPlus.id, betPlusView],
-      [this.ui.betMinus.id, betMinusView],
-      [this.ui.muteButton.id, muteView],
-      [this.ui.fullscreenButton.id, fullscreenView],
-    ];
-    entries.push([this.ui.rtp.id, rtpView]);
-    entries.push([this.ui.netPosition.id, netView]);
-    entries.push([this.ui.sessionTimer.id, timerView]);
-    const viewById = new Map<string, ControlView>();
-    const idByView = new Map<ControlView, string>();
-    for (const [id, view] of entries) {
-      view.visible = !this.ui.hidden.has(id);
-      this.root.addChild(view);
-      this.views.push(view);
-      viewById.set(id, view);
-      idByView.set(view, id);
-    }
-    this.disposers.push(
-      this.ui.on('visibilityChanged', ({ id, hidden }) => {
-        const v = viewById.get(id);
-        if (v) v.visible = !hidden;
-      }),
-    );
-
-    // master mute icon reflects the mute state (speaker ↔ speaker-mute)
-    this.disposers.push(this.ui.muted.subscribe((m) => muteView.setGlyph(m ? 'speaker-mute' : 'speaker')));
-
-    // fullscreen: the view stays DOM-agnostic, so the controller owns the toggle and
-    // keeps the glyph in sync with the actual document fullscreen state.
-    if (typeof document !== 'undefined') {
-      this.disposers.push(
-        this.ui.bus.on('buttonActivated', ({ id }) => {
-          if (id !== 'fullscreen') return;
-          const el = (app.canvas.parentElement ?? document.documentElement) as HTMLElement;
-          if (document.fullscreenElement) void document.exitFullscreen?.();
-          else void el.requestFullscreen?.();
-        }),
-      );
-      const onFsChange = (): void => fullscreenView.setGlyph(document.fullscreenElement ? 'fullscreen-exit' : 'fullscreen');
-      document.addEventListener('fullscreenchange', onFsChange);
-      this.disposers.push(() => document.removeEventListener('fullscreenchange', onFsChange));
+    if (this.ui.chrome.features.history) {
+      const history = new HistoryModal(this.ui, ticker);
+      history.zIndex = 300;
+      this.historyModal = history;
+      this.root.addChild(history);
     }
 
-    // Keyboard spin (Space / Enter), gated by jurisdiction (`disabledSpacebar`) + the
-    // lock. RTS 14D: one spin per press — no auto-repeat by holding the key.
-    if (typeof window !== 'undefined') {
-      let keyHeld = false;
-      const onKeyDown = (e: KeyboardEvent): void => {
-        if (e.code !== 'Space' && e.key !== 'Enter') return;
-        if (!this.ui.spin.allowKeyboard.get() || e.repeat || keyHeld) return;
-        keyHeld = true;
-        e.preventDefault();
-        if (this.ui.spin.interactable) this.ui.spin.activate();
-      };
-      const onKeyUp = (e: KeyboardEvent): void => {
-        if (e.code === 'Space' || e.key === 'Enter') keyHeld = false;
-      };
-      window.addEventListener('keydown', onKeyDown);
-      window.addEventListener('keyup', onKeyUp);
-      this.disposers.push(() => {
-        window.removeEventListener('keydown', onKeyDown);
-        window.removeEventListener('keyup', onKeyUp);
-      });
-    }
-
-    // The menu is a full-screen overlay that manages its OWN open/closed visibility
-    // (driven by the panel state) — so it's an overlay, not a force-visible view.
-    if (menuView) {
+    // The INFO window: the composed Settings → Paytable → Rules blocks.
+    if (this.opts.menu !== false) {
+      const menuView = this.buildMenu(ticker);
+      menuView.zIndex = 320;
       this.root.addChild(menuView);
       this.overlays.push(menuView);
     }
 
-    // The autoplay bottom drawer (the options-mode picker) is a full-screen overlay.
-    if (picker === 'drawer') {
-      const drawer = new AutoplayDrawerView(this.ui.autoplay, this.ui, ticker);
-      this.root.addChild(drawer);
-      this.overlays.push(drawer);
-    }
-
-    // The menu-style notice / error modal (owns its open/closed visibility → overlay).
+    // The menu-style notice / error modal (owns its open/closed visibility).
     const dialog = new DialogView(this.ui.noticePanel, this.ui.noticeBlocks, this.ui.noticeActions, this.ui, ticker, { controlSkins: this.opts.controlSkins });
+    dialog.zIndex = 340;
     this.root.addChild(dialog);
     this.overlays.push(dialog);
 
-    // REPLAY badge (Stake replay mode) — a pill shown while `ui.replay` is true.
-    const replayBadge = new Container();
-    const replayBg = new Graphics();
-    const replayText = new Text({ text: this.ui.t('openui.replay').toUpperCase(), style: { fontFamily: this.ui.theme.type.family, fontSize: 16, fontWeight: '800', fill: 0xffffff, letterSpacing: 2 } });
-    replayText.anchor.set(0.5);
-    replayBadge.addChild(replayBg, replayText);
-    replayBadge.zIndex = 310;
-    replayBadge.visible = this.ui.replay.get();
-    this.root.addChild(replayBadge);
-    this.overlays.push({
-      applyLayout: (s) => {
-        const w = replayText.width + 36;
-        const h = 32;
-        replayBg.clear().roundRect(-w / 2, -h / 2, w, h, h / 2).fill({ color: 0x0c0d10 }).stroke({ width: 2, color: 0xffffff });
-        replayBadge.position.set(s.width / 2, 40);
-      },
-      dispose: () => {
-        if (!replayBadge.destroyed) replayBadge.destroy({ children: true });
-      },
-    });
-    this.disposers.push(
-      this.ui.replay.subscribe((v) => {
-        replayBadge.visible = v;
-      }),
-      this.ui.locale.subscribe(() => {
-        if (!replayBadge.destroyed) replayText.text = this.ui.t('openui.replay').toUpperCase();
-      }),
-    );
+    this.mountReplayBadge();
+    this.wireKeyboard();
+    this.wireFullscreen(app);
 
-    // The ☰ menu button keeps the SAME look whether the menu is open or closed —
-    // it only ever opens the menu, so it never morphs into a ✕.
-
+    // ── layout ───────────────────────────────────────────────────────────────
     const applyLayout = (): void => {
       const screen = this.ui.screen.get();
-      this.slideBaseY.clear();
-      this.slideSign.clear();
-      for (const v of this.views) {
-        v.applyLayout(screen);
-        const anchor = this.ui.control(idByView.get(v) ?? '')?.layout.anchor ?? 'bottom-center';
-        // record the resting y + slide direction (top controls up, the rest down)
-        this.slideBaseY.set(v, v.y);
-        this.slideSign.set(v, anchor.startsWith('top') ? -1 : 1);
-      }
+      const rem = remFor(screen, this.ui.chrome);
+      ribbon.applyLayout(screen);
+      top.applyLayout(screen, rem);
+      this.historyModal?.applyLayout(screen, rem);
       this.lastScreenH = screen.height;
       this.applySlide();
       for (const o of this.overlays) o.applyLayout(screen);
     };
-    const onResize = (): void => {
-      this.ui.setScreen(app.screen.width, app.screen.height);
-    };
+    const onResize = (): void => this.ui.setScreen(app.screen.width, app.screen.height);
 
     renderer.on('resize', onResize);
     const unsubScreen = this.ui.screen.subscribe(applyLayout);
     onResize();
     applyLayout();
 
-    // Initial HUD visibility (configurable via `intro`): shown / hidden / slide-in.
     const intro = this.opts.intro ?? 'shown';
     if (intro === 'shown') {
       this.slideProg = 0;
       this.applySlide();
     } else {
-      this.slideProg = 1; // start off-screen
+      this.slideProg = 1;
       this.applySlide();
-      this.ui.lock(); // non-interactive while hidden
+      this.ui.lock();
       this.slideHeld = true;
-      if (intro === 'slide-in') this.setControlsVisible(true); // animate in (unlocks when shown)
+      if (intro === 'slide-in') this.setControlsVisible(true);
     }
 
     this.disposers.push(() => renderer.off('resize', onResize), unsubScreen);
 
-    // Buy-feature ⇄ total-win: the buy button and the total-win readout share the
-    // same slot; the renderer shows exactly one, keyed off free-spins mode.
-    this.setupBonusSwap();
-
     this._eventLog = new EventLog(this.ui.bus);
-
     if (this.opts.expose ?? true) this.expose();
   }
 
-  /**
-   * Wire the buy-feature ⇄ total-win swap. In base play the buy button shows (unless
-   * hidden by config/jurisdiction); once the spin button enters free-spins mode
-   * (`setFreeSpins(n > 0)` — you "can't buy" mid-bonus) the buy button fades out and
-   * the localized total-win counter fades in over the same slot, then back on exit.
-   */
-  private setupBonusSwap(): void {
-    const bonus = this.bonusView;
-    const tw = this.totalWinView;
-    if (!bonus || !tw) return;
-    const apply = (inBonus: boolean, animate: boolean): void => {
-      // Base-play visibility of the buy button still honours config / jurisdiction.
-      const bonusShouldShow = !inBonus && !this.ui.hidden.has(this.ui.bonusButton.id);
-      if (animate) {
-        if (inBonus) {
-          tw.visible = true;
-          tw.alpha = 0;
-          this.fadeTo(tw, 1, 220);
-          this.fadeTo(bonus, 0, 160, () => (bonus.visible = false));
-        } else {
-          if (bonusShouldShow) {
-            bonus.visible = true;
-            bonus.alpha = 0;
-            // settle on the button's own interactable alpha (1, or 0.4 when locked)
-            this.fadeTo(bonus, this.ui.bonusButton.interactable ? 1 : 0.4, 220);
-          }
-          this.fadeTo(tw, 0, 160, () => (tw.visible = false));
-        }
-      } else {
-        this.stopFade(bonus);
-        this.stopFade(tw);
-        bonus.visible = bonusShouldShow;
-        bonus.alpha = this.ui.bonusButton.interactable ? 1 : 0.4;
-        tw.visible = inBonus;
-        tw.alpha = inBonus ? 1 : 0;
-      }
+  /** Keyboard spin (Space / Enter), gated by jurisdiction + the lock. RTS 14D: one
+   *  spin per press — holding the key never auto-repeats. */
+  private wireKeyboard(): void {
+    if (typeof window === 'undefined') return;
+    let keyHeld = false;
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.code !== 'Space' && e.key !== 'Enter') return;
+      if (!this.ui.spin.allowKeyboard.get() || e.repeat || keyHeld) return;
+      keyHeld = true;
+      e.preventDefault();
+      if (this.ui.spin.interactable) this.ui.spin.activate();
     };
-    apply(this.ui.spin.freeSpins.get() > 0, false);
-    this.disposers.push(this.ui.spin.freeSpins.subscribe((n) => apply(n > 0, true)));
-  }
-
-  /** Fade a view's alpha to `to` over `ms` (wall-clock paced); cancels any prior fade
-   *  on the same view. `onDone` runs once when it settles. */
-  private fadeTo(view: Container, to: number, ms: number, onDone?: () => void): void {
-    this.stopFade(view);
-    const t = this.appTicker;
-    const from = view.alpha;
-    if (!t || from === to) {
-      view.alpha = to;
-      onDone?.();
-      return;
-    }
-    const startMs = typeof performance !== 'undefined' ? performance.now() : 0;
-    const fn = (): void => {
-      const nowMs = typeof performance !== 'undefined' ? performance.now() : startMs + ms;
-      const k = Math.min(1, (nowMs - startMs) / Math.max(ms, 1));
-      view.alpha = from + (to - from) * k;
-      if (k >= 1) {
-        view.alpha = to;
-        this.stopFade(view);
-        onDone?.();
-      }
+    const onKeyUp = (e: KeyboardEvent): void => {
+      if (e.code === 'Space' || e.key === 'Enter') keyHeld = false;
     };
-    this.fadeFns.set(view, fn);
-    t.add(fn);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    this.disposers.push(() => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    });
   }
 
-  /** Cancel an in-flight fade on `view` (if any). */
-  private stopFade(view: Container): void {
-    const fn = this.fadeFns.get(view);
-    if (fn) {
-      this.appTicker?.remove(fn);
-      this.fadeFns.delete(view);
-    }
+  private toggleFullscreen(app: Application): void {
+    if (typeof document === 'undefined') return;
+    const el = (app.canvas.parentElement ?? document.documentElement) as HTMLElement;
+    if (document.fullscreenElement) void document.exitFullscreen?.();
+    else void el.requestFullscreen?.();
+  }
+
+  /** The view stays DOM-agnostic, so the controller owns the actual fullscreen call
+   *  and repaints the overlay's icon when the document's state changes. */
+  private wireFullscreen(app: Application): void {
+    if (typeof document === 'undefined') return;
+    this.disposers.push(
+      this.ui.bus.on('buttonActivated', ({ id }) => {
+        if (id === 'fullscreen') this.toggleFullscreen(app);
+      }),
+    );
+    const onFsChange = (): void => this.topOverlay?.applyLayout(this.ui.screen.get(), remFor(this.ui.screen.get(), this.ui.chrome));
+    document.addEventListener('fullscreenchange', onFsChange);
+    this.disposers.push(() => document.removeEventListener('fullscreenchange', onFsChange));
+  }
+
+  /** REPLAY badge (Stake replay mode) — a pill shown while `ui.replay` is true. */
+  private mountReplayBadge(): void {
+    const badge = new Container();
+    const bg = new Graphics();
+    const label = new Text({ text: this.ui.t('openui.replay').toUpperCase(), style: { fontFamily: this.ui.theme.type.family, fontSize: 16, fontWeight: '800', fill: this.ui.theme.color.text, letterSpacing: 2 } });
+    label.anchor.set(0.5);
+    badge.addChild(bg, label);
+    badge.zIndex = 310;
+    badge.visible = this.ui.replay.get();
+    this.root.addChild(badge);
+    this.overlays.push({
+      applyLayout: (s) => {
+        const w = label.width + 36;
+        const h = 32;
+        bg.clear().roundRect(-w / 2, -h / 2, w, h, h / 2).fill({ color: this.ui.theme.color.menu }).stroke({ width: 2, color: this.ui.theme.color.accent });
+        badge.position.set(s.width / 2, 40);
+      },
+      dispose: () => {
+        if (!badge.destroyed) badge.destroy({ children: true });
+      },
+    });
+    this.disposers.push(
+      this.ui.replay.subscribe((v) => {
+        badge.visible = v;
+      }),
+      this.ui.locale.subscribe(() => {
+        if (!badge.destroyed) label.text = this.ui.t('openui.replay').toUpperCase();
+      }),
+    );
   }
 
   /**
-   * Build the unified scrollable MENU bound to the ☰ panel. Composed `menu` blocks
-   * are given by `mountHud`; absent → a default Settings-only menu. Built-in ids
-   * ('music'/'sfx') are reused, not shadowed (P10); button blocks wire `closePanel`.
+   * Build the scrollable INFO window bound to the settings panel. Composed `menu`
+   * blocks are given by `mountHud`; absent → a default Settings-only menu. Built-in
+   * ids ('music'/'sfx') are reused, not shadowed (P10); button blocks wire `closePanel`.
    */
   private buildMenu(ticker: Application['ticker']): ControlView {
     const menu = this.opts.menu && this.opts.menu.length ? this.opts.menu : composeMenu(undefined, {});
@@ -472,20 +266,17 @@ export class OpenUIPixi {
   }
 
   /**
-   * Slide the whole interactive HUD in (`true`) or out (`false`): bottom-anchored
-   * controls travel down, top-anchored travel up (behind the status-bar plaque).
-   * Pure translation (no scaling); controls are non-interactive while moving/hidden.
+   * Slide the whole HUD in (`true`) or out (`false`). The bar travels toward its
+   * dock edge; it is non-interactive while moving or hidden.
    */
   setControlsVisible(visible: boolean): void {
     const target = visible ? 0 : 1;
     this.slideTarget = target;
-    // non-interactive while moving/hidden — hold the ref-counted input lock
     if (!this.slideHeld) {
       this.ui.lock();
       this.slideHeld = true;
     }
     const settle = (): void => {
-      // fully shown → release the lock; fully hidden → stay locked
       if (this.slideProg === 0 && this.slideHeld) {
         this.ui.unlock();
         this.slideHeld = false;
@@ -497,8 +288,6 @@ export class OpenUIPixi {
       settle();
       return;
     }
-    // Drive the slide from a wall-clock timestamp (not accumulated ticker deltas), so
-    // it completes in a fixed real-time duration regardless of frame pacing.
     const from = this.slideProg;
     const startMs = typeof performance !== 'undefined' ? performance.now() : 0;
     if (this.slideTickFn) this.appTicker.remove(this.slideTickFn);
@@ -518,22 +307,22 @@ export class OpenUIPixi {
     this.appTicker.add(tick);
   }
 
-  /** Apply the current slide progress: translate each interactive view toward its
-   *  anchored edge (pure translation — no scaling). */
   private applySlide(): void {
-    const off = easeInOutCubic(this.slideProg) * this.lastScreenH;
-    for (const [view, baseY] of this.slideBaseY) {
-      view.y = baseY + (this.slideSign.get(view) ?? 1) * off;
-    }
+    if (!this.ribbon) return;
+    const dir = this.ui.chrome.dock === 'top' ? -1 : 1;
+    this.ribbon.y = easeInOutCubic(this.slideProg) * this.lastScreenH * dir;
+    if (this.topOverlay) this.topOverlay.y = easeInOutCubic(this.slideProg) * -this.lastScreenH * dir;
   }
 
   unmount(): void {
     if (this.slideTickFn && this.appTicker) this.appTicker.remove(this.slideTickFn);
     this.slideTickFn = undefined;
-    for (const fn of this.fadeFns.values()) this.appTicker?.remove(fn);
-    this.fadeFns.clear();
-    for (const v of this.views) v.dispose();
-    this.views.length = 0;
+    this.ribbon?.dispose();
+    this.ribbon = undefined;
+    this.topOverlay?.dispose();
+    this.topOverlay = undefined;
+    this.historyModal?.dispose();
+    this.historyModal = undefined;
     for (const o of this.overlays) o.dispose();
     this.overlays.length = 0;
     this._eventLog?.dispose();
@@ -556,6 +345,7 @@ export class OpenUIPixi {
       bounds: (id: string) => this.ui.snapshot().find((s) => s.id === id)?.bounds ?? null,
       events: (since: number) => this._eventLog?.since(since) ?? [],
       controlsReady: () => this.slideProg < 0.001,
+      barHeight: () => this.barHeight,
     };
   }
 }

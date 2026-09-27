@@ -5,7 +5,7 @@ import { defaultTheme } from '../src/theme/tokens';
 describe('theme presets + resolveTheme (Charter P8)', () => {
   it('ships ONE frozen preset — the b&w + yellow default', () => {
     expect(themePresets.default).toBe(defaultTheme);
-    expect(themePresets.default.color.accent).toBe('#ffc935'); // yellow accent
+    expect(themePresets.default.color.accent).toBe('#ffc529'); // yellow accent
     expect(Object.isFrozen(themePresets)).toBe(true);
   });
 
@@ -14,7 +14,7 @@ describe('theme presets + resolveTheme (Charter P8)', () => {
   });
 
   it('resolves the default preset name, and an unknown name falls back to default', () => {
-    expect(resolveTheme('default').color.accent).toBe('#ffc935');
+    expect(resolveTheme('default').color.accent).toBe('#ffc529');
     expect(resolveTheme('midnight' as never)).toBe(defaultTheme); // removed preset → default
   });
 

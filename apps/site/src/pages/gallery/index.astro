@@ -1,0 +1,37 @@
+---
+import Base from '../../layouts/Base.astro';
+import StoryFrame from '../../components/StoryFrame.astro';
+import { STORIES, GROUPS } from '../../stories/catalogue';
+---
+<Base
+  title="Gallery — open-ui"
+  description="Every part of the open-ui HUD, live and on its own: the bar in each state, the controls, the windows, and the money shapes that break naive layouts."
+>
+  <section class="container py-14">
+    <p class="font-mono text-xs uppercase tracking-widest text-muted-foreground">Gallery</p>
+    <h1 class="mt-3 text-4xl font-bold tracking-tight">Every part, on its own</h1>
+    <p class="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
+      Each frame below is the real HUD — the same <code class="font-mono text-foreground">mountDomHud</code> call,
+      the same stylesheet, running in this page. Nothing here is a screenshot, so nothing here can be out of date.
+      Open any of them on its own URL to poke at it, or to link someone straight to the state you mean.
+    </p>
+
+    <nav class="mt-8 flex flex-wrap gap-2">
+      {GROUPS.map((g) => (
+        <a href={`#${g.id}`} class="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground hover:bg-secondary/60">{g.title}</a>
+      ))}
+      <a href="/gallery/blocks/" class="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground hover:bg-secondary/60">Menu blocks</a>
+      <a href="/gallery/cases/" class="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground hover:bg-secondary/60">Test cases</a>
+    </nav>
+
+    {GROUPS.map((g) => (
+      <section id={g.id} class="mt-14 scroll-mt-20">
+        <h2 class="text-2xl font-semibold tracking-tight">{g.title}</h2>
+        <p class="mt-2 text-sm text-muted-foreground">{g.blurb}</p>
+        <div class="mt-6 grid gap-6">
+          {STORIES.filter((s) => s.group === g.id).map((s) => <StoryFrame story={s} />)}
+        </div>
+      </section>
+    ))}
+  </section>
+</Base>

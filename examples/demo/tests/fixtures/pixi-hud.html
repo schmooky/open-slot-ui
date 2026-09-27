@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!--
+      NOT A PAGE OF THE EXAMPLE. This is the test fixture for @open-slot-ui/pixi —
+      the canvas renderer drawing its own HUD — and it lives here, outside the app,
+      so the example client has exactly ONE page: the DOM binding at `/`. It is not
+      an input of the build, so it does not exist in a deployed copy at all.
+    -->
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>open-ui · canvas renderer (test fixture)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+    <style>
+      html, body {
+        margin: 0; height: 100%; overflow: hidden; font-family: system-ui, sans-serif;
+        /* Light grey stage so the HUD's shading, drop shadows and black pills read. */
+        background:
+          radial-gradient(120% 90% at 50% -10%, #f2f3f5, rgba(0,0,0,0) 55%),
+          linear-gradient(180deg, #dcdee2 0%, #c9ccd2 60%, #babdc4 100%);
+      }
+      canvas { display: block; }
+    </style>
+  </head>
+  <body>
+    <script type="module" src="./pixi-hud.ts"></script>
+  </body>
+</html>

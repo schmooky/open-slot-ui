@@ -1,0 +1,79 @@
+---
+import Base from '../../layouts/Base.astro';
+import StoryFrame from '../../components/StoryFrame.astro';
+import { STORIES } from '../../stories/catalogue';
+import { suites, devices } from '../../stories/suites';
+
+/**
+ * The cases the UI is held to — the awkward ones shown live, and then every title
+ * the suites actually assert, read out of the suite files at build time.
+ */
+const LIVE = ['money-irr', 'money-mbtc', 'state-modifier', 'state-no-funds', 'state-jurisdiction', 'bar-bonus', 'bar-locked'];
+const live = LIVE.map((id) => STORIES.find((s) => s.id === id)).filter(Boolean);
+const all = suites();
+const e2e = all.filter((s) => s.kind === 'e2e');
+const unit = all.filter((s) => s.kind === 'unit');
+const projects = devices();
+const count = (s: { cases: unknown[] }[]): number => s.reduce((n, x) => n + x.cases.length, 0);
+---
+<Base
+  title="Test cases — open-ui"
+  description="The states the HUD is held to: the awkward ones live, and every case the unit and end-to-end suites assert."
+>
+  <section class="container py-14">
+    <p class="font-mono text-xs uppercase tracking-widest text-muted-foreground">Gallery</p>
+    <h1 class="mt-3 text-4xl font-bold tracking-tight">Test cases</h1>
+    <p class="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
+      A HUD is easy to demo and hard to keep honest: the cases that break it are the twelve-digit balance, the
+      sixteen-character locale, the round that never answers. These are the ones the suites cover — the awkward
+      states first, live, and then every case asserted in the repository, read out of the suite files when this
+      page was built.
+    </p>
+
+    <div class="mt-8 flex flex-wrap gap-3 text-sm">
+      <span class="rounded-md border border-border px-3 py-1.5 text-muted-foreground"><strong class="text-foreground">{count(unit)}</strong> unit cases</span>
+      <span class="rounded-md border border-border px-3 py-1.5 text-muted-foreground"><strong class="text-foreground">{count(e2e)}</strong> end-to-end cases</span>
+      <span class="rounded-md border border-border px-3 py-1.5 text-muted-foreground">× <strong class="text-foreground">{projects.length}</strong> devices</span>
+    </div>
+
+    <h2 class="mt-14 text-2xl font-semibold tracking-tight">The awkward ones, live</h2>
+    <div class="mt-6 grid gap-6">
+      {live.map((s) => <StoryFrame story={s!} />)}
+    </div>
+
+    <h2 class="mt-16 text-2xl font-semibold tracking-tight">End to end</h2>
+    <p class="mt-2 text-sm text-muted-foreground">
+      Playwright, against the example client, on {projects.join(' · ')}.
+    </p>
+    <div class="mt-6 grid gap-4">
+      {e2e.map((s) => (
+        <details class="rounded-lg border border-border bg-card px-4 py-3" open>
+          <summary class="cursor-pointer font-mono text-sm font-semibold">{s.file} <span class="ml-2 font-sans text-xs font-normal text-muted-foreground">{s.cases.length} {s.cases.length === 1 ? 'case' : 'cases'}</span></summary>
+          {s.purpose && <p class="mt-2 text-sm leading-6 text-muted-foreground">{s.purpose}</p>}
+          <ul class="mt-3 space-y-1.5 text-sm">
+            {s.cases.map((c) => (
+              <li class="leading-6">
+                {c.describe && <span class="text-muted-foreground">{c.describe} › </span>}
+                <span>{c.title}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ))}
+    </div>
+
+    <h2 class="mt-16 text-2xl font-semibold tracking-tight">Unit</h2>
+    <p class="mt-2 text-sm text-muted-foreground">
+      Vitest, against the headless core and the DOM binding in jsdom — states, formatting, the spec validator, the
+      block parser and the rules audit.
+    </p>
+    <div class="mt-6 grid gap-2 sm:grid-cols-2">
+      {unit.map((s) => (
+        <div class="rounded-lg border border-border bg-card px-4 py-3">
+          <p class="font-mono text-sm">{s.file}</p>
+          <p class="mt-1 text-xs text-muted-foreground">{s.cases.length} {s.cases.length === 1 ? 'case' : 'cases'}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+</Base>

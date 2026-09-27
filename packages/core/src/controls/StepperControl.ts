@@ -41,6 +41,11 @@ export class StepperControl extends Control {
   get value(): number {
     return this.levels[this.index.get()] ?? 0;
   }
+  /** How many levels the ladder has — the ribbon draws a position bar from it. */
+  get count(): number {
+    return this.levels.length;
+  }
+
   get canInc(): boolean {
     return this.index.get() < this.levels.length - 1;
   }

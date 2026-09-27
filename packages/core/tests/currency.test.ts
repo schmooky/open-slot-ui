@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { ValueDisplay, type CurrencySpec } from '../src/controls/ValueDisplay';
 import { displayDigits, integerDigits, clampMinDigits, clampDigits, valueFitMaxWidth } from '../src/safe';
+import { neededDecimals, formatAmount, formatAmountPrecise } from '../src/format/currency';
 import { createUI } from '../src/spec/createUI';
 import { validateSpec } from '../src/spec/validateSpec';
 import { resolveCurrency, formatAmount, formatAmountPrecise, neededDecimals } from '../src/format/currency';
@@ -319,5 +320,32 @@ describe('resolveBetLadder — the authenticate ladder VERBATIM (no sub-unit fil
   it('falls back when authenticate offers nothing', () => {
     expect(resolveBetLadder([], 1).levels).toEqual([0.2, 0.5, 1, 2, 5, 10]);
     expect(resolveBetLadder(undefined, 1, [1, 2]).levels).toEqual([1, 2]);
+  });
+});
+
+describe('high-denomination and long-fraction money', () => {
+  const IRR = { code: 'IRR', decimals: 0, separator: ',' };
+  const MBTC = { code: 'mBTC', decimals: 5 };
+
+  it('a huge zero-decimal balance keeps ZERO decimals', () => {
+    // The trim loop used to read past MAX_SAFE_INTEGER and answer 8 — so an IRR
+    // balance rendered as "987,654,321,000.00000000 IRR".
+    expect(neededDecimals(987_654_321_000, 0)).toBe(0);
+    expect(neededDecimals(123_456_789, 0)).toBe(0);
+    expect(formatAmountPrecise(987_654_321_000, IRR)).toBe('987,654,321,000 IRR');
+    expect(formatAmount(5_000_000, IRR)).toBe('5,000,000 IRR');
+  });
+
+  it('still widens for a sub-unit value inside the safe range', () => {
+    expect(neededDecimals(0.002, 2)).toBe(3); // the ×0.2 face at a $0.01 bet
+    expect(formatAmountPrecise(0.002, { code: 'USD', symbol: '$', display: 'symbol', position: 'prefix', decimals: 2 })).toBe('$0.002');
+  });
+
+  it('keeps a long crypto fraction at its native precision', () => {
+    expect(formatAmount(1234.56789, MBTC)).toBe('1,234.56789 mBTC');
+    expect(formatAmount(0.001, MBTC)).toBe('0.00100 mBTC');
+    expect(neededDecimals(1234.56789, 5)).toBe(5);
+    // …and a big crypto balance does not sprout digits either
+    expect(formatAmountPrecise(98_765_432.1, MBTC)).toBe('98,765,432.10000 mBTC');
   });
 });

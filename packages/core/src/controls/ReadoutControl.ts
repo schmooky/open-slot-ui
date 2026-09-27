@@ -1,6 +1,7 @@
 import { Control, type StateMap } from '../control/Control';
 import { Signal } from '../signal';
 import { safeAmount } from '../safe';
+import { formatAmountPrecise } from '../format/currency';
 import type { LayoutSpec } from '../layout/anchor';
 import type { CurrencySpec } from './ValueDisplay';
 
@@ -66,6 +67,31 @@ export class ReadoutControl extends Control {
   set(v: number): void {
     this.value.set(safeAmount(v, this.value.get()));
   }
+  /**
+   * The value as the HUD shows it — percent, signed money, `hh:mm:ss` or a plain
+   * number. It lives here (not in a view) so every renderer prints a readout the
+   * same way and a test can assert on the string.
+   */
+  get formatted(): string {
+    const v = this.value.get();
+    switch (this.kind) {
+      case 'percent':
+        return `${v.toFixed(this.decimals)}%`;
+      case 'currency':
+        return this.currency ? formatAmountPrecise(v, this.currency.get(), { signed: this.signed }) : String(v);
+      case 'duration': {
+        const total = Math.max(0, Math.floor(v));
+        const h = Math.floor(total / 3600);
+        const m = Math.floor((total % 3600) / 60);
+        const s = total % 60;
+        const pad = (n: number): string => String(n).padStart(2, '0');
+        return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+      }
+      default:
+        return String(v);
+    }
+  }
+
   /** Accent-tint the value ("this readout is modified"). Strict boolean. */
   setEmphasis(on: boolean): void {
     this.emphasized.set(on === true);

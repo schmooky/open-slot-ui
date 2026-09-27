@@ -10,16 +10,21 @@
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:visual": "playwright test",
-    "matrix": "playwright test -c playwright.matrix.config.ts && node scripts/montage.mjs"
+    "matrix": "playwright test -c playwright.matrix.config.ts && node scripts/montage.mjs",
+    "specimen": "node scripts/specimen.mjs",
+    "boot": "node scripts/boot-probe.mjs"
   },
   "dependencies": {
     "@open-slot-ui/core": "workspace:*",
+    "@open-slot-ui/dom": "workspace:*",
     "@open-slot-ui/pixi": "workspace:*",
     "gsap": "^3.13.0",
+    "pixi-reels": "^2.8.0",
     "pixi.js": "^8.6.6"
   },
   "devDependencies": {
     "@playwright/test": "^1.50.0",
+    "jiti": "^2.7.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.7"
   }

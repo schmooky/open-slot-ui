@@ -17,10 +17,20 @@ export default defineConfig({
       // `/art` must come before the bare `pixi` alias so the subpath resolves to source.
       { find: /^@open-slot-ui\/pixi\/art$/, replacement: fromRoot('packages/pixi/src/art/index.ts') },
       { find: /^@open-slot-ui\/pixi$/, replacement: fromRoot('packages/pixi/src/index.ts') },
+      { find: /^@open-slot-ui\/dom$/, replacement: fromRoot('packages/dom/src/index.ts') },
       { find: /^pixi-text-counter$/, replacement: fromRoot('packages/pixi-text-counter/src/index.ts') },
     ],
     dedupe: ['pixi.js'],
   },
-  optimizeDeps: { exclude: ['@open-slot-ui/core', '@open-slot-ui/pixi'] },
+  optimizeDeps: { exclude: ['@open-slot-ui/core', '@open-slot-ui/pixi', '@open-slot-ui/dom'] },
+  // Relative asset URLs, so the build works under a subpath (a preview host, a CDN
+  // folder) and not only at a domain root.
+  base: './',
+  // ONE page. The client is the DOM binding at `/` — the canvas renderer's own HUD
+  // is a test fixture (tests/fixtures/pixi-hud.html), never a route of the app, so a
+  // deployed copy cannot serve a second, different-looking UI.
+  build: {
+    rollupOptions: { input: { index: fromRoot('examples/demo/index.html') } },
+  },
   server: { fs: { allow: [root.pathname] }, port: 5199, strictPort: true },
 });

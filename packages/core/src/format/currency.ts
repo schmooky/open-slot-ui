@@ -144,7 +144,13 @@ export function resolveCurrency(code: string, overrides: Partial<CurrencySpec> =
 export function neededDecimals(value: number, base: number): number {
   const b = clampDecimals(base);
   if (!Number.isFinite(value) || value === 0) return b;
-  let scaled = Math.round(Math.abs(value) * 1e8); // integer minor units at 8 dp
+  const abs = Math.abs(value);
+  // Above this, `abs * 1e8` leaves the safe-integer range and the trim loop below
+  // reads garbage from the float's low bits — which is how a 987,654,321,000 IRR
+  // balance ended up displayed with eight decimals it cannot possibly have. A number
+  // that large carries no sub-unit detail anyway, so its native precision is right.
+  if (abs >= Number.MAX_SAFE_INTEGER / 1e8) return b;
+  let scaled = Math.round(abs * 1e8); // integer minor units at 8 dp
   let d = 8;
   while (d > b && scaled % 10 === 0) {
     scaled /= 10;

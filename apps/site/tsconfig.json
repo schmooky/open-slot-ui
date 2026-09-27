@@ -6,7 +6,9 @@
     "baseUrl": ".",
     "resolveJsonModule": true,
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@open-slot-ui/core": ["../../packages/core/src/index.ts"],
+      "@open-slot-ui/dom": ["../../packages/dom/src/index.ts"]
     }
   },
   "include": ["src/**/*", "astro.config.mjs", ".astro/types.d.ts"],
