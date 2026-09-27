@@ -158,11 +158,44 @@ mountDomHud(spec, {
 and, in the spec, a theme:
 
 ```ts
-theme: { overrides: { color: { accent: '#00d1b2' }, motion: { base: 320 } } }
+theme: {
+  overrides: {
+    color: {
+      accent: '#7fe7f5',        // the buy coin, and every highlight on the bar
+      featureBuy: '#a25bff',    // what a BOUGHT FEATURE lights up in (see below)
+      featureBuyText: '#04202a',
+    },
+    motion: { base: 320 },
+  },
+}
 ```
 
 Only the tokens you change are written, as the custom properties your stylesheet
 already reads — the rest of the skin is left alone.
+
+**The two colours a game owns.** `accent` is the game's own: the buy coin wears it
+at rest, and so does every highlight on the bar. `featureBuy` is the colour a
+bought feature lights up in — while one is active the banner across the bar, the
+round button, the stake and the ladder bar all take it, and the coin turns into
+DISABLE wearing the same colour. They are separate on purpose: a game whose coin is
+cyan can still flash purple when its feature is running.
+
+### The round button
+
+One button, five faces, and the HUD picks between them from the core's state — you
+never set them:
+
+| The player sees | When |
+| --- | --- |
+| the spin arrow | idle |
+| the same arrow, dimmed | the round is out with the server (`ui.spin.busy()`) |
+| a white square | the answer is in and the round can be skipped (`ui.spin.stopState()`) |
+| ⟳▶ | the autoplay picker is open — pressing it starts the run |
+| a tile counting down | an autoplay run is going; pressing it stops the run |
+
+`--ohm-stop-scale` sizes the stop square (default `1.34`, where `1` is the
+reference's own proportion), and `--ohm-counter-bg` / `--ohm-counter-text` /
+`--ohm-counter-radius` dress the autoplay tile.
 
 ## Compliance
 

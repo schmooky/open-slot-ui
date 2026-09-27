@@ -70,7 +70,7 @@ See the doctrine in [CHARTER.md](./CHARTER.md).
 | `hud.dock` | `'bottom' \| 'top'` | Which edge the ribbon docks to (the whole bar mirrors). |
 | `hud.scale` · `hud.maxWidth` | `0.5..2` · rem | One knob scales the whole bar; the desktop plate's width cap. |
 | `hud.reveal` | `'drop' \| 'rotate' \| 'spin' \| 'twist' \| 'none'` | How a changed readout animates in. |
-| `theme` | `'default'` or safe overrides | Re-skins the bar, sheets and windows together, by tokens — colours, radii, font family and how long things take. In the markup binding these become the custom properties the stylesheet already reads, and only the tokens you changed are written. |
+| `theme` | `'default'` or safe overrides | Re-skins the bar, sheets and windows together, by tokens — colours, radii, font family and how long things take. `color.accent` is the buy coin and every highlight; `color.featureBuy` is what a bought feature lights up in (banner, round button, stake, ladder bar). In the markup binding these become the custom properties the stylesheet already reads, and only the tokens you changed are written. |
 | `turbo.modes` | `2 \| 3 \| string[]` | 2-mode toggle or 3-mode (off/turbo/super) switcher. |
 | `autoplay` | `{ mode, options, lossLimits, winLimits, requireLimits, stopOnAnyWin }` | The panel's round list and its responsible-gambling stops, including STOP ON ANY WIN for markets that want a stop a player need not express as a multiplier. |
 | `spin.press` | `'tap' \| 'hold-to-spin'` | One spin per tap, or turbo-spin while held. |

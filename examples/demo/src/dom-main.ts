@@ -107,8 +107,33 @@ const FEATURES = [
 const FORGOTTEN = new Set(['r-stats', 'r-f-ss-h', 'r-f-ss', 'r-f-ab-h', 'r-f-ab']);
 const forget = q.get('forget') === '1';
 
+/**
+ * TWO COLOURS A GAME OWNS.
+ *
+ * `?accent=RRGGBB` is the game's accent — the buy coin wears it, and so does every
+ * highlight on the bar. `?buy=RRGGBB` is the colour a BOUGHT FEATURE lights up in:
+ * the banner across the bar, the round button, the stake and the ladder bar all
+ * take it for as long as the feature is on. Try `?accent=7fe7f5&buy=a25bff`.
+ */
+const hex = (v: string | null): string | undefined => (/^#?[0-9a-f]{6}$/i.test(v ?? '') ? `#${(v as string).replace('#', '')}` : undefined);
+const accent = hex(q.get('accent'));
+const buyAccent = hex(q.get('buy'));
+const palette = accent || buyAccent
+  ? {
+      theme: {
+        overrides: {
+          color: {
+            ...(accent ? { accent, accentText: '#04202a' } : {}),
+            ...(buyAccent ? { featureBuy: buyAccent, featureBuyText: '#ffffff' } : {}),
+          },
+        },
+      },
+    }
+  : {};
+
 const SPEC: UISpec = {
   currency: money0.spec,
+  ...palette,
   betLadder: resolveBetLadder(LADDER, LADDER[Math.min(3, LADDER.length - 1)]!),
   autoplay: { options: [10, 25, 50, 75, 100, 500, 1000], lossLimits: [5, 20, 50], winLimits: [10, 20, 75] },
   rtp: 96.1,

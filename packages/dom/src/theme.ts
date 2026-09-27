@@ -43,7 +43,12 @@ const MAP: Mapping[] = [
   { get: (t) => t.color.surfaceAlt, vars: ['--ohm-surface-alt', '--hg-bg-tertiary'], rgb: ['--hg-bg-tertiary-rgb'] },
   { get: (t) => t.color.bar, vars: ['--hg-bg-user-panel'], rgb: ['--hg-bg-user-panel-rgb'] },
   { get: (t) => t.color.menu, vars: ['--hg-bg-main-panel'], rgb: ['--hg-bg-main-panel-rgb'] },
-  { get: (t) => t.color.featureBuy, vars: ['--hg-bg-feature-buy'], rgb: ['--hg-bg-feature-buy-rgb'] },
+  // ONE TOKEN, TWO JOBS. The skin paints the buy coin with it and, while a bought
+  // feature is on, re-points its whole accent at it — so the banner, the round
+  // button, the stake and the ladder bar all take the game's buy colour. Setting
+  // this is how a game says "my feature colour is cyan", not just "my coin is".
+  { get: (t) => t.color.featureBuy, vars: ['--ohm-feature-buy', '--hg-bg-feature-buy'], rgb: ['--hg-bg-feature-buy-rgb'] },
+  { get: (t) => t.color.featureBuyText, vars: ['--ohm-feature-buy-text'] },
   { get: (t) => t.color.edge, vars: ['--ohm-rule', '--hg-border-color'], rgb: ['--hg-border-color-rgb'] },
   { get: (t) => t.color.danger, vars: ['--ohm-danger'] },
   // ── shape and type ────────────────────────────────────────────────────────

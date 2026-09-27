@@ -229,3 +229,55 @@ describe('the rest of the switchboard, in the markup', () => {
     expect(hud.ui.bet.get()).toBe(stake);
   });
 });
+
+describe('the round button and the colours a game owns', () => {
+  it('paints the buy coin from the accent and the activation from the feature colour', () => {
+    mount({ theme: { overrides: { color: { accent: '#7fe7f5', featureBuy: '#a25bff', featureBuyText: '#04202a' } } } });
+    const root = document.querySelector<HTMLElement>('.OpenSlotUiContainer')!;
+    // the coin, and every highlight on the bar
+    expect(root.style.getPropertyValue('--hg-bg-accent')).toBe('#7fe7f5');
+    // what a bought feature lights up: the banner, the round button, the stake, the bar
+    expect(root.style.getPropertyValue('--hg-bg-feature-buy')).toBe('#a25bff');
+    expect(root.style.getPropertyValue('--hg-bg-feature-buy-rgb')).toBe('162, 91, 255');
+    expect(root.style.getPropertyValue('--ohm-feature-buy-text')).toBe('#04202a');
+  });
+
+  it('turns the coin into DISABLE while a bought modifier is on', () => {
+    const h = mount({});
+    const coin = document.getElementById('FeatureBuyToggle')!;
+    const wrapper = document.querySelector('.UiUserPanelWrapper')!;
+    expect(wrapper.className).not.toContain('bet-modifier-active');
+    h.ui.setBetModifier({ id: 'ante', name: 'ANTE BET', cost: 0.25 });
+    expect(wrapper.className).toContain('bet-modifier-active');
+    expect(coin.textContent!.trim()).toBe('DISABLE');
+    const pressed: string[] = [];
+    h.on('buttonActivated', (p) => pressed.push(p.id));
+    coin.click();
+    expect(pressed).toEqual(['disable-modifier']); // it disables; it does not re-open the sheet
+  });
+
+  it('counts an autoplay run down on the round button', () => {
+    const h = mount({ autoplay: { options: [10, 25] } });
+    h.ui.autoplay.begin(10, {});
+    expect(document.querySelector<HTMLElement>('.OpenSlotUiContainer')!.dataset.state).toBe('autoplay');
+    expect(document.getElementById('AutoplayCounter')!.textContent).toBe('10');
+    h.ui.autoplay.reportResult(0, 1);
+    expect(document.getElementById('AutoplayCounter')!.textContent).toBe('9');
+  });
+
+  it('shows the free-spins strip instead of the action panel inside a feature', () => {
+    const h = mount({});
+    h.setFreeSpins(10);
+    h.setHudState('featurePlay');
+    expect(document.querySelector<HTMLElement>('.OpenSlotUiContainer')!.dataset.state).toBe('featurePlay-freespins');
+    expect(document.getElementById('FeatureCounterValue')!.textContent).toBe('10');
+  });
+
+  it('ships the rules that size the stop square and draw the counter tile', () => {
+    mount({});
+    const sheets = [...document.querySelectorAll('style')].map((s) => s.textContent ?? '').join('\n');
+    expect(sheets).toContain('--ohm-stop-scale');
+    expect(sheets).toContain('#StopAutoplayBtn .AutoplayCounter');
+    expect(sheets).toContain('[data-state^="feature"] .ToggleButton--feature-buy');
+  });
+});

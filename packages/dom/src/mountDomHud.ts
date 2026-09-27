@@ -630,6 +630,54 @@ div[data-channel="mobile"] .GameInfoWindow .GameInfo__body { overflow-y: auto; }
   overscroll-behavior: contain;
 }
 
+/* ── THE ROUND BUTTON'S THREE FACES ─────────────────────────────────────────
+   The skin sizes the slam-stop square at 3.25rem in a 7rem button — under half of
+   it — and next to the spin arrow (5.4rem) it reads as a hesitation rather than a
+   stop. It is scaled here through a variable, so a game that wants the reference's
+   exact proportion sets --ohm-stop-scale to 1. */
+.CircleButton--stop-round span[class^="icon-"] {
+  font-size: calc(var(--hg-btn-font-size, 3.25rem) * var(--ohm-stop-scale, 1.34));
+}
+
+/* WHILE AN AUTOPLAY RUN IS GOING the round button counts it down. The reference
+   draws that as a white tile with the number in it — but only on a portrait phone;
+   everywhere else the count is grey text laid over the stop glyph, which is hard to
+   read and says less. The tile is the better idea, so it is used at every size. */
+[data-state="autoplay"] #StopAutoplayBtn span[class^="icon-"],
+[data-state="gameRoundEnterAutoplay"] #StopAutoplayBtn span[class^="icon-"] {
+  visibility: hidden;
+}
+[data-state="autoplay"] #StopAutoplayBtn .AutoplayCounter,
+[data-state="gameRoundEnterAutoplay"] #StopAutoplayBtn .AutoplayCounter {
+  background: var(--ohm-counter-bg, #fff);
+  border-radius: var(--ohm-counter-radius, 8px);
+  color: var(--ohm-counter-text, #000);
+  display: flex;
+  font-size: var(--ohm-counter-size, 1.5rem);
+  font-weight: 800;
+  inset: 50% auto auto 50%;
+  justify-content: center;
+  line-height: 1;
+  min-width: 2.2em;
+  padding: 0.35em 0.2em;
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+
+/* A FEATURE YOU BOUGHT IS RUNNING, so there is nothing to buy: the coin steps back
+   for as long as it lasts, the way it does at the end of an autoplay run. */
+[data-state^="feature"] .ToggleButton--feature-buy,
+.ToggleButton--feature-buy.is-disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* The buy coin's own ink. The skin hard-codes black on the coin; a game whose buy
+   colour is dark needs to say otherwise, and theme.color.featureBuyText does. */
+.ToggleButton--feature-buy {
+  color: var(--ohm-feature-buy-text, #000);
+}
+
 /* A WINDOW ON A PHONE IS THE SCREEN, so it goes above the bar.
    The skin stacks the bar over the windows (1311 over 1300), which is right on a
    desktop: the sheet is a centred column and the bar stays lit either side of it.
