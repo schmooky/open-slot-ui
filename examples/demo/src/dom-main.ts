@@ -132,6 +132,10 @@ async function main(): Promise<void> {
 
   const hud = mountDomHud(SPEC, {
     skin: { href: skinHref, font: { family: 'icomoon', src: iconFont } },
+    // `?channel=desktop` (or `mobile`) forces the layout the stylesheet lays out
+    // for, the way an operator's own URL does. Without it the HUD decides: a touch
+    // pointer or a genuinely small window means the touch bar.
+    ...(q.get('channel') === 'desktop' || q.get('channel') === 'mobile' ? { channel: q.get('channel') as 'desktop' | 'mobile' } : {}),
     features: FEATURES,
     onBuy: (id, cost) => {
       const feature = FEATURES.find((f) => f.id === id);

@@ -630,6 +630,16 @@ div[data-channel="mobile"] .GameInfoWindow .GameInfo__body { overflow-y: auto; }
   overscroll-behavior: contain;
 }
 
+/* A WINDOW ON A PHONE IS THE SCREEN, so it goes above the bar.
+   The skin stacks the bar over the windows (1311 over 1300), which is right on a
+   desktop: the sheet is a centred column and the bar stays lit either side of it.
+   On a touch layout the same sheet fills the screen, so the bar lands ON TOP of the
+   text — the round button through the rules, the coin over the paytable. There, and
+   only there, the window comes forward. */
+div[data-channel="mobile"] .Modal.is-visible {
+  z-index: 1320;
+}
+
 /* ── MOTION ─────────────────────────────────────────────────────────────────
    The skin transitions its buttons and nothing else: a window appears, a sheet
    appears, a number changes, all instantly. These are the four the HUD is missing,
