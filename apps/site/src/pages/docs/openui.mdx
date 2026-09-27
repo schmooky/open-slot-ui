@@ -33,6 +33,12 @@ const hud = mountHud(app, spec?, opts?);
 | `ready` | `(): void` | Hide the boot spinner. There is none unless `mountDomHud(spec, { spinner: true })` asked for one — most clients have their own loading screen behind the bar. |
 | `dispose` | `(): void` | Remove the layer + every listener, tween and timer. |
 
+`mountDomHud`'s `opts` also carry the browser-side knobs: `spinner` (off by
+default), `icons` (swap any of the bar's glyph classes), `motion`
+(`'auto' | 'full' | 'reduced' | 'none'`, where `auto` follows the player's
+`prefers-reduced-motion`), and `keyboard` (spacebar spins, Escape closes, arrows
+step the stake — or `{ enabled: false }`).
+
 The `spec` is the [`UISpec`](/guides/configuration/); `opts` carries renderer art
 (`icons`, `spinSkin`, `controlSkins`) and `hooks`. Prefer `mountHud` — drop to the
 classes below only for custom wiring.

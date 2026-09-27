@@ -14,6 +14,7 @@ import {
   type JurisdictionConfig,
   type NoticeOptions,
   type RgsErrorOptions,
+  readoutElement,
 } from '@open-slot-ui/core';
 import {
   TPL_PROGRESS_INDICATOR,
@@ -27,6 +28,9 @@ import {
   TPL_CORE_OVERLAY,
   TPL_UI_WRAPPER,
 } from './template';
+import { resolveIcons, applyIcons, type IconSet } from './icons';
+import { themeVars, resolveMotion, type MotionSetting } from './theme';
+import { bindKeyboard, type KeyboardOptions } from './keyboard';
 import { bindReadouts, bindActions, bindMainMenu, bindAutoplay, bindWindows, bindOverlay, stateAttr, type BindContext } from './bindings';
 import { translateTree } from './i18n';
 import { $, on, toggleClass } from './dom';
@@ -74,6 +78,23 @@ export interface DomHudOptions {
    * for it, and hide it with `ready()` as before.
    */
   spinner?: boolean;
+  /**
+   * Swap any of the bar's glyphs. Defaults are the reference skin's own classes;
+   * a studio whose icon font names them differently — or who wants another arrow
+   * on the bet changers — passes the ones it has.
+   */
+  icons?: Partial<IconSet>;
+  /**
+   * How much the HUD is allowed to move. `'auto'` (the default) follows the
+   * player's own `prefers-reduced-motion` setting; `'full'` and `'none'` are the
+   * host overriding it, and `'reduced'` keeps the fades and drops the travel.
+   */
+  motion?: MotionSetting;
+  /**
+   * The keys the HUD answers. Spacebar spins, Escape closes what is in front, the
+   * arrows step the stake; `{ enabled: false }` leaves the keyboard to the game.
+   */
+  keyboard?: KeyboardOptions;
   /** Design width of the desktop bar in px, for the fit. Default 840 (52.5rem). */
   designWidth?: number;
   /** Clamp on the fit scale. Default `[0.7, 1.6]`. */
@@ -165,6 +186,33 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
   const menuList = root.querySelector('#MainMenu ul');
   if (menuList) menuList.innerHTML = menuItemsHtml(ui.chrome.menu, ui.chrome.speeds);
 
+  // A theme reaches the markup the only way a stylesheet can be reasoned with:
+  // through the custom properties it already reads. Only what the host changed is
+  // written, so a game that themed its accent keeps the skin's everything else.
+  for (const [name, value] of Object.entries(themeVars(ui.theme))) root.style.setProperty(name, value);
+
+  // How much is allowed to move. The rules this package adds are gated on it, and
+  // a host that says nothing gets what the player asked their system for.
+  const motion = resolveMotion(opts.motion);
+  root.dataset.motion = motion;
+
+  const icons = resolveIcons(opts.icons);
+  applyIcons(root, icons);
+
+  // The data panel reads left to right in the order the chrome resolved, and shows
+  // only what it listed. The markup ships all five in the reference's order; this
+  // moves them and drops the rest, so an operator who wants the stake first — or
+  // no balance at all, which some jurisdictions ask for — gets it.
+  const dataPanel = root.querySelector('.DataPanel__container');
+  if (dataPanel) {
+    const wanted = ui.chrome.readouts.map(readoutElement);
+    for (const el of [...dataPanel.children]) if (!wanted.includes(el.id)) el.remove();
+    for (const id of wanted) {
+      const el = root.querySelector(`#${id}`);
+      if (el) dataPanel.appendChild(el);
+    }
+  }
+
   /**
    * THE FIRST FRAMES.
    *
@@ -241,6 +289,9 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
   if (!f.betWidget) $(root, 'BetAmountItem')?.remove();
   if (!f.betProgress) $(root, 'BetAmountIndicatorProgress')?.closest('.BetAmountProgressbar')?.remove();
   if (!f.autoplayAdvanced) $(root, 'AdvancedAutoplaySections')?.remove();
+  // STOP ON ANY WIN is a stop a game opts into; without it the row would promise
+  // something no jurisdiction asked for and no host is feeding.
+  if (!spec.autoplay?.stopOnAnyWin) $(root, 'StopOnAnyWinSection')?.remove();
   if (!f.feedback) $(root, 'FeedbackMsg')?.remove();
   if (!f.clock) $(root, 'Clock')?.remove();
   if (!f.sessionBar) $(root, 'SessionBar')?.remove();
@@ -262,6 +313,7 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
 
   const ctx: BindContext = {
     root,
+    icons,
     buyPanel,
     panel: $(root, 'MainPanel'),
     features: opts.features ?? [],
@@ -283,6 +335,7 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
     bindAutoplay(ui, ctx),
     bindWindows(ui, ctx),
     bindOverlay(ui, ctx),
+    bindKeyboard(ui, opts.keyboard),
   );
 
   // ── the attributes the stylesheet lays out from ───────────────────────────
@@ -576,6 +629,57 @@ div[data-channel="mobile"] .GameInfoWindow .GameInfo__body { overflow-y: auto; }
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
+
+/* ── MOTION ─────────────────────────────────────────────────────────────────
+   The skin transitions its buttons and nothing else: a window appears, a sheet
+   appears, a number changes, all instantly. These are the four the HUD is missing,
+   written against the theme's own durations and gated on the data-motion attribute,
+   so a host
+   can turn them down or off and a player who asked their system for less motion
+   gets less without asking anyone.
+
+   Every rule is additive: with motion off the HUD is exactly what it was. */
+[data-motion="full"] .Modal.is-visible,
+[data-motion="reduced"] .Modal.is-visible {
+  animation: ohm-fade var(--ohm-motion-base, 200ms) ease-out;
+}
+[data-motion="full"] .Modal.is-visible .Modal__container {
+  animation: ohm-rise var(--ohm-motion-base, 200ms) cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+[data-motion="full"] .MainMenu.is-visible,
+[data-motion="full"] .AutoplayMenu.is-visible {
+  animation: ohm-sheet var(--ohm-motion-base, 200ms) cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+[data-motion="reduced"] .MainMenu.is-visible,
+[data-motion="reduced"] .AutoplayMenu.is-visible {
+  animation: ohm-fade var(--ohm-motion-fast, 125ms) ease-out;
+}
+/* A value that changed says so — the reference just swaps the text, and a balance
+   that moves while the player is looking elsewhere is a balance they did not see
+   move. */
+[data-motion="full"] .DataPanelItem__value.is-changed,
+[data-motion="full"] .BetAmountWidget__value.is-changed {
+  animation: ohm-bump var(--ohm-motion-slow, 360ms) ease-out;
+}
+[data-motion="reduced"] .DataPanelItem__value.is-changed,
+[data-motion="reduced"] .BetAmountWidget__value.is-changed {
+  animation: ohm-tint var(--ohm-motion-base, 200ms) ease-out;
+}
+[data-motion="full"] #FeedbackMsg.is-visible {
+  animation: ohm-feedback var(--ohm-motion-slow, 360ms) ease-out;
+}
+/* The ladder bar under the stake slides to its new length instead of jumping. */
+[data-motion="full"] .BetAmountProgressbar__inner,
+[data-motion="reduced"] .BetAmountProgressbar__inner {
+  transition: width var(--ohm-motion-fast, 125ms) linear;
+}
+
+@keyframes ohm-fade { from { opacity: 0; } }
+@keyframes ohm-rise { from { opacity: 0; transform: translateY(12px) scale(0.985); } }
+@keyframes ohm-sheet { from { opacity: 0; transform: translateY(10px); } }
+@keyframes ohm-bump { 0% { transform: scale(1); } 28% { transform: scale(1.07); color: var(--ohm-accent, var(--hg-bg-accent, #ffc529)); } 100% { transform: scale(1); } }
+@keyframes ohm-tint { 0% { color: var(--ohm-accent, var(--hg-bg-accent, #ffc529)); } 100% { color: inherit; } }
+@keyframes ohm-feedback { from { opacity: 0; transform: translateY(4px); } }
 `;
 
 /**

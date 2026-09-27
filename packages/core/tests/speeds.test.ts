@@ -118,3 +118,48 @@ describe('the main menu a game declares', () => {
     expect(issues.map((i) => i.code)).toEqual(['unknown-menu-item', 'unknown-speed', 'bad-menu-item']);
   });
 });
+
+/** A support row, a link, a readout order, a stop the player understands. */
+describe('the rest of the switchboard', () => {
+  it('gives a support row a page to open, in a tab of its own', () => {
+    const rows = resolveHudChrome({ menu: [{ kind: 'support', href: 'https://help.example' }] }).menu;
+    expect(rows[0]).toMatchObject({ id: 'support', kind: 'support', href: 'https://help.example', target: '_blank' });
+  });
+
+  it('lets any row carry a link, and keeps the lobby in the same window', () => {
+    const rows = resolveHudChrome({ menu: [{ kind: 'lobby', href: '/lobby' }, { kind: 'action', id: 'terms', href: 'https://t.example' }] }).menu;
+    expect(rows[0]).toMatchObject({ href: '/lobby', target: '_self' });
+    expect(rows[1]).toMatchObject({ href: 'https://t.example', target: '_blank' });
+  });
+
+  it('orders the readouts the way the game asks, and drops what it left out', () => {
+    expect(defaultHudChrome.readouts).toEqual(['freeRounds', 'balance', 'bet', 'freeRoundsWin', 'win']);
+    expect(resolveHudChrome({ readouts: ['bet', 'balance'] }).readouts).toEqual(['bet', 'balance']);
+    expect(resolveHudChrome({ features: { win: false, freeRounds: false } }).readouts).toEqual(['balance', 'bet']);
+  });
+
+  it('reports a readout it does not know and keeps the rest', () => {
+    const issues: ChromeIssue[] = [];
+    // @ts-expect-error — a host can send anything
+    const out = resolveHudChrome({ readouts: ['balance', 'jackpot'] }, (i) => issues.push(i));
+    expect(out.readouts).toEqual(['balance']);
+    expect(issues[0]!.code).toBe('unknown-readout');
+  });
+
+  it('stops an autoplay run on any win when the player asked it to', () => {
+    const ui = createUI({ autoplay: { options: [10], stopOnAnyWin: true } });
+    ui.autoplay.begin(10, { stopOnAnyWin: true });
+    expect(ui.autoplay.isActive).toBe(true);
+    ui.autoplay.reportResult(0, 1); // a losing round does not stop it
+    expect(ui.autoplay.isActive).toBe(true);
+    ui.autoplay.reportResult(0.5, 1); // any win does
+    expect(ui.autoplay.isActive).toBe(false);
+  });
+
+  it('leaves the run alone on a small win when nobody asked', () => {
+    const ui = createUI({ autoplay: { options: [10] } });
+    ui.autoplay.begin(10, {});
+    ui.autoplay.reportResult(0.5, 1);
+    expect(ui.autoplay.isActive).toBe(true);
+  });
+});

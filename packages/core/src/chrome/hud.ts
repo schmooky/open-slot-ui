@@ -171,7 +171,7 @@ export const defaultSpeeds: readonly SpeedConfig[] = Object.freeze([
  * knows how to wire; `action` is the game's own, which reports a press and leaves
  * the doing to the host.
  */
-export type MenuItemKind = 'sound' | 'music' | 'speed' | 'history' | 'info' | 'realMoney' | 'deposit' | 'lobby' | 'action';
+export type MenuItemKind = 'sound' | 'music' | 'speed' | 'history' | 'info' | 'support' | 'realMoney' | 'deposit' | 'lobby' | 'action';
 
 /** A row in the main menu. */
 export interface MenuItemSpec {
@@ -184,6 +184,17 @@ export interface MenuItemSpec {
   label?: string;
   /** Icon class. Default: the kind's own; for a speed, the speed's. */
   icon?: string;
+  /**
+   * A page this row opens — support, terms, the operator's lobby.
+   *
+   * Without it a row only reports its press and the host does the rest, which
+   * means every game that wants a SUPPORT row writes the same three lines. With
+   * it the HUD opens the page itself, and still reports the press so a host that
+   * wants to intercept can.
+   */
+  href?: string;
+  /** Where to open it. Default `_blank` for a support page, `_self` for the lobby. */
+  target?: '_self' | '_blank';
 }
 
 /** A resolved menu row. */
@@ -193,21 +204,47 @@ export interface MenuItemConfig {
   speed?: string;
   label: string;
   icon: string;
+  href?: string;
+  target: '_self' | '_blank';
 }
 
 /** The default label and icon of each built-in row. */
-const MENU_DEFAULTS: Record<Exclude<MenuItemKind, 'speed' | 'action'>, { label: string; icon: string; feature: HudFeatureId }> = {
-  sound: { label: 'sound', icon: 'icon-sound-on', feature: 'sound' },
-  music: { label: 'music', icon: 'icon-music-on', feature: 'music' },
-  history: { label: 'history', icon: 'icon-history', feature: 'history' },
-  info: { label: 'info_uc', icon: 'icon-info-a', feature: 'info' },
-  realMoney: { label: 'real_money_uc', icon: 'icon-chip', feature: 'realMoney' },
-  deposit: { label: 'deposit_uc', icon: 'icon-coins', feature: 'deposit' },
-  lobby: { label: 'home', icon: 'icon-home', feature: 'lobby' },
+const MENU_DEFAULTS: Record<Exclude<MenuItemKind, 'speed' | 'action'>, { label: string; icon: string; feature: HudFeatureId; target?: '_self' | '_blank'; inDefault?: boolean }> = {
+  sound: { label: 'sound', icon: 'icon-sound-on', feature: 'sound', inDefault: true },
+  music: { label: 'music', icon: 'icon-music-on', feature: 'music', inDefault: true },
+  history: { label: 'history', icon: 'icon-history', feature: 'history', inDefault: true },
+  info: { label: 'info_uc', icon: 'icon-info-a', feature: 'info', inDefault: true },
+  // SUPPORT is a page, so it opens in a tab and is never in the default menu: a
+  // game only has one if the operator gave it a URL.
+  support: { label: 'support_uc', icon: 'icon-info-b', feature: 'info', target: '_blank' },
+  realMoney: { label: 'real_money_uc', icon: 'icon-chip', feature: 'realMoney', inDefault: true },
+  deposit: { label: 'deposit_uc', icon: 'icon-coins', feature: 'deposit', inDefault: true },
+  lobby: { label: 'home', icon: 'icon-home', feature: 'lobby', inDefault: true },
 };
 
 /** The ids of the rows the library knows how to wire by itself. */
 export const MENU_KINDS = Object.freeze(Object.keys(MENU_DEFAULTS) as Array<keyof typeof MENU_DEFAULTS>);
+
+// ─── the data panel ──────────────────────────────────────────────────────────
+
+/** The readouts the bar can show, left to right. */
+export type ReadoutId = 'freeRounds' | 'balance' | 'bet' | 'freeRoundsWin' | 'win';
+
+/** Which feature flag each readout answers to, and the element it is. */
+const READOUTS: Record<ReadoutId, { feature: HudFeatureId; element: string }> = {
+  freeRounds: { feature: 'freeRounds', element: 'FreeRoundsCounterItem' },
+  balance: { feature: 'balance', element: 'BalanceItem' },
+  bet: { feature: 'betReadout', element: 'BetAmountStaticItem' },
+  freeRoundsWin: { feature: 'freeRounds', element: 'FreeRoundsWinItem' },
+  win: { feature: 'win', element: 'WinAmountItem' },
+};
+
+export const READOUT_IDS = Object.freeze(Object.keys(READOUTS) as ReadoutId[]);
+
+/** The element a readout is, so a binding can order the panel without a lookup table of its own. */
+export function readoutElement(id: ReadoutId): string {
+  return READOUTS[id].element;
+}
 
 export const HUD_FEATURE_IDS = Object.freeze(Object.keys(defaultHudFeatures) as HudFeatureId[]);
 
@@ -230,6 +267,12 @@ export interface HudChromeSpec {
    */
   speeds?: SpeedSpec[];
   /**
+   * Which readouts the data panel shows, left to right. Default: free rounds,
+   * balance, bet, free-round win, win — the reference's order, gated by the same
+   * feature flags. An operator who wants the stake first says so here.
+   */
+  readouts?: ReadoutId[];
+  /**
    * The main menu, row by row, in order. Default: the built-in rows their feature
    * flags leave on, with one row per speed between the audio rows and HISTORY —
    * the order the reference uses.
@@ -251,6 +294,8 @@ export interface HudChrome {
   speeds: readonly SpeedConfig[];
   /** The main menu's rows, in order, resolved. */
   menu: readonly MenuItemConfig[];
+  /** The data panel's readouts, left to right, resolved. */
+  readouts: readonly ReadoutId[];
   winRepresentation: WinRepresentation;
   reveal: RevealBehavior;
   scale: number;
@@ -276,12 +321,17 @@ export function resolveSpeed(spec: SpeedSpec): SpeedConfig {
 export function defaultMenu(features: Readonly<HudFeatures>, speeds: readonly SpeedConfig[]): MenuItemConfig[] {
   const row = (kind: keyof typeof MENU_DEFAULTS): MenuItemConfig | null => {
     const d = MENU_DEFAULTS[kind];
-    return features[d.feature] ? { id: kind, kind, label: d.label, icon: d.icon } : null;
+    return features[d.feature] ? { id: kind, kind, label: d.label, icon: d.icon, target: d.target ?? '_self' } : null;
   };
-  const speedRows: MenuItemConfig[] = speeds.map((s) => ({ id: s.id, kind: 'speed' as const, speed: s.id, label: s.name, icon: `${s.icon}-off` }));
+  const speedRows: MenuItemConfig[] = speeds.map((s) => ({ id: s.id, kind: 'speed' as const, speed: s.id, label: s.name, icon: `${s.icon}-off`, target: '_self' as const }));
   return [row('sound'), row('music'), ...speedRows, row('history'), row('info'), row('realMoney'), row('deposit'), row('lobby')].filter(
     (r): r is MenuItemConfig => r !== null,
   );
+}
+
+/** The readouts a set of feature flags asks for, in the reference's order. */
+export function defaultReadouts(features: Readonly<HudFeatures>): ReadoutId[] {
+  return READOUT_IDS.filter((id) => features[READOUTS[id].feature]);
 }
 
 export const defaultHudChrome: Readonly<HudChrome> = Object.freeze({
@@ -289,6 +339,7 @@ export const defaultHudChrome: Readonly<HudChrome> = Object.freeze({
   features: defaultHudFeatures,
   speeds: Object.freeze(defaultSpeeds.filter((s) => s.id !== 'super-turbo')),
   menu: Object.freeze(defaultMenu(defaultHudFeatures, defaultSpeeds.filter((s) => s.id !== 'super-turbo'))),
+  readouts: Object.freeze(defaultReadouts(defaultHudFeatures)),
   winRepresentation: 'ticker' as WinRepresentation,
   reveal: 'drop' as RevealBehavior,
   scale: 1,
@@ -389,7 +440,7 @@ export function resolveHudChrome(spec?: HudChromeSpec, onIssue?: (i: ChromeIssue
           onIssue?.({ level: 'warn', path: `hud.menu[${i}]`, code: 'unknown-speed', message: `"${String(speedId)}" is not one of the speeds — dropped` });
           continue;
         }
-        menu.push({ id: entry.id ?? speed.id, kind, speed: speed.id, label: entry.label ?? speed.name, icon: entry.icon ?? `${speed.icon}-off` });
+        menu.push({ id: entry.id ?? speed.id, kind, speed: speed.id, label: entry.label ?? speed.name, icon: entry.icon ?? `${speed.icon}-off`, target: entry.target ?? '_self' });
         continue;
       }
       if (kind === 'action') {
@@ -397,14 +448,30 @@ export function resolveHudChrome(spec?: HudChromeSpec, onIssue?: (i: ChromeIssue
           onIssue?.({ level: 'warn', path: `hud.menu[${i}]`, code: 'bad-menu-item', message: 'an action row needs an id — dropped' });
           continue;
         }
-        menu.push({ id: entry.id, kind, label: entry.label ?? entry.id, icon: entry.icon ?? 'icon-dots' });
+        menu.push({ id: entry.id, kind, label: entry.label ?? entry.id, icon: entry.icon ?? 'icon-dots', href: entry.href, target: entry.target ?? '_blank' });
         continue;
       }
       const d = MENU_DEFAULTS[kind];
-      menu.push({ id: entry.id ?? kind, kind, label: entry.label ?? d.label, icon: entry.icon ?? d.icon });
+      menu.push({ id: entry.id ?? kind, kind, label: entry.label ?? d.label, icon: entry.icon ?? d.icon, href: entry.href, target: entry.target ?? d.target ?? '_self' });
     }
   } else {
     menu = defaultMenu(features, speeds);
+  }
+
+  // ── the data panel ────────────────────────────────────────────────────────
+  let readouts: ReadoutId[];
+  if (spec.readouts) {
+    readouts = [];
+    for (const [i, id] of spec.readouts.entries()) {
+      if (!READOUT_IDS.includes(id)) {
+        onIssue?.({ level: 'warn', path: `hud.readouts[${i}]`, code: 'unknown-readout', message: `"${String(id)}" is not a readout — dropped` });
+        continue;
+      }
+      if (readouts.includes(id)) continue;
+      readouts.push(id);
+    }
+  } else {
+    readouts = defaultReadouts(features);
   }
 
   return Object.freeze({
@@ -412,6 +479,7 @@ export function resolveHudChrome(spec?: HudChromeSpec, onIssue?: (i: ChromeIssue
     features: Object.freeze(features),
     speeds: Object.freeze(speeds),
     menu: Object.freeze(menu),
+    readouts: Object.freeze(readouts),
     winRepresentation: pick(spec.winRepresentation, WIN_REPS, defaultHudChrome.winRepresentation, 'hud.winRepresentation'),
     reveal: pick(spec.reveal, REVEALS, defaultHudChrome.reveal, 'hud.reveal'),
     scale: num(spec.scale, 0.5, 2, defaultHudChrome.scale, 'hud.scale'),

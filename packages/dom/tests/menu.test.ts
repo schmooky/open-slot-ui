@@ -97,3 +97,135 @@ describe('the boot spinner', () => {
     expect(spinner.className).not.toContain('is-visible');
   });
 });
+
+describe('the look a host can configure', () => {
+  it('writes only the theme tokens the host changed', () => {
+    mount({ theme: { color: { accent: '#00ff00' } } });
+    const root = document.querySelector<HTMLElement>('.HacksawCasinoUiContainer')!;
+    expect(root.style.getPropertyValue('--hg-bg-accent')).toBe('#00ff00');
+    // ...and its faded copies, or the HUD ends up two-toned
+    expect(root.style.getPropertyValue('--hg-bg-accent-rgb')).toBe('0, 255, 0');
+    // untouched tokens are left to the stylesheet
+    expect(root.style.getPropertyValue('--hg-text-primary')).toBe('');
+    expect(root.style.getPropertyValue('--hg-bg-secondary')).toBe('');
+  });
+
+  it('leaves the skin alone when no theme is given', () => {
+    mount({});
+    const root = document.querySelector<HTMLElement>('.HacksawCasinoUiContainer')!;
+    expect(root.getAttribute('style') ?? '').not.toContain('--hg-');
+  });
+
+  it('publishes the motion durations a theme asks for', () => {
+    mount({ theme: { overrides: { motion: { base: 400 } } } });
+    const root = document.querySelector<HTMLElement>('.HacksawCasinoUiContainer')!;
+    expect(root.style.getPropertyValue('--ohm-motion-base')).toBe('400ms');
+    expect(root.style.getPropertyValue('--hg-ui-transition-duration')).toBe('400ms');
+  });
+
+  it('says how much may move, and takes the host over the player', () => {
+    mount({});
+    expect(document.querySelector<HTMLElement>('.HacksawCasinoUiContainer')!.dataset.motion).toBe('full');
+    hud!.dispose();
+    hud = mountDomHud({}, { motion: 'none' });
+    expect(document.querySelector<HTMLElement>('.HacksawCasinoUiContainer')!.dataset.motion).toBe('none');
+  });
+
+  it('swaps the glyphs a host names, and keeps the skin classes beside them', () => {
+    mount({}, { icons: { spin: 'icon-play', betUp: 'icon-plus', menu: 'icon-dots' } });
+    expect(document.querySelector('#PlaceBetBtn [class^="icon-"]')!.className).toBe('icon-play branding-logo');
+    expect(document.querySelector('#BetAmountIncrease [class^="icon-"]')!.className).toBe('icon-plus');
+    expect(document.querySelector('#MainMenuToggle [class^="icon-"]')!.className).toBe('icon-dots');
+    // the ones it did not name keep the reference's
+    expect(document.querySelector('#BetAmountDecrease [class^="icon-"]')!.className).toBe('icon-arrow-down');
+  });
+
+  it("uses a host's sound glyphs when the row is switched", () => {
+    const h = mount({}, { icons: { soundOff: 'icon-quiet' } });
+    document.getElementById('MainMenuToggle')!.click();
+    document.getElementById('SoundToggle')!.click();
+    expect(h.ui.sfxSlider.value.get()).toBe(0);
+    expect(document.querySelector('#SoundToggle [class^="icon-"]')!.className).toBe('icon-quiet');
+  });
+
+  it('marks a readout that changed so the stylesheet can say so', () => {
+    const h = mount({});
+    const value = document.getElementById('BalanceValue')!;
+    // The first paint is not a change — nothing moved, the HUD just arrived.
+    expect(value.className).not.toContain('is-changed');
+    h.setBalance(20);
+    expect(value.className).toContain('is-changed');
+  });
+});
+
+describe('the rest of the switchboard, in the markup', () => {
+  it('orders the data panel the way the spec asks', () => {
+    mount({ hud: { readouts: ['bet', 'balance'] } });
+    const items = [...document.querySelectorAll('.DataPanel__container > *')].map((el) => el.id);
+    expect(items).toEqual(['BetAmountStaticItem', 'BalanceItem']);
+  });
+
+  it('opens a row that was given a page, without a handle back to the game', () => {
+    const opened: unknown[] = [];
+    const realOpen = window.open;
+    (window as { open: unknown }).open = (...args: unknown[]) => {
+      opened.push(args);
+      return null;
+    };
+    const h = mount({ hud: { menu: [{ kind: 'support', href: 'https://help.example' }] } });
+    const pressed: string[] = [];
+    h.on('buttonActivated', (p) => pressed.push(p.id));
+    document.getElementById('SupportBtn')!.click();
+    expect(opened).toEqual([['https://help.example', '_blank', 'noopener,noreferrer']]);
+    // the press is still reported, so a host can handle it instead
+    expect(pressed).toEqual(['support']);
+    (window as { open: unknown }).open = realOpen;
+  });
+
+  it('offers STOP ON ANY WIN only when the game does', () => {
+    mount({});
+    expect(document.getElementById('StopOnAnyWinSection')).toBeNull();
+    hud!.dispose();
+    hud = mountDomHud({ autoplay: { options: [10], stopOnAnyWin: true } });
+    const toggle = document.getElementById('StopOnAnyWinToggle') as HTMLInputElement;
+    expect(toggle).not.toBeNull();
+    toggle.dispatchEvent(new Event('change'));
+    expect(hud.ui.stopOnAnyWin.isOn).toBe(true);
+  });
+
+  it('spins on the spacebar, and not while a window is up or a field has the caret', () => {
+    const h = mount({});
+    const spins: number[] = [];
+    h.on('spinRequested', () => spins.push(1));
+    const press = (key: string, target: EventTarget = document.body): void => {
+      const e = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      target.dispatchEvent(e);
+    };
+    press(' ');
+    expect(spins.length).toBe(1);
+    // a window in front takes the keyboard
+    h.ui.settingsPanel.openPanel();
+    press(' ');
+    expect(spins.length).toBe(1);
+    press('Escape');
+    expect(h.ui.settingsPanel.isOpen).toBe(false);
+    // ...and a field the player is typing in owns its own space bar
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    press(' ', input);
+    expect(spins.length).toBe(1);
+    input.remove();
+  });
+
+  it('steps the stake with the arrows, and can be switched off entirely', () => {
+    const h = mount({});
+    const before = h.ui.bet.get();
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    expect(h.ui.bet.get()).toBeGreaterThan(before);
+    hud!.dispose();
+    hud = mountDomHud({}, { keyboard: { enabled: false } });
+    const stake = hud.ui.bet.get();
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    expect(hud.ui.bet.get()).toBe(stake);
+  });
+});

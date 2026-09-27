@@ -8,15 +8,21 @@ export type ThemePreset = 'default';
 
 /**
  * The SAFE, curated surface a host may override (Charter P8 + "configure, don't
- * break"). Deliberately a subset of the full `Theme`: colours, corner radii, and
- * the font family — the look knobs. Structural tokens (spacing, motion timing,
- * font sizes) are NOT exposed, so a theme can restyle the HUD but cannot break its
- * layout or timing. Every value is validated/clamped at runtime too (see below).
+ * break"). Deliberately a subset of the full `Theme`: colours, corner radii, the
+ * font family and how long things take — the look knobs. Structural tokens
+ * (spacing, font sizes) are NOT exposed, so a theme can restyle the HUD but cannot
+ * break its layout. Every value is validated/clamped at runtime too (see below).
+ *
+ * Durations are here because pace is part of a game's character — a fast slot and
+ * a stately one want different ones — and because a number of milliseconds cannot
+ * break a layout. They are clamped to 0..2000ms, and 0 is a legitimate answer: it
+ * means "do not animate", which is what a host turning motion off is saying.
  */
 export interface ThemeOverrides {
   color?: Partial<Theme['color']>;
   radius?: Partial<Theme['radius']>;
   type?: { family?: string };
+  motion?: Partial<Theme['motion']>;
 }
 
 /** A reportable theme problem (structurally a `SpecIssue`, kept dependency-free). */
@@ -74,6 +80,14 @@ export function sanitizeThemeOverrides(ov: ThemeOverrides, onIssue?: (i: ThemeIs
       else onIssue?.({ level: 'warn', path: `theme.radius.${k}`, code: 'bad-radius', message: `radius "${String(v)}" must be a finite number — ignored` });
     }
     if (Object.keys(radius).length) out.radius = radius;
+  }
+  if (ov.motion) {
+    const motion: Partial<Theme['motion']> = {};
+    for (const [k, v] of Object.entries(ov.motion)) {
+      if (typeof v === 'number' && Number.isFinite(v)) motion[k as keyof Theme['motion']] = clamp(v, 0, 2000);
+      else onIssue?.({ level: 'warn', path: `theme.motion.${k}`, code: 'bad-duration', message: `duration "${String(v)}" must be a finite number of milliseconds — ignored` });
+    }
+    if (Object.keys(motion).length) out.motion = motion;
   }
   if (ov.type?.family != null) {
     if (typeof ov.type.family === 'string' && ov.type.family.trim()) out.type = { family: ov.type.family };

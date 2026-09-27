@@ -275,6 +275,12 @@ export interface UISpec {
      *  may start. With this on, the panel's START stays disabled until both are chosen
      *  and says which one is missing — the reference's own behavior. */
     requireLimits?: boolean;
+    /**
+     * Offer STOP ON ANY WIN in the ADVANCED section — a stop a player does not have
+     * to express as a multiple of their stake. Off by default; the row only exists
+     * when a game asks for it.
+     */
+    stopOnAnyWin?: boolean;
   };
   /** Turbo switcher: 2-mode (off/on) or 3-mode (off/turbo/super). */
   turbo?: TurboSpec;

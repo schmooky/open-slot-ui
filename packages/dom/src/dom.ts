@@ -34,9 +34,30 @@ export function text(el: HTMLElement | null, value: string): void {
  */
 export function valueText(el: HTMLElement | null, value: string): void {
   if (!el) return;
+  // A change is a value REPLACING one this binding wrote. The markup ships with a
+  // placeholder `0` in every slot, so the first paint is an arrival, not a move.
+  const painted = el.dataset.charcount !== undefined;
+  const moved = painted && el.textContent !== value;
   text(el, value);
   const n = String(value.length);
   if (el.dataset.charcount !== n) el.dataset.charcount = n;
+  // A number that changed says so. The class is the hook; whether anything happens
+  // is the motion setting's business, and the first paint is not a change.
+  if (moved) flash(el);
+}
+
+/**
+ * Mark an element as just-changed for one animation.
+ *
+ * Re-triggering a CSS animation needs the class off, a reflow, and the class on —
+ * without the reflow the browser coalesces the two and nothing plays, which is why
+ * a balance that changes twice quickly used to animate once.
+ */
+export function flash(el: HTMLElement, cls = 'is-changed'): void {
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+  el.addEventListener('animationend', () => el.classList.remove(cls), { once: true });
 }
 
 export function toggleClass(el: Element | null, cls: string, on: boolean): void {

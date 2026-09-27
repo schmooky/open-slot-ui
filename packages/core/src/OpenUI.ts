@@ -245,6 +245,8 @@ export class OpenUI {
   readonly superTurboBonus: ToggleControl;
   /** Autoplay's "stop when a feature is won" switch (the ADVANCED section). */
   readonly stopOnFeature: ToggleControl;
+  /** Autoplay's "stop as soon as a round pays" switch. */
+  readonly stopOnAnyWin: ToggleControl;
 
   /** What the HUD is doing — drives which controls the ribbon shows. */
   readonly hudState = new Signal<HudState>('idle');
@@ -400,6 +402,7 @@ export class OpenUI {
     this.superTurboBase = speedById.get('super-turbo')?.base ?? spare('super-turbo-base');
     this.superTurboBonus = speedById.get('super-turbo')?.bonus ?? spare('super-turbo-bonus');
     this.stopOnFeature = new ToggleControl({ id: 'stop-on-feature', layout: { anchor: 'center' }, on: false }, this.bus);
+    this.stopOnAnyWin = new ToggleControl({ id: 'stop-on-any-win', layout: { anchor: 'center' }, on: false }, this.bus);
 
     for (const c of [
       this.spin,
@@ -431,6 +434,7 @@ export class OpenUI {
       this.superTurboBase,
       this.superTurboBonus,
       this.stopOnFeature,
+      this.stopOnAnyWin,
       ...speeds.flatMap((s) => [s.base, s.bonus]),
     ]) {
       this.register(c);

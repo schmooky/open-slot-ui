@@ -18,6 +18,12 @@ export interface AutoplayLimits {
   lossLimit?: number;
   /** Stop on a single win ≥ `singleWinLimit × bet`. Infinity = no limit. */
   singleWinLimit?: number;
+  /**
+   * Stop as soon as ANY round pays. Some markets require this as a separate,
+   * plainly-worded stop rather than a multiplier a player has to reason about;
+   * some players simply want it. It is off unless asked for.
+   */
+  stopOnAnyWin?: boolean;
 }
 
 export interface AutoplayOptions {
@@ -64,6 +70,8 @@ export class AutoplayControl extends Control {
   lossLimit = Infinity;
   /** Active stop-on-single-win (multiples of bet; Infinity = no limit). */
   singleWinLimit = Infinity;
+  /** Stop as soon as a round pays anything. */
+  stopOnAnyWin = false;
   /** Running net loss this autoplay session (bet − win, summed). */
   private netLoss = 0;
   /** Tap behavior (`'options'` opens the picker, `'infinite'` starts immediately). */
@@ -130,6 +138,7 @@ export class AutoplayControl extends Control {
     if (this.requireLimits && (!Number.isFinite(limits.lossLimit ?? Infinity) || !Number.isFinite(limits.singleWinLimit ?? Infinity))) return;
     this.lossLimit = limits.lossLimit ?? Infinity;
     this.singleWinLimit = limits.singleWinLimit ?? Infinity;
+    this.stopOnAnyWin = limits.stopOnAnyWin ?? false;
     this.netLoss = 0;
     this.count.set(count);
     this.setState('active');
@@ -140,7 +149,8 @@ export class AutoplayControl extends Control {
    * The host reports one completed autoplay round's outcome (major units) — this is
    * the responsible-gambling guardrail. It advances the remaining count and stops
    * autoplay if: the count is exhausted, the cumulative net loss reaches the
-   * loss-limit, or this single win reaches the single-win-stop. No-op when autoplay
+   * loss-limit, this single win reaches the single-win-stop, or — when the player
+   * asked for it — the round paid anything at all. No-op when autoplay
    * isn't active or the inputs are malformed (Charter P11).
    */
   reportResult(win: number, bet: number): void {
@@ -149,7 +159,7 @@ export class AutoplayControl extends Control {
     this.netLoss += bet - win;
     const c = this.count.get();
     if (Number.isFinite(c)) this.count.set(Math.max(0, c - 1));
-    const winHit = Number.isFinite(this.singleWinLimit) && win >= this.singleWinLimit * bet;
+    const winHit = (Number.isFinite(this.singleWinLimit) && win >= this.singleWinLimit * bet) || (this.stopOnAnyWin && win > 0);
     const lossHit = Number.isFinite(this.lossLimit) && this.netLoss >= this.lossLimit * bet;
     if (this.count.get() <= 0 || winHit || lossHit) this.stop();
   }

@@ -11,6 +11,7 @@ import {
 } from '@open-slot-ui/core';
 import { $, on, text, toggleClass, setVisible, setDisabled, setIcon, el, valueText } from './dom';
 import { label } from './i18n';
+import { type IconSet } from './icons';
 
 export type Dispose = () => void;
 
@@ -36,6 +37,8 @@ export interface BuyFeature {
 /** Everything a binding may need beyond the core itself. */
 export interface BindContext {
   root: HTMLElement;
+  /** The glyph each slot draws — the reference's classes unless a host said otherwise. */
+  icons: IconSet;
   /** The `.MainPanel` element — the reference hangs its open/closed classes here. */
   panel: HTMLElement | null;
   /** Buy-feature cards the host offers (empty = no buy sheet content). */
@@ -246,8 +249,8 @@ export function bindMainMenu(ui: OpenUI, ctx: BindContext): Dispose {
     setVisible($(r, 'MainMenu'), ui.mainMenuPanel.isOpen);
     const sfxOn = ui.sfxSlider.value.get() > 0;
     const musicOn = ui.musicSlider.value.get() > 0;
-    setIcon(sound?.querySelector('[class^=icon-]') ?? null, sfxOn ? 'icon-sound-on' : 'icon-sound-off');
-    setIcon(music?.querySelector('[class^=icon-]') ?? null, musicOn ? 'icon-music-on' : 'icon-music-off');
+    setIcon(sound?.querySelector('[class^=icon-]') ?? null, sfxOn ? ctx.icons.soundOn : ctx.icons.soundOff);
+    setIcon(music?.querySelector('[class^=icon-]') ?? null, musicOn ? ctx.icons.musicOn : ctx.icons.musicOff);
     toggleClass(sound, 'sound-on', sfxOn);
     toggleClass(sound, 'sound-off', !sfxOn);
     toggleClass(music, 'music-on', musicOn);
@@ -342,6 +345,7 @@ export function bindMainMenu(ui: OpenUI, ctx: BindContext): Dispose {
     on($(r, 'MoveToMoneyBtn'), 'click', () => ui.bus.emit('buttonActivated', { id: 'real-money' })),
     on($(r, 'DepositBtn'), 'click', () => ui.bus.emit('buttonActivated', { id: 'deposit' })),
     on($(r, 'LobbyAnchor'), 'click', () => ui.bus.emit('buttonActivated', { id: 'lobby' })),
+    on($(r, 'SupportBtn'), 'click', () => ui.bus.emit('buttonActivated', { id: 'support' })),
     // A game's own row does what the game says: the press is reported, the host acts.
     ...ui.chrome.menu
       .filter((row) => row.kind === 'action')
@@ -351,6 +355,19 @@ export function bindMainMenu(ui: OpenUI, ctx: BindContext): Dispose {
           ui.bus.emit('buttonActivated', { id: row.id });
         }),
       ),
+    // A row that was given a page opens it. The press is still reported first, so
+    // a host that wants to handle SUPPORT itself can — it just no longer has to.
+    ...[...r.querySelectorAll<HTMLElement>('#MainMenu [data-href]')].map((row) =>
+      on(row, 'click', () => {
+        ui.mainMenuPanel.closePanel();
+        const href = row.dataset.href as string;
+        const target = row.dataset.target === '_self' ? '_self' : '_blank';
+        // `noopener` on a new tab: a page opened from a casino client must not get
+        // a handle back to the game window.
+        if (target === '_blank') window.open(href, '_blank', 'noopener,noreferrer');
+        else window.location.assign(href);
+      }),
+    ),
     ui.mainMenuPanel.state.subscribe(paint),
     ui.sfxSlider.value.subscribe(paint),
     ui.musicSlider.value.subscribe(paint),
@@ -377,6 +394,7 @@ export function bindAutoplay(ui: OpenUI, ctx: BindContext): Dispose {
   const advanced = $(r, 'AutoplayAdvancedToggle');
   const sections = $(r, 'AdvancedAutoplaySections');
   const stopOnFeature = $<HTMLInputElement>(r, 'StopOnFeatureToggle');
+  const stopOnAnyWin = $<HTMLInputElement>(r, 'StopOnAnyWinToggle');
 
   let count = ui.autoplay.options[0] ?? 10;
   let lossLimit = Infinity;
@@ -431,7 +449,7 @@ export function bindAutoplay(ui: OpenUI, ctx: BindContext): Dispose {
     setVisible(sections, expanded);
     const advLabel = advanced?.querySelector('.toggle-text');
     text(advLabel as HTMLElement | null, label(ui, expanded ? 'autoplay_menu_basic' : 'autoplay_menu_advanced'));
-    setIcon(advanced?.querySelector('[class^=icon-]') ?? null, expanded ? 'icon-arrow-down' : 'icon-arrow-up');
+    setIcon(advanced?.querySelector('[class^=icon-]') ?? null, expanded ? ctx.icons.advancedClose : ctx.icons.advancedOpen);
 
     // selection state
     if (roundsList) {
@@ -451,6 +469,7 @@ export function bindAutoplay(ui: OpenUI, ctx: BindContext): Dispose {
 
     text(cost, label(ui, 'autoplay_cost', { amount: Number.isFinite(count) ? money(ui, ui.bet.get() * count) : '∞', autoplaycost: Number.isFinite(count) ? money(ui, ui.bet.get() * count) : '∞' }));
     if (stopOnFeature) stopOnFeature.checked = ui.stopOnFeature.isOn;
+    if (stopOnAnyWin) stopOnAnyWin.checked = ui.stopOnAnyWin.isOn;
   };
 
   buildRounds();
@@ -492,6 +511,7 @@ export function bindAutoplay(ui: OpenUI, ctx: BindContext): Dispose {
       paint();
     }),
     on(stopOnFeature, 'change', () => ui.stopOnFeature.toggle()),
+    on(stopOnAnyWin, 'change', () => ui.stopOnAnyWin.toggle()),
     customInput(lossCustom, (v) => (lossLimit = v)),
     customInput(winCustom, (v) => (winLimit = v)),
     noLimit('LossLimitNoLimit', (v) => (lossLimit = v)),
@@ -506,11 +526,12 @@ export function bindAutoplay(ui: OpenUI, ctx: BindContext): Dispose {
     }),
     on($(r, 'StartAutoplayBtn'), 'click', () => {
       ui.autoplayPanel.closePanel();
-      ui.autoplay.begin(count, { lossLimit, singleWinLimit: winLimit });
+      ui.autoplay.begin(count, { lossLimit, singleWinLimit: winLimit, stopOnAnyWin: ui.stopOnAnyWin.isOn });
     }),
     ui.autoplayPanel.state.subscribe(paint),
     ui.bet.value.subscribe(paint),
     ui.stopOnFeature.state.subscribe(paint),
+    ui.stopOnAnyWin.state.subscribe(paint),
     ui.locale.subscribe(() => {
       buildRounds();
       paint();

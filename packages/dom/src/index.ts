@@ -5,3 +5,6 @@ export * from './template';
 export * from './bindings';
 export * from './i18n';
 export * from './dom';
+export * from './icons';
+export * from './theme';
+export * from './keyboard';

@@ -129,6 +129,12 @@ exports[`OpenUI.snapshot() > matches the documented initial control surface 1`] 
     "state": "idle",
   },
   {
+    "id": "stop-on-any-win",
+    "interactable": true,
+    "role": "switch",
+    "state": "off",
+  },
+  {
     "id": "stop-on-feature",
     "interactable": true,
     "role": "switch",
