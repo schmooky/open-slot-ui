@@ -634,9 +634,29 @@ div[data-channel="mobile"] .GameInfoWindow .GameInfo__body { overflow-y: auto; }
    The skin sizes the slam-stop square at 3.25rem in a 7rem button — under half of
    it — and next to the spin arrow (5.4rem) it reads as a hesitation rather than a
    stop. It is scaled here through a variable, so a game that wants the reference's
-   exact proportion sets --ohm-stop-scale to 1. */
-.CircleButton--stop-round span[class^="icon-"] {
+   exact proportion sets --ohm-stop-scale to 1.
+
+   The scale is applied to the BUTTON, not to the glyph: the skin sizes its icons
+   with font-size: inherit, and every channel sets its own --hg-btn-font-size, so
+   scaling the button's own font size follows the skin wherever it goes instead of
+   fighting a more specific rule with a hard-coded number. */
+.CircleButton--stop-round {
   font-size: calc(var(--hg-btn-font-size, 3.25rem) * var(--ohm-stop-scale, 1.34));
+}
+
+/* ── THE ± CHANGERS DO NOT TUCK UNDER THE ROUND BUTTON ──────────────────────
+   On a touch bar the skin flanks the round button with the changers and nudges
+   each one 3-4px INWARD, so the translucent circle laps over their inner corners.
+   On the reference's own near-black bar nobody sees it; on a game whose buttons
+   are a lighter grey it reads as a smudge where three controls collide. The nudge
+   becomes a clearance, which is the same layout with the overlap taken out. */
+div[data-channel="mobile"] #BetAmountDecrease {
+  left: calc(var(--ohm-changer-gap, 6px) * -1);
+  right: auto;
+}
+div[data-channel="mobile"] #BetAmountIncrease {
+  left: var(--ohm-changer-gap, 6px);
+  right: auto;
 }
 
 /* WHILE AN AUTOPLAY RUN IS GOING the round button counts it down. The reference
@@ -670,6 +690,16 @@ div[data-channel="mobile"] .GameInfoWindow .GameInfo__body { overflow-y: auto; }
 .ToggleButton--feature-buy.is-disabled {
   opacity: 0.6;
   pointer-events: none;
+}
+
+/* ── THE BUY COIN CAN BE READ ───────────────────────────────────────────────
+   On a touch bar the skin sizes the coin's word by how long it is — 8px for
+   DISABLE, 7.5px for a longer one — so the label fits a rotated 74px disc. It
+   fits; it cannot be read. A floor puts it back above the legibility line, and
+   --ohm-buy-label is the knob for a game whose word is longer than ours. */
+div[data-channel="mobile"] .UiRibbonUserPanel .ToggleButton--feature-buy[data-charcount] {
+  font-size: var(--ohm-buy-label, 10px);
+  line-height: 1.1;
 }
 
 /* The buy coin's own ink. The skin hard-codes black on the coin; a game whose buy

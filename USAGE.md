@@ -193,9 +193,14 @@ never set them:
 | ⟳▶ | the autoplay picker is open — pressing it starts the run |
 | a tile counting down | an autoplay run is going; pressing it stops the run |
 
-`--ohm-stop-scale` sizes the stop square (default `1.34`, where `1` is the
-reference's own proportion), and `--ohm-counter-bg` / `--ohm-counter-text` /
-`--ohm-counter-radius` dress the autoplay tile.
+Four knobs, if the skin's own numbers do not suit the game:
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `--ohm-stop-scale` | `1.34` | Size of the stop square, as a multiple of the skin's own. `1` is the reference's proportion. |
+| `--ohm-counter-bg` · `--ohm-counter-text` · `--ohm-counter-radius` | `#fff` · `#000` · `8px` | The autoplay tile. |
+| `--ohm-changer-gap` | `6px` | Clearance between the round button and the ± changers on a touch bar, where the skin tucks them under its edge. |
+| `--ohm-buy-label` | `10px` | Floor under the buy coin's word on a touch bar; the skin shrinks it to 8px or less to fit a rotated disc. |
 
 ## Compliance
 
