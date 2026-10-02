@@ -771,8 +771,14 @@ div[data-layout-type="ribbon"][data-openui-free-rounds="true"][data-channel] .Ma
 }
 /* With the action panel gone, the stake has nowhere else to be read — so the data
    panel's static one shows, exactly as it does during free spins. The skin hides it
-   on desktop for every state but a feature, which is why this says otherwise. */
-div[data-layout-type="ribbon"][data-openui-free-rounds="true"][data-channel="desktop"] .DataPanelItem.BetAmountStaticItem.is-visible {
+   on desktop for every state but a feature, which is why this says otherwise.
+   THE ID IS DELIBERATE: a game skin that hides this readout does it by id, and no
+   stack of classes and attributes outweighs one id — so a host following a skin of
+   their own lost the stake for the whole campaign and had to patch it back. The
+   stake being readable is part of what the takeover promises, so the rule carries
+   the weight to keep that promise. A skin that really wants it gone still wins by
+   marking its own rule important. */
+div[data-layout-type="ribbon"][data-openui-free-rounds="true"][data-channel="desktop"] #BetAmountStaticItem.DataPanelItem.is-visible {
   display: flex;
 }
 .FreeRoundsPanel {

@@ -236,6 +236,11 @@ Sizes: `--ohm-free-rounds-count` (34px), `--ohm-free-rounds-count-mobile` (22px)
 `--ohm-free-rounds-height` (56px on touch), `--ohm-free-rounds-gap`,
 `--ohm-free-rounds-color`.
 
+The stake is forced visible for the length of a campaign, by id, so a skin that
+hides `#BetAmountStaticItem` for its own layout does not leave the player without
+a stake to read for the whole run. If that is what your game wants anyway, mark
+your own rule `!important` — the HUD takes it back the moment the count hits 0.
+
 ### Locking the controls for a round
 
 ```ts
