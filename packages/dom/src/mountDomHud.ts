@@ -692,6 +692,34 @@ div[data-channel="mobile"] #BetAmountIncrease {
   pointer-events: none;
 }
 
+/* ── A SWITCH IS A PILL, NOT A DISC ─────────────────────────────────────────
+   The track of a BASE GAME / BONUS GAME switch has no content of its own — the
+   skin sets font-size 0 and draws the knob as a ::before — so its width comes
+   entirely from one rule giving it 100% of the row. In a skin build where that row
+   is laid out across instead of down, or where the rule is keyed to the two speeds
+   the reference ships by name, 100% resolves against nothing: the label shrinks to
+   its knob, and two of them read as a pair of rings stacked on each other.
+
+   A floor under the track is the fix that does not care which skin is on: a switch
+   stays a switch, and --ohm-switch-min moves it. */
+.MainMenuItem.Accordion .Toggle,
+.MainMenuItem.Accordion .Toggle--sm,
+.MainMenuItem.Accordion .Toggle--md {
+  flex: 0 0 auto;
+  min-width: var(--ohm-switch-min, 3.25rem);
+  width: 100%;
+}
+.MainMenuItem.Accordion .Toggle--label {
+  min-width: var(--ohm-switch-min, 3.25rem);
+  width: 100%;
+}
+/* ...and the rows that hold them keep their own space, so a short panel cannot
+   stack one switch on top of another. */
+.MainMenuItem.Accordion .Accordion__panel-inner > div {
+  min-width: 0;
+  row-gap: 0.25rem;
+}
+
 /* ── THE BUY COIN CAN BE READ ───────────────────────────────────────────────
    On a touch bar the skin sizes the coin's word by how long it is — 8px for
    DISABLE, 7.5px for a longer one — so the label fits a rotated 74px disc. It
