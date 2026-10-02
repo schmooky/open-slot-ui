@@ -758,6 +758,62 @@ div[data-channel="mobile"] #BetAmountIncrease {
   vertical-align: baseline;
 }
 
+/* ── A FREE-ROUNDS CAMPAIGN TAKES THE BAR ───────────────────────────────────
+   With hud.freeRounds: 'takeover', the HUD plays the campaign itself, so the whole
+   action panel — the stake widget, the ± changers, the round button and autoplay —
+   is a row of controls with nothing to control. It steps aside, and the campaign's
+   two readouts take its place in a box shaped like the free-spins strip. Every rule
+   is keyed on the attribute, so a skin that wants the changers back says so. */
+/* The skin re-displays the action panel per data-state with three-attribute
+   selectors, so standing it down takes a selector of its own weight. */
+div[data-layout-type="ribbon"][data-openui-free-rounds="true"][data-channel] .MainPanel .ActionPanel {
+  display: none;
+}
+/* With the action panel gone, the stake has nowhere else to be read — so the data
+   panel's static one shows, exactly as it does during free spins. The skin hides it
+   on desktop for every state but a feature, which is why this says otherwise. */
+div[data-layout-type="ribbon"][data-openui-free-rounds="true"][data-channel="desktop"] .DataPanelItem.BetAmountStaticItem.is-visible {
+  display: flex;
+}
+.FreeRoundsPanel {
+  display: none;
+}
+.FreeRoundsPanel.is-visible {
+  align-items: center;
+  column-gap: var(--ohm-free-rounds-gap, 1.25rem);
+  display: flex;
+  justify-content: center;
+  padding: 0 var(--ohm-free-rounds-gap, 1.25rem);
+  white-space: nowrap;
+}
+/* Each readout is a label over its value, the way the free-spins strip reads. */
+.FreeRoundsPanel .DataPanelItem,
+.FreeRoundsPanel > div {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  row-gap: 0.1rem;
+}
+/* The count is the thing a player is counting, so it is the biggest number on the
+   bar — in the colour the campaign readout already wears. */
+.FreeRoundsPanel #FreeRoundsCounterValue {
+  color: var(--ohm-free-rounds-color, var(--hg-bg-accent, #ffc529));
+  font-size: var(--ohm-free-rounds-count, 34px);
+  line-height: 1.05;
+}
+div[data-channel="mobile"] .FreeRoundsPanel {
+  min-height: var(--ohm-free-rounds-height, 56px);
+}
+div[data-channel="mobile"] .FreeRoundsPanel #FreeRoundsCounterValue {
+  font-size: var(--ohm-free-rounds-count-mobile, 22px);
+}
+div[data-channel="mobile"] .FreeRoundsPanel .DataPanelItem__label {
+  font-size: 10px;
+}
+div[data-channel="mobile"] .FreeRoundsPanel .DataPanelItem__value {
+  font-size: 14px;
+}
+
 /* ── A SWITCH IS A PILL, NOT A DISC ─────────────────────────────────────────
    The track of a BASE GAME / BONUS GAME switch has no content of its own — the
    skin sets font-size 0 and draws the knob as a ::before — so its width comes

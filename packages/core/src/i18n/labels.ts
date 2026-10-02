@@ -19,6 +19,9 @@ export const LABEL_KEYS: Readonly<Record<string, { openui?: string; en: string }
   autoplay_any_win_stop: { openui: 'openui.autoplay.stopOnAnyWin', en: 'STOP ON ANY WIN' },
   support_uc: { openui: 'openui.menu.support', en: 'SUPPORT' },
   spacebar_uc: { openui: 'openui.menu.spacebar', en: 'SPACEBAR TO SPIN' },
+  // PLURAL, because the label sits over a count: "FREE ROUND" above a 3 reads as
+  // "round number three".
+  free_rounds_uc: { openui: 'openui.readout.freeRounds', en: 'FREE ROUNDS' },
   autoplay_menu_advanced: { openui: 'openui.autoplay.advanced', en: 'ADVANCED' },
   autoplay_menu_basic: { openui: 'openui.autoplay.basic', en: 'BASIC' },
   back_uc: { openui: 'openui.cancel', en: 'BACK' },

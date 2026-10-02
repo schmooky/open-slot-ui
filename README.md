@@ -67,6 +67,7 @@ See the doctrine in [CHARTER.md](./CHARTER.md).
 | `hud.speeds` | `[{ id, name?, icon?, scopes?, initial? }]` | How many speeds the game has and what they are called. Default: TURBO (and SUPER TURBO™ when its flag is on). A speed gets a menu row, a BASE / BONUS switch per scope, and its own toggles on `ui.speeds`. |
 | `hud.menu` | `[{ kind, … }]` | The ☰ menu, row by row, in order — `sound`, `music`, `speed`, `spacebar`, `toggle` (a setting the game owns), `history`, `info`, `support`, `realMoney`, `deposit`, `lobby`, or `action` for a row of the game's own (its press arrives as `buttonActivated`). Default: the rows the feature flags leave on. |
 | `hud.readouts` | `['balance','bet','win',…]` | Which readouts the data panel shows, left to right. Default: the reference's order, gated by the flags. |
+| `hud.freeRounds` | `'inline' \| 'takeover'` | What an operator free-rounds campaign does to the bar. `'takeover'` gives TOTAL WIN / FREE ROUNDS the round button's place while `setFreeRounds(n > 0)` — the HUD plays those rounds itself, so the action panel steps aside. |
 | `hud.dock` | `'bottom' \| 'top'` | Which edge the ribbon docks to (the whole bar mirrors). |
 | `hud.scale` · `hud.maxWidth` | `0.5..2` · rem | One knob scales the whole bar; the desktop plate's width cap. |
 | `hud.reveal` | `'drop' \| 'rotate' \| 'spin' \| 'twist' \| 'none'` | How a changed readout animates in. |

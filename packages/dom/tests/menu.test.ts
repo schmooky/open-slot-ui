@@ -387,3 +387,67 @@ describe('the locks, the settings and the badge a platform needs', () => {
     });
   });
 });
+
+describe('a free-rounds campaign taking the bar', () => {
+  it('leaves the bar alone by default', () => {
+    const h = mount({});
+    h.setFreeRounds(5);
+    expect(document.querySelector('.FreeRoundsPanel')).toBeNull();
+    expect(document.getElementById('FreeRoundsCounterItem')!.closest('.DataPanel__container')).not.toBeNull();
+    expect(getComputedStyle(document.getElementById('ActionPanel')!).display).not.toBe('none');
+  });
+
+  it('gives the readouts the round button’s place while a campaign runs', () => {
+    const h = mount({ hud: { freeRounds: 'takeover' } });
+    const root = document.querySelector<HTMLElement>('.OpenSlotUiContainer')!;
+    const counter = document.getElementById('FreeRoundsCounterItem')!;
+    const win = document.getElementById('FreeRoundsWinItem')!;
+    expect(root.dataset.openuiFreeRounds).toBe('false');
+
+    h.setFreeRounds(8);
+    const panel = document.querySelector('.FreeRoundsPanel')!;
+    expect(root.dataset.openuiFreeRounds).toBe('true');
+    expect(counter.parentElement).toBe(panel);
+    expect(win.parentElement).toBe(panel);
+    // TOTAL WIN | divider | FREE ROUNDS, in that order
+    expect([...panel.children].map((c) => c.id || c.className)).toEqual([
+      'FreeRoundsWinItem',
+      'divider--vertical',
+      'FreeRoundsCounterItem',
+    ]);
+    // the panel sits where the round button was
+    expect(panel.nextElementSibling?.id).toBe('ActionPanel');
+    // ...and the label over the count is plural
+    expect(counter.querySelector('[data-translation]')!.getAttribute('data-translation')).toBe('free_rounds_uc');
+    expect(counter.querySelector('[data-translation]')!.textContent).toBe('FREE ROUNDS');
+  });
+
+  it('puts everything back when the campaign is spent', () => {
+    const h = mount({ hud: { freeRounds: 'takeover' } });
+    const counter = document.getElementById('FreeRoundsCounterItem')!;
+    const home = counter.parentElement;
+    h.setFreeRounds(3);
+    expect(counter.parentElement).not.toBe(home);
+    h.setFreeRounds(0);
+    expect(counter.parentElement).toBe(home);
+    expect(document.querySelector<HTMLElement>('.OpenSlotUiContainer')!.dataset.openuiFreeRounds).toBe('false');
+    expect(counter.querySelector('[data-translation]')!.getAttribute('data-translation')).toBe('free_round_uc');
+  });
+
+  it('keeps the ids a game and its tests read', () => {
+    const h = mount({ hud: { freeRounds: 'takeover' } });
+    h.setFreeRounds(4);
+    h.setTotalWin(12.5);
+    expect(document.getElementById('FreeRoundsCounterValue')!.textContent).toBe('4');
+    expect(document.getElementById('FreeRoundsWinValue')).not.toBeNull();
+    expect(document.getElementById('FreeRoundsCounterItem')).not.toBeNull();
+    expect(document.getElementById('FreeRoundsWinItem')).not.toBeNull();
+  });
+
+  it('ships the rules that stand the action panel down', () => {
+    mount({ hud: { freeRounds: 'takeover' } });
+    const sheets = [...document.querySelectorAll('style')].map((s) => s.textContent ?? '').join('\n');
+    expect(sheets).toContain('[data-openui-free-rounds="true"][data-channel] .MainPanel .ActionPanel');
+    expect(sheets).toContain('--ohm-free-rounds-count');
+  });
+});

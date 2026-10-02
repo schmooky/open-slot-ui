@@ -254,6 +254,9 @@ export const MENU_KINDS = Object.freeze(Object.keys(MENU_DEFAULTS) as Array<keyo
 /** The readouts the bar can show, left to right. */
 export type ReadoutId = 'freeRounds' | 'balance' | 'bet' | 'freeRoundsWin' | 'win';
 
+/** Where the free-rounds readouts live while a campaign is running. */
+export type FreeRoundsPlacement = 'inline' | 'takeover';
+
 /** Which feature flag each readout answers to, and the element it is. */
 const READOUTS: Record<ReadoutId, { feature: HudFeatureId; element: string }> = {
   freeRounds: { feature: 'freeRounds', element: 'FreeRoundsCounterItem' },
@@ -291,6 +294,16 @@ export interface HudChromeSpec {
    */
   speeds?: SpeedSpec[];
   /**
+   * What an operator FREE-ROUNDS campaign does to the bar.
+   *
+   * `'inline'` (the default) leaves the FREE ROUNDS and TOTAL WIN readouts in the
+   * data panel beside the others. `'takeover'` gives them the round button's place
+   * for as long as the campaign lasts: the HUD plays those rounds by itself, so a
+   * round button, bet changers and an autoplay button are controls with nothing to
+   * control, and a box reading TOTAL WIN | FREE ROUNDS says what is happening.
+   */
+  freeRounds?: FreeRoundsPlacement;
+  /**
    * Which readouts the data panel shows, left to right. Default: free rounds,
    * balance, bet, free-round win, win — the reference's order, gated by the same
    * feature flags. An operator who wants the stake first says so here.
@@ -320,6 +333,8 @@ export interface HudChrome {
   menu: readonly MenuItemConfig[];
   /** The data panel's readouts, left to right, resolved. */
   readouts: readonly ReadoutId[];
+  /** What a free-rounds campaign does to the bar. */
+  freeRounds: FreeRoundsPlacement;
   winRepresentation: WinRepresentation;
   reveal: RevealBehavior;
   scale: number;
@@ -364,6 +379,7 @@ export const defaultHudChrome: Readonly<HudChrome> = Object.freeze({
   speeds: Object.freeze(defaultSpeeds.filter((s) => s.id !== 'super-turbo')),
   menu: Object.freeze(defaultMenu(defaultHudFeatures, defaultSpeeds.filter((s) => s.id !== 'super-turbo'))),
   readouts: Object.freeze(defaultReadouts(defaultHudFeatures)),
+  freeRounds: 'inline' as FreeRoundsPlacement,
   winRepresentation: 'ticker' as WinRepresentation,
   reveal: 'drop' as RevealBehavior,
   scale: 1,
@@ -532,6 +548,7 @@ export function resolveHudChrome(spec?: HudChromeSpec, onIssue?: (i: ChromeIssue
     speeds: Object.freeze(speeds),
     menu: Object.freeze(menu),
     readouts: Object.freeze(readouts),
+    freeRounds: pick(spec.freeRounds, ['inline', 'takeover'], defaultHudChrome.freeRounds, 'hud.freeRounds'),
     winRepresentation: pick(spec.winRepresentation, WIN_REPS, defaultHudChrome.winRepresentation, 'hud.winRepresentation'),
     reveal: pick(spec.reveal, REVEALS, defaultHudChrome.reveal, 'hud.reveal'),
     scale: num(spec.scale, 0.5, 2, defaultHudChrome.scale, 'hud.scale'),

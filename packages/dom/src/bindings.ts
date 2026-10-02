@@ -94,6 +94,68 @@ export function bindReadouts(ui: OpenUI, ctx: BindContext): Dispose {
   };
 
   // Which readouts are ON the bar depends on what the round is: a feature round
+  /**
+   * A FREE-ROUNDS CAMPAIGN CAN TAKE THE BAR OVER.
+   *
+   * The HUD plays an operator's free rounds by itself, so while one runs the round
+   * button, the bet changers and the autoplay button are controls with nothing to
+   * control. With `hud.freeRounds: 'takeover'` the two campaign readouts move into
+   * a box where the round button was — the shape the free-spins strip already uses
+   * — and the action panel steps aside until the campaign is spent.
+   *
+   * The readouts keep their ids wherever they sit, because a game's own CSS and its
+   * end-to-end tests read them by id.
+   */
+  const takeover = ui.chrome.freeRounds === 'takeover';
+  const frPanel = ((): HTMLElement | null => {
+    if (!takeover) return null;
+    const actions = r.querySelector('.ActionPanel');
+    if (!actions?.parentElement) return null;
+    // It wears the free-spins strip's own class as well as its own, so a skin that
+    // styles one styles both without being asked.
+    // The divider is the one the skin draws between the free-spins strip's two
+    // readouts; the box is the same shape, so it is made of the same parts.
+    const panel = el('<div class="FeaturePanel FreeRoundsPanel"><span class="divider--vertical"></span></div>');
+    actions.parentElement.insertBefore(panel, actions);
+    return panel;
+  })();
+  /** Where each readout started, so the takeover can put it back. */
+  const frHome = new Map<HTMLElement, { parent: HTMLElement; next: Node | null }>();
+  const remember = (node: HTMLElement | null): void => {
+    if (node?.parentElement && !frHome.has(node)) frHome.set(node, { parent: node.parentElement, next: node.nextSibling });
+  };
+  remember($(r, 'FreeRoundsCounterItem'));
+  remember($(r, 'FreeRoundsWinItem'));
+
+  const paintFreeRounds = (on: boolean): void => {
+    if (!takeover || !frPanel) return;
+    const counter = $(r, 'FreeRoundsCounterItem');
+    const win = $(r, 'FreeRoundsWinItem');
+    // The label sits OVER the count, so it is plural there: "FREE ROUND" above a 3
+    // reads as "round number three".
+    const caption = counter?.querySelector('[data-translation]') as HTMLElement | null;
+    if (caption) {
+      const key = on ? 'free_rounds_uc' : 'free_round_uc';
+      caption.setAttribute('data-translation', key);
+      // The attribute is what a locale change re-reads; the text is what is on
+      // screen right now, and this swap happens between locale changes.
+      text(caption, label(ui, key));
+    }
+    if (on) {
+      // TOTAL WIN | divider | FREE ROUNDS, the order the campaign box reads in.
+      const divider = frPanel.querySelector('.divider--vertical');
+      if (win) frPanel.insertBefore(win, divider);
+      if (counter) frPanel.appendChild(counter);
+    } else {
+      for (const node of [win, counter]) {
+        const home = node ? frHome.get(node) : undefined;
+        if (node && home) home.parent.insertBefore(node, home.next);
+      }
+    }
+    setVisible(frPanel, on);
+    ctx.root.dataset.openuiFreeRounds = String(on);
+  };
+
   // shows TOTAL WIN + the spins left, base play shows WIN.
   const paintVisibility = (): void => {
     const fs = ui.spin.freeSpins.get() > 0;
@@ -106,6 +168,7 @@ export function bindReadouts(ui: OpenUI, ctx: BindContext): Dispose {
     setVisible($(r, 'FeatureCounterItem'), fs);
     setVisible($(r, 'FreeRoundsCounterItem'), fr);
     setVisible($(r, 'FreeRoundsWinItem'), fr);
+    paintFreeRounds(fr);
     // You cannot buy your way into a bonus you are already in. (`is-visible` goes on
     // the BUTTON — that is the selector the stylesheet gates on.)
     const buy = $(r, 'FeatureBuyToggle');

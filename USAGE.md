@@ -214,6 +214,28 @@ change. Storage failures cost the memory, never the game; a stored set from an
 older version is ignored rather than applied. Pass `{ key, storage }` to put them
 somewhere else.
 
+### Free rounds an operator gave away
+
+```ts
+hud: { freeRounds: 'takeover' }   // default 'inline'
+…
+hud.setFreeRounds(8);             // the campaign starts; the bar rearranges itself
+hud.setFreeRounds(0);             // ...and puts itself back
+```
+
+With `'takeover'`, a running campaign gives the round button's place to a box
+reading TOTAL WIN | FREE ROUNDS, and the whole action panel — stake widget, ±
+changers, round button, autoplay — steps aside, because the HUD plays those rounds
+itself and they are controls with nothing to control. The stake stays readable in
+the data panel, as it does during free spins. Everything is keyed on
+`[data-openui-free-rounds="true"]`, so a skin can overrule any of it, and the
+readouts keep their ids (`#FreeRoundsCounterItem`, `#FreeRoundsCounterValue`,
+`#FreeRoundsWinItem`) wherever they sit.
+
+Sizes: `--ohm-free-rounds-count` (34px), `--ohm-free-rounds-count-mobile` (22px),
+`--ohm-free-rounds-height` (56px on touch), `--ohm-free-rounds-gap`,
+`--ohm-free-rounds-color`.
+
 ### Locking the controls for a round
 
 ```ts

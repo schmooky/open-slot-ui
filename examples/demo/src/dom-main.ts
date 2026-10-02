@@ -140,6 +140,9 @@ const SPEC: UISpec = {
   game: { name: 'open-slot-ui', version: '0.15.0' },
   hud: {
     features: { superTurbo: true, lobby: true },
+    // `?fr=8` runs an operator free-rounds campaign, which takes the bar over: the
+    // action panel steps aside and the campaign's two readouts take its place.
+    freeRounds: 'takeover',
     // The default list plus SPACEBAR TO SPIN, which the binding drops on a touch
     // channel. `?demo=1` adds the play-money badge to the balance.
     menu: [
@@ -212,6 +215,7 @@ async function main(): Promise<void> {
   if (Number(q.get('win'))) hud.setWin(Number(q.get('win')));
   hud.setMaxWin(5000, '1 in 1,250,000');
   if (q.get('demo') === '1') hud.setDemo(true);
+  if (Number(q.get('fr')) > 0) hud.setFreeRounds(Number(q.get('fr')));
   hud.setHistory([]);
 
   // ── the game, once the HUD is on screen ──────────────────────────────────

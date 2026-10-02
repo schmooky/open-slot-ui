@@ -83,6 +83,7 @@ const SCRIPTS: Record<string, (hud: DomHud) => void> = {
   win: (hud) => { hud.setHudState('idle'); hud.showFeedback('nice_win'); },
   bonus: (hud) => { hud.setHudState('featurePlay'); hud.setFreeSpins(7); },
   autoplay: (hud) => { hud.ui.autoplay.start(25); },
+  'free-rounds': (hud) => { hud.setFreeRounds(8); hud.setTotalWin(12.4); },
   lock: (hud) => { hud.ui.lock(); },
   menu: (hud) => { document.getElementById('MainMenuToggle')?.click(); void hud; },
   'autoplay-panel': () => { document.getElementById('AutoplayBtn')?.click(); },
