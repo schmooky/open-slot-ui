@@ -220,7 +220,7 @@ somewhere else.
 hud.ui.bonusButton.disable();         // the buy coin: dimmed, unclickable, no keyboard route
 hud.ui.autoplayMenuButton.disable();  // opening the autoplay sheet — stopping a run stays live
 hud.ui.spacebar.set(false);           // the player's spin-key preference (a market ban still wins)
-hud.setDemo(true);                    // play money: data-demo on the root, DEMO beside the balance
+hud.setDemo(true);                    // play money: data-openui-demo on the root, DEMO beside the balance
 ```
 
 ## Compliance

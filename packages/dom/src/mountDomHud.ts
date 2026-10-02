@@ -209,9 +209,12 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
   const motion = resolveMotion(opts.motion);
   root.dataset.motion = motion;
 
-  // A demo session is marked on the root, which is what the badge hangs off.
+  // A demo session is marked on the root, which is what the badge hangs off. The
+  // attribute is namespaced because `data-demo` is a name a host may already be
+  // using for its own purposes — and a library that silently reacts to someone
+  // else's attribute draws a pill nobody asked for.
   const syncDemo = (): void => {
-    root.dataset.demo = String(ui.demo.get());
+    root.dataset.openuiDemo = String(ui.demo.get());
   };
   syncDemo();
 
@@ -742,7 +745,7 @@ div[data-channel="mobile"] #BetAmountIncrease {
    Play money has to be visible at a glance, next to the number it applies to —
    most markets require the word on screen, and a player who thinks they are
    winning real money is a complaint, not a styling detail. */
-[data-demo="true"] #BalanceLabel::after {
+[data-openui-demo="true"] #BalanceLabel::after {
   background: var(--ohm-demo-bg, var(--hg-bg-accent, #ffc529));
   border-radius: 2px;
   color: var(--ohm-demo-text, #000);

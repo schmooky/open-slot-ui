@@ -355,11 +355,11 @@ describe('the locks, the settings and the badge a platform needs', () => {
   it('badges a demo session on the balance', () => {
     const h = mount({});
     const root = document.querySelector<HTMLElement>('.OpenSlotUiContainer')!;
-    expect(root.dataset.demo).toBe('false');
+    expect(root.dataset.openuiDemo).toBe('false');
     h.setDemo(true);
-    expect(root.dataset.demo).toBe('true');
+    expect(root.dataset.openuiDemo).toBe('true');
     const sheets = [...document.querySelectorAll('style')].map((s) => s.textContent ?? '').join('\n');
-    expect(sheets).toContain('[data-demo="true"] #BalanceLabel::after');
+    expect(sheets).toContain('[data-openui-demo="true"] #BalanceLabel::after');
   });
 
   it('refuses to be pinch-zoomed, and still scrolls', () => {
