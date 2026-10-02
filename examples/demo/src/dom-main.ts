@@ -218,6 +218,11 @@ async function main(): Promise<void> {
   if (Number(q.get('fr')) > 0) hud.setFreeRounds(Number(q.get('fr')));
   hud.setHistory([]);
 
+  // The handle, for poking at the HUD from a console: `openui.setFreeRounds(0)`,
+  // `openui.setDemo(true)`. An example client is for trying things out, and the
+  // alternative is a reload per question.
+  (globalThis as Record<string, unknown> & typeof globalThis)['openui'] = hud;
+
   // ── the game, once the HUD is on screen ──────────────────────────────────
   await painted();
   const [{ Application }, { buildReels, evaluate }] = await Promise.all([import('pixi.js'), import('./reels')]);

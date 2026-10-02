@@ -780,19 +780,39 @@ div[data-layout-type="ribbon"][data-openui-free-rounds="true"][data-channel="des
 }
 .FreeRoundsPanel.is-visible {
   align-items: center;
-  column-gap: var(--ohm-free-rounds-gap, 1.25rem);
   display: flex;
+  gap: var(--ohm-free-rounds-gap, 1.25rem);
   justify-content: center;
+}
+/* The box is the free-spins strip, so it follows it: a row in the bar on desktop
+   and portrait, and on a landscape phone the skin turns .FeaturePanel into a fixed
+   column pinned to the right edge. Padding that suits the row would clip the label
+   in the column, so it is only applied where the box is a row. */
+div[data-channel="desktop"] .FreeRoundsPanel.is-visible,
+div[data-orientation="portrait"] .FreeRoundsPanel.is-visible {
   padding: 0 var(--ohm-free-rounds-gap, 1.25rem);
   white-space: nowrap;
 }
-/* Each readout is a label over its value, the way the free-spins strip reads. */
+div[data-orientation="landscape"] .FreeRoundsPanel.is-visible {
+  gap: 0.15rem;
+  /* In the column the skin pins to the edge, the box must be as wide as its widest
+     word — otherwise the readouts overflow it on both sides and read as "TAL WIN". */
+  min-width: max-content;
+  padding: 0.35rem 0.5rem;
+}
+/* Each readout is a label over its value, the way the free-spins strip reads — and
+   as wide as its own widest line. Inside the data panel these items take their width
+   from the strip they sit in; here there is no strip, so without this they collapse
+   to the value's width and the label hangs out of the box on both sides. */
 .FreeRoundsPanel .DataPanelItem,
 .FreeRoundsPanel > div {
   align-items: center;
   display: flex;
+  flex: 0 0 auto;
   flex-direction: column;
+  min-width: max-content;
   row-gap: 0.1rem;
+  width: auto;
 }
 /* The count is the thing a player is counting, so it is the biggest number on the
    bar — in the colour the campaign readout already wears. */
