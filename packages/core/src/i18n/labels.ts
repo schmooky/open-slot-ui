@@ -18,6 +18,7 @@ export const LABEL_KEYS: Readonly<Record<string, { openui?: string; en: string }
   autoplay_feature_stop: { openui: 'openui.autoplay.stopOnFeature', en: 'STOP ON SPECIAL FEATURE WIN' },
   autoplay_any_win_stop: { openui: 'openui.autoplay.stopOnAnyWin', en: 'STOP ON ANY WIN' },
   support_uc: { openui: 'openui.menu.support', en: 'SUPPORT' },
+  spacebar_uc: { openui: 'openui.menu.spacebar', en: 'SPACEBAR TO SPIN' },
   autoplay_menu_advanced: { openui: 'openui.autoplay.advanced', en: 'ADVANCED' },
   autoplay_menu_basic: { openui: 'openui.autoplay.basic', en: 'BASIC' },
   back_uc: { openui: 'openui.cancel', en: 'BACK' },

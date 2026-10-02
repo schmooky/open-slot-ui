@@ -65,7 +65,7 @@ See the doctrine in [CHARTER.md](./CHARTER.md).
 | --- | --- | --- |
 | `hud.features` | ~30 booleans | Which parts of the bar EXIST — `buyFeature`, `history`, `autoplayAdvanced`, `betProgress`, `clock`, `maxWin`, … A part that is off is never built. |
 | `hud.speeds` | `[{ id, name?, icon?, scopes?, initial? }]` | How many speeds the game has and what they are called. Default: TURBO (and SUPER TURBO™ when its flag is on). A speed gets a menu row, a BASE / BONUS switch per scope, and its own toggles on `ui.speeds`. |
-| `hud.menu` | `[{ kind, … }]` | The ☰ menu, row by row, in order — `sound`, `music`, `speed`, `history`, `info`, `realMoney`, `deposit`, `lobby`, or `action` for a row of the game's own (its press arrives as `buttonActivated`). Default: the rows the feature flags leave on. |
+| `hud.menu` | `[{ kind, … }]` | The ☰ menu, row by row, in order — `sound`, `music`, `speed`, `spacebar`, `toggle` (a setting the game owns), `history`, `info`, `support`, `realMoney`, `deposit`, `lobby`, or `action` for a row of the game's own (its press arrives as `buttonActivated`). Default: the rows the feature flags leave on. |
 | `hud.readouts` | `['balance','bet','win',…]` | Which readouts the data panel shows, left to right. Default: the reference's order, gated by the flags. |
 | `hud.dock` | `'bottom' \| 'top'` | Which edge the ribbon docks to (the whole bar mirrors). |
 | `hud.scale` · `hud.maxWidth` | `0.5..2` · rem | One knob scales the whole bar; the desktop plate's width cap. |
@@ -77,6 +77,7 @@ See the doctrine in [CHARTER.md](./CHARTER.md).
 | `responsive` | `{ mobile, tablet, desktop, portrait, landscape }` | Reflow / hide controls per device & orientation. |
 | `menu` | `{ settings, paytable, rules }` | The scrollable INFO window — Settings → Paytable → Rules. |
 | `locale` | `{ messages, locale }` | i18n — safe key fall-through, with an auto Language switch. |
+| `facts.modes[].price` | number | What a round in a mode costs ALTOGETHER (`{{price.<id>}}`), beside `cost`, which is what it adds. A boost's price defaults to `1 + cost`. |
 | `currency`, `betLadder`, `controls` | … | Money, formatting, per-control overrides. |
 
 `mountDomHud` takes four more that belong to the browser rather than the game:
@@ -87,7 +88,13 @@ mountDomHud(spec, {
   icons: { spin: 'icon-play', betUp: 'icon-plus' }, // any of the bar's glyphs
   motion: 'auto',                                   // 'full' | 'reduced' | 'none'
   keyboard: { spin: [' '], close: ['Escape'] },     // or { enabled: false }
+  persist: 'my-game-settings',                      // remember sound, mute, speeds, spacebar
 });
+
+hud.setDemo(true);                                  // badges the balance DEMO
+hud.ui.bonusButton.disable();                       // locks the buy coin for a round
+hud.ui.autoplayMenuButton.disable();                // locks the autoplay SHEET, never a stop
+hud.ui.spacebar.set(false);                         // the player's own spin-key setting
 ```
 
 Configuration is the **only** way to change the UI — and it's guardrailed: a bad

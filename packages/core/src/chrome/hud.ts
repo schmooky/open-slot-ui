@@ -171,7 +171,19 @@ export const defaultSpeeds: readonly SpeedConfig[] = Object.freeze([
  * knows how to wire; `action` is the game's own, which reports a press and leaves
  * the doing to the host.
  */
-export type MenuItemKind = 'sound' | 'music' | 'speed' | 'history' | 'info' | 'support' | 'realMoney' | 'deposit' | 'lobby' | 'action';
+export type MenuItemKind =
+  | 'sound'
+  | 'music'
+  | 'speed'
+  | 'spacebar'
+  | 'toggle'
+  | 'history'
+  | 'info'
+  | 'support'
+  | 'realMoney'
+  | 'deposit'
+  | 'lobby'
+  | 'action';
 
 /** A row in the main menu. */
 export interface MenuItemSpec {
@@ -184,6 +196,11 @@ export interface MenuItemSpec {
   label?: string;
   /** Icon class. Default: the kind's own; for a speed, the speed's. */
   icon?: string;
+  /**
+   * Start a `toggle` row switched on. The row keeps its own state from then on, and
+   * reports every press as `toggled`.
+   */
+  initial?: boolean;
   /**
    * A page this row opens — support, terms, the operator's lobby.
    *
@@ -203,13 +220,17 @@ export interface MenuItemConfig {
   kind: MenuItemKind;
   speed?: string;
   label: string;
+  /** The row's icon when it is OFF, or its only icon when it has no state. */
   icon: string;
+  /** The row's icon when it is ON. Defaults to `icon` with `-off` swapped for `-on`. */
+  iconOn?: string;
+  initial?: boolean;
   href?: string;
   target: '_self' | '_blank';
 }
 
 /** The default label and icon of each built-in row. */
-const MENU_DEFAULTS: Record<Exclude<MenuItemKind, 'speed' | 'action'>, { label: string; icon: string; feature: HudFeatureId; target?: '_self' | '_blank'; inDefault?: boolean }> = {
+const MENU_DEFAULTS: Record<Exclude<MenuItemKind, 'speed' | 'action' | 'toggle'>, { label: string; icon: string; feature: HudFeatureId; target?: '_self' | '_blank'; inDefault?: boolean }> = {
   sound: { label: 'sound', icon: 'icon-sound-on', feature: 'sound', inDefault: true },
   music: { label: 'music', icon: 'icon-music-on', feature: 'music', inDefault: true },
   history: { label: 'history', icon: 'icon-history', feature: 'history', inDefault: true },
@@ -217,6 +238,9 @@ const MENU_DEFAULTS: Record<Exclude<MenuItemKind, 'speed' | 'action'>, { label: 
   // SUPPORT is a page, so it opens in a tab and is never in the default menu: a
   // game only has one if the operator gave it a URL.
   support: { label: 'support_uc', icon: 'icon-info-b', feature: 'info', target: '_blank' },
+  // SPACEBAR TO SPIN is a desktop setting — a phone has no spacebar — so it is
+  // never in the default menu and the markup binding drops it on touch.
+  spacebar: { label: 'spacebar_uc', icon: 'icon-keypad', feature: 'menu' },
   realMoney: { label: 'real_money_uc', icon: 'icon-chip', feature: 'realMoney', inDefault: true },
   deposit: { label: 'deposit_uc', icon: 'icon-coins', feature: 'deposit', inDefault: true },
   lobby: { label: 'home', icon: 'icon-home', feature: 'lobby', inDefault: true },
@@ -429,7 +453,7 @@ export function resolveHudChrome(spec?: HudChromeSpec, onIssue?: (i: ChromeIssue
     menu = [];
     for (const [i, entry] of spec.menu.entries()) {
       const kind = entry?.kind;
-      if (!kind || (kind !== 'speed' && kind !== 'action' && !(kind in MENU_DEFAULTS))) {
+      if (!kind || (kind !== 'speed' && kind !== 'action' && kind !== 'toggle' && !(kind in MENU_DEFAULTS))) {
         onIssue?.({ level: 'warn', path: `hud.menu[${i}]`, code: 'unknown-menu-item', message: `"${String(kind)}" is not a menu row — dropped` });
         continue;
       }
@@ -451,8 +475,36 @@ export function resolveHudChrome(spec?: HudChromeSpec, onIssue?: (i: ChromeIssue
         menu.push({ id: entry.id, kind, label: entry.label ?? entry.id, icon: entry.icon ?? 'icon-dots', href: entry.href, target: entry.target ?? '_blank' });
         continue;
       }
+      // A SETTING the game owns. Unlike an action, it carries state, says which of
+      // its two faces it is wearing, and leaves the menu open when it is pressed.
+      if (kind === 'toggle') {
+        if (!entry.id) {
+          onIssue?.({ level: 'warn', path: `hud.menu[${i}]`, code: 'bad-menu-item', message: 'a toggle row needs an id — dropped' });
+          continue;
+        }
+        const off = entry.icon ?? 'icon-settings';
+        menu.push({
+          id: entry.id,
+          kind,
+          label: entry.label ?? entry.id,
+          icon: off,
+          iconOn: off.endsWith('-off') ? `${off.slice(0, -4)}-on` : off,
+          initial: entry.initial ?? false,
+          target: '_self',
+        });
+        continue;
+      }
       const d = MENU_DEFAULTS[kind];
-      menu.push({ id: entry.id ?? kind, kind, label: entry.label ?? d.label, icon: entry.icon ?? d.icon, href: entry.href, target: entry.target ?? d.target ?? '_self' });
+      const icon = entry.icon ?? d.icon;
+      menu.push({
+        id: entry.id ?? kind,
+        kind,
+        label: entry.label ?? d.label,
+        icon,
+        ...(icon.endsWith('-off') || icon.endsWith('-on') ? { iconOn: icon.replace(/-o(ff|n)$/, '-on') } : {}),
+        href: entry.href,
+        target: entry.target ?? d.target ?? '_self',
+      });
     }
   } else {
     menu = defaultMenu(features, speeds);

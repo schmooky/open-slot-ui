@@ -68,6 +68,7 @@ export function menuItemsHtml(rows: readonly MenuItemConfig[], speeds: readonly 
   const ROW_IDS: Record<string, string> = {
     sound: 'SoundToggle',
     music: 'MusicToggle',
+    spacebar: 'SpacebarToggle',
     history: 'BetHistoryBtn',
     info: 'GameInfoBtn',
     support: 'SupportBtn',
@@ -78,6 +79,7 @@ export function menuItemsHtml(rows: readonly MenuItemConfig[], speeds: readonly 
   const MODIFIERS: Record<string, string> = {
     sound: 'sound',
     music: 'music',
+    spacebar: 'spacebar',
     history: 'bet-history',
     info: 'info',
     support: 'info',
@@ -90,6 +92,9 @@ export function menuItemsHtml(rows: readonly MenuItemConfig[], speeds: readonly 
     .map((row) => {
       if (row.kind === 'speed') return speedRow(row);
       if (row.kind === 'action') return plain(row, `MenuAction-${row.id}`, 'action');
+      // A SETTING the game owns, drawn like SOUND and MUSIC: same row, same classes,
+      // and the binding keeps its two icons in step with its state.
+      if (row.kind === 'toggle') return plain(row, `MenuToggle-${row.id}`, 'toggle');
       return plain(row, ROW_IDS[row.kind] ?? row.id, MODIFIERS[row.kind] ?? row.kind);
     })
     .join('');

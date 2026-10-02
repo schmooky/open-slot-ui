@@ -13,8 +13,9 @@ import type { Dispose, OpenUI } from '@open-slot-ui/core';
  *
  *  - **Not while typing.** The autoplay panel has real number inputs; space in a
  *    text field is a space, and Escape belongs to the field's own editing.
- *  - **Not against the jurisdiction.** A market that forbids keyboard spin gets
- *    no keyboard spin, whatever the host configured.
+ *  - **Not against the jurisdiction, and not against the player.** A market that
+ *    forbids keyboard spin gets no keyboard spin, whatever the host configured; a
+ *    player who switched SPACEBAR TO SPIN off gets none either (`ui.spacebar`).
  *  - **Not while a window is up.** Space should not spin the reels behind an open
  *    rules window; there, Escape closes what is in front instead.
  */
@@ -85,7 +86,10 @@ export function bindKeyboard(ui: OpenUI, opts: KeyboardOptions = {}): Dispose {
     if (windows().some((p) => p.isOpen)) return;
 
     if (keys.spin.includes(e.key)) {
-      if (ui.isDisabled('spacebar') || ui.locked.get()) return;
+      // Three things have to agree: the market allows keyboard spin, the player has
+      // not switched it off, and the HUD is not locked. The market's ban is not a
+      // preference — it wins over both of the others.
+      if (ui.isDisabled('spacebar') || !ui.spacebar.isOn || ui.locked.get()) return;
       ui.spin.activate();
       e.preventDefault(); // space scrolls a page, and this page is a game
       return;

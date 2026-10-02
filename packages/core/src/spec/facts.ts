@@ -31,8 +31,24 @@ export interface GameModeFact {
   /** What kind of mode this is. `'base'` is the plain game; everything else is a
    *  configured feature that MUST be described in the rules. */
   kind?: 'base' | 'buy' | 'boost' | 'ante' | 'bonus';
-  /** Cost as a multiple of the base bet (buy price / per-spin surcharge). */
+  /**
+   * What the mode ADDS, as a multiple of the base bet.
+   *
+   * For a boost or an ante this is the SURCHARGE — `0.25` means a round costs
+   * 1.25× the stake — and for a buy it is the buy price. The two readings are why
+   * `price` exists: a rule that says "costs {{cost.lucky}}" on a 2× lucky bet reads
+   * "costs 1× the bet", which is true of the surcharge and wrong as a price.
+   */
   cost?: number;
+  /**
+   * What a round in this mode COSTS ALTOGETHER, as a multiple of the base bet.
+   *
+   * Default: `1 + cost` for a boost or an ante (the stake plus its surcharge), and
+   * `cost` for a buy, where the price IS the cost. State it explicitly when the
+   * game prices the mode some other way; `{{price.<id>}}` is what rules copy should
+   * quote at a player.
+   */
+  price?: number;
   /** The mode's RTP in percent (e.g. 95.5). Required in the rules for every mode. */
   rtp?: number;
   /** The mode's maximum win as a multiple of the base bet (e.g. 5000). Required. */
@@ -119,6 +135,7 @@ export function modeStatsItems(
  *
  *   `{{rtp.<modeId>}}`     → "95.50%"        `{{maxWin.<modeId>}}` → "5,000×"
  *   `{{cost.<modeId>}}`    → "185×"          `{{name.<modeId>}}`   → the mode name
+ *   `{{price.<modeId>}}`   → "2×"            (what a round costs ALTOGETHER)
  *   `{{freeSpins.count}}`  → 3               `{{freeSpins.retrigger}}` → "can"/"cannot"
  *   `{{volatility}}`       → "Very high"     `{{maxWinCap}}`       → "5,000×"
  *
@@ -135,6 +152,8 @@ export function factsVars(
     if (m.rtp != null) vars[`rtp.${m.id}`] = formatRtp(m.rtp);
     if (m.maxWinX != null) vars[`maxWin.${m.id}`] = formatTimes(m.maxWinX);
     if (m.cost != null) vars[`cost.${m.id}`] = formatTimes(m.cost);
+    const price = modePrice(m);
+    if (price != null) vars[`price.${m.id}`] = formatTimes(price);
   }
   const fs = facts?.freeSpins;
   if (fs) {
@@ -374,10 +393,30 @@ function mentionsTimes(text: string, x: number): boolean {
 
 const mentionsName = (text: string, name: string): boolean => text.toLowerCase().includes(name.toLowerCase());
 
-/** Does a mode's OWN section state its cost? Accepts the surcharge as `0.5×`, the
- *  total as `1.5×` (games phrase antes either way), or a `+50%` percentage form. */
-function mentionsCost(text: string, cost: number): boolean {
+/**
+ * What a round in a mode costs altogether, as a multiple of the base bet.
+ *
+ * A buy's cost IS its price. A boost or an ante charges the stake PLUS its
+ * surcharge, which is the number a player is actually asked to accept — and the
+ * one a rules page has to state.
+ */
+export function modePrice(m: GameModeFact): number | undefined {
+  if (m.price != null) return m.price;
+  if (m.cost == null) return undefined;
+  return m.kind === 'buy' || m.kind === 'bonus' ? m.cost : 1 + m.cost;
+}
+
+/**
+ * Does a mode's OWN section state what it costs?
+ *
+ * A game may phrase it either way — the surcharge (`0.5×`), the full price
+ * (`1.5×`), or a percentage (`+50%`) — and all three are honest, so all three
+ * count. What does NOT count is silence: a mode a player pays extra for has to
+ * say so somewhere in its own section.
+ */
+function mentionsCost(text: string, cost: number, price?: number): boolean {
   if (mentionsTimes(text, cost) || mentionsTimes(text, cost + 1)) return true;
+  if (price != null && mentionsTimes(text, price)) return true;
   if (cost > 0 && cost < 1) return new RegExp(`\\b${Math.round(cost * 100)}\\s*%`).test(text);
   return false;
 }
@@ -448,9 +487,14 @@ export function auditRules(
         if (sec.text.trim().length < MIN_SECTION_PROSE) {
           add('required', 'rules-mode-section-empty', `section:${m.id}`, `The “${m.name}” section has a heading but no real explanation — describe how the mode actually plays.`);
         }
-        // A costed feature must state its price INSIDE its own section.
-        if (m.kind && m.kind !== 'base' && m.cost != null && !(sec.covers.has(`cost:${m.id}`) || mentionsCost(sec.text, m.cost))) {
-          add('required', 'rules-mode-missing-cost', `cost:${m.id}`, `State what “${m.name}” costs (${formatTimes(m.cost)} the bet — e.g. via {{cost.${m.id}}}) inside its own section.`);
+        // A costed feature must state its price INSIDE its own section — and for a
+        // mode that charges the stake PLUS a surcharge, the number a player needs is
+        // the price of the round, not the surcharge on its own.
+        const price = modePrice(m);
+        if (m.kind && m.kind !== 'base' && m.cost != null && !(sec.covers.has(`cost:${m.id}`) || mentionsCost(sec.text, m.cost, price))) {
+          const quote = price != null && price !== m.cost ? `${formatTimes(price)} the bet a round` : `${formatTimes(m.cost)} the bet`;
+          const token = price != null && price !== m.cost ? `{{price.${m.id}}}` : `{{cost.${m.id}}}`;
+          add('required', 'rules-mode-missing-cost', `cost:${m.id}`, `State what “${m.name}” costs (${quote} — e.g. via ${token}) inside its own section.`);
         }
       }
     }

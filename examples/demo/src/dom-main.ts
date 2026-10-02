@@ -138,7 +138,21 @@ const SPEC: UISpec = {
   autoplay: { options: [10, 25, 50, 75, 100, 500, 1000], lossLimits: [5, 20, 50], winLimits: [10, 20, 75] },
   rtp: 96.1,
   game: { name: 'open-slot-ui', version: '0.15.0' },
-  hud: { features: { superTurbo: true, lobby: true } },
+  hud: {
+    features: { superTurbo: true, lobby: true },
+    // The default list plus SPACEBAR TO SPIN, which the binding drops on a touch
+    // channel. `?demo=1` adds the play-money badge to the balance.
+    menu: [
+      { kind: 'sound' },
+      { kind: 'music' },
+      { kind: 'speed', speed: 'turbo' },
+      { kind: 'speed', speed: 'super-turbo' },
+      { kind: 'spacebar' },
+      { kind: 'history' },
+      { kind: 'info' },
+      { kind: 'lobby' },
+    ],
+  },
   rules: forget ? dropBlocks(RULES_BLOCKS, FORGOTTEN) : RULES_BLOCKS,
   facts: forget ? { ...FACTS, freeSpins: undefined } : FACTS,
 };
@@ -197,6 +211,7 @@ async function main(): Promise<void> {
   }
   if (Number(q.get('win'))) hud.setWin(Number(q.get('win')));
   hud.setMaxWin(5000, '1 in 1,250,000');
+  if (q.get('demo') === '1') hud.setDemo(true);
   hud.setHistory([]);
 
   // ── the game, once the HUD is on screen ──────────────────────────────────

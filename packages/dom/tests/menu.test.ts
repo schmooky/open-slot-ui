@@ -281,3 +281,109 @@ describe('the round button and the colours a game owns', () => {
     expect(sheets).toContain('[data-state^="feature"] .ToggleButton--feature-buy');
   });
 });
+
+describe('the locks, the settings and the badge a platform needs', () => {
+  it('paints a disabled buy coin and refuses its press', () => {
+    const h = mount({}, { features: [{ id: 'free-spins', name: 'Free Spins', cost: 100, variant: 'buy' }] });
+    const coin = document.getElementById('FeatureBuyToggle') as HTMLButtonElement;
+    const pressed: string[] = [];
+    h.on('buttonActivated', (p) => pressed.push(p.id));
+    h.ui.bonusButton.disable();
+    expect(coin.className).toContain('is-disabled');
+    expect(coin.disabled).toBe(true);
+    coin.click();
+    expect(pressed).toEqual([]); // the sheet does not open mid-round
+    h.ui.bonusButton.enable();
+    expect(coin.className).not.toContain('is-disabled');
+    coin.click();
+    expect(pressed).toEqual(['bonus']);
+  });
+
+  it('locks the autoplay SHEET without locking a stop', () => {
+    const h = mount({ autoplay: { options: [10] } });
+    const btn = document.getElementById('AutoplayBtn') as HTMLButtonElement;
+    h.ui.autoplayMenuButton.disable();
+    expect(btn.className).toContain('is-disabled');
+    btn.click();
+    expect(h.ui.autoplayPanel.isOpen).toBe(false);
+    // ...but a run that is going can always be stopped
+    h.ui.autoplay.begin(10, {});
+    expect(btn.className).not.toContain('is-disabled');
+    btn.click();
+    expect(h.ui.autoplay.isActive).toBe(false);
+  });
+
+  it('answers the spacebar only while the player leaves it on', () => {
+    const h = mount({});
+    const spins: number[] = [];
+    h.on('spinRequested', () => spins.push(1));
+    const press = (): void => void document.body.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+    press();
+    expect(spins.length).toBe(1);
+    h.ui.spacebar.set(false);
+    press();
+    expect(spins.length).toBe(1);
+    h.ui.spacebar.set(true);
+    press();
+    expect(spins.length).toBe(2);
+    // the market's ban still wins over the player's preference
+    h.applyJurisdiction({ disabledSpacebar: true });
+    press();
+    expect(spins.length).toBe(2);
+  });
+
+  it('draws a SPACEBAR row that switches the setting and keeps the menu open', () => {
+    const h = mount({ hud: { menu: [{ kind: 'spacebar' }] } });
+    const row = document.getElementById('SpacebarToggle')!;
+    h.ui.mainMenuPanel.openPanel();
+    expect(row.querySelector('[class^="icon-"]')).not.toBeNull();
+    row.click();
+    expect(h.ui.spacebar.isOn).toBe(false);
+    expect(h.ui.mainMenuPanel.isOpen).toBe(true); // a setting is not a door
+  });
+
+  it('draws a row the game added as a setting, with both its faces', () => {
+    const h = mount({ hud: { menu: [{ kind: 'toggle', id: 'hints', label: 'HINTS', icon: 'icon-info-a-off' }] } });
+    const row = document.getElementById('MenuToggle-hints')!;
+    expect(row.querySelector('[class^="icon-"]')!.className).toBe('icon-info-a-off');
+    row.click();
+    expect(row.className).toContain('hints-on');
+    expect(row.querySelector('[class^="icon-"]')!.className).toBe('icon-info-a-on');
+    expect(h.ui.mainMenuPanel.isOpen).toBe(false);
+  });
+
+  it('badges a demo session on the balance', () => {
+    const h = mount({});
+    const root = document.querySelector<HTMLElement>('.OpenSlotUiContainer')!;
+    expect(root.dataset.demo).toBe('false');
+    h.setDemo(true);
+    expect(root.dataset.demo).toBe('true');
+    const sheets = [...document.querySelectorAll('style')].map((s) => s.textContent ?? '').join('\n');
+    expect(sheets).toContain('[data-demo="true"] #BalanceLabel::after');
+  });
+
+  it('refuses to be pinch-zoomed, and still scrolls', () => {
+    mount({});
+    const sheets = [...document.querySelectorAll('style')].map((s) => s.textContent ?? '').join('\n');
+    expect(sheets).toContain('touch-action: pan-x pan-y');
+  });
+
+  it('remembers what the player chose, when a host asks it to', () => {
+    const store = new Map<string, string>();
+    const storage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    };
+    const first = mountDomHud({}, { persist: { key: 'game', storage } });
+    first.ui.spacebar.set(false);
+    first.ui.setMuted(true);
+    return Promise.resolve().then(() => {
+      first.dispose();
+      document.body.innerHTML = '';
+      hud = mountDomHud({}, { persist: { key: 'game', storage } });
+      expect(hud.ui.spacebar.isOn).toBe(false);
+      expect(hud.ui.muted.get()).toBe(true);
+    });
+  });
+});

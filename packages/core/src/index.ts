@@ -45,3 +45,4 @@ export * from './format/currency';
 export * from './notice';
 export * from './bet';
 export * from './OpenUI';
+export * from './settings';

@@ -168,6 +168,15 @@ export class OpenUI {
   jurisdiction: Readonly<JurisdictionConfig> = {};
   /** Replay mode (Stake `replay=true`): the HUD locks + a REPLAY badge shows. */
   readonly replay = new Signal<boolean>(false);
+  /**
+   * Whether this session is play money.
+   *
+   * A player has to be able to tell, at a glance and at any moment, that the
+   * balance on the bar is not theirs — most markets require the word on screen, and
+   * a game that forgets it has a compliance problem rather than a styling one. The
+   * views mark the root and badge the balance; the host says so once.
+   */
+  readonly demo = new Signal<boolean>(false);
   /** Game name + version (shown in the menu footer; for support / certification). */
   gameInfo: { name?: string; version?: string } = {};
   /** Declared GAME FACTS (modes + RTP/max win, free spins, volatility, cap) — seeded
@@ -247,6 +256,23 @@ export class OpenUI {
   readonly stopOnFeature: ToggleControl;
   /** Autoplay's "stop as soon as a round pays" switch. */
   readonly stopOnAnyWin: ToggleControl;
+  /**
+   * The button that OPENS the autoplay sheet — not the run itself.
+   *
+   * A round in flight must not be able to open a sheet that changes what the next
+   * one costs, and a host had no way to say so: the markup bound the press
+   * straight to the panel. Disabling this disables opening the sheet; stopping an
+   * active run is the round button's job and stays live.
+   */
+  readonly autoplayMenuButton: ButtonControl;
+  /**
+   * SPACEBAR TO SPIN, as the player's own setting.
+   *
+   * Separate from the jurisdiction's `disabledSpacebar`, which is a ban: a market
+   * that forbids keyboard spin wins whatever this says. This is the preference a
+   * menu row offers on desktop, and what a host saves between sessions.
+   */
+  readonly spacebar: ToggleControl;
 
   /** What the HUD is doing — drives which controls the ribbon shows. */
   readonly hudState = new Signal<HudState>('idle');
@@ -403,6 +429,8 @@ export class OpenUI {
     this.superTurboBonus = speedById.get('super-turbo')?.bonus ?? spare('super-turbo-bonus');
     this.stopOnFeature = new ToggleControl({ id: 'stop-on-feature', layout: { anchor: 'center' }, on: false }, this.bus);
     this.stopOnAnyWin = new ToggleControl({ id: 'stop-on-any-win', layout: { anchor: 'center' }, on: false }, this.bus);
+    this.autoplayMenuButton = new ButtonControl({ id: 'autoplay-menu', layout: { anchor: 'center' } }, this.bus);
+    this.spacebar = new ToggleControl({ id: 'spacebar', layout: { anchor: 'center' }, on: true }, this.bus);
 
     for (const c of [
       this.spin,
@@ -435,6 +463,8 @@ export class OpenUI {
       this.superTurboBonus,
       this.stopOnFeature,
       this.stopOnAnyWin,
+      this.autoplayMenuButton,
+      this.spacebar,
       ...speeds.flatMap((s) => [s.base, s.bonus]),
     ]) {
       this.register(c);
@@ -730,6 +760,11 @@ export class OpenUI {
 
   /** Enter/leave replay mode (Stake `replay=true`) — locks the HUD so no real bet is
    *  placed; the renderer shows a REPLAY badge while it's on. */
+  /** Say whether this is a demo (play-money) session. The HUD badges it. */
+  setDemo(on: boolean): void {
+    this.demo.set(!!on);
+  }
+
   setReplay(on: boolean): void {
     if (on === this.replay.get()) return;
     this.replay.set(on);

@@ -9,6 +9,12 @@ exports[`OpenUI.snapshot() > matches the documented initial control surface 1`] 
     "state": "idle",
   },
   {
+    "id": "autoplay-menu",
+    "interactable": true,
+    "role": "button",
+    "state": "idle",
+  },
+  {
     "id": "autoplay-panel",
     "interactable": false,
     "role": "dialog",
@@ -121,6 +127,12 @@ exports[`OpenUI.snapshot() > matches the documented initial control surface 1`] 
     "interactable": true,
     "role": "slider",
     "state": "idle",
+  },
+  {
+    "id": "spacebar",
+    "interactable": true,
+    "role": "switch",
+    "state": "on",
   },
   {
     "id": "spin",

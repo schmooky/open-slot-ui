@@ -15,6 +15,8 @@ import {
   type NoticeOptions,
   type RgsErrorOptions,
   readoutElement,
+  persistSettings,
+  type PersistOptions,
 } from '@open-slot-ui/core';
 import {
   TPL_PROGRESS_INDICATOR,
@@ -95,6 +97,15 @@ export interface DomHudOptions {
    * arrows step the stake; `{ enabled: false }` leaves the keyboard to the game.
    */
   keyboard?: KeyboardOptions;
+  /**
+   * Remember what the player chose, under this key.
+   *
+   * Opt-in, because storage is the host's business. Given a key, the HUD restores
+   * the sound and music levels, the master mute, every speed's base/bonus switches
+   * and SPACEBAR TO SPIN at mount, and writes them back whenever they change. Pass
+   * an object to put them somewhere other than `localStorage`.
+   */
+  persist?: string | PersistOptions;
   /** Design width of the desktop bar in px, for the fit. Default 840 (52.5rem). */
   designWidth?: number;
   /** Clamp on the fit scale. Default `[0.7, 1.6]`. */
@@ -138,6 +149,8 @@ export interface DomHud {
   showRgsError(code: string, opts?: RgsErrorOptions): void;
   showFatal(message: string, opts?: NoticeOptions): void;
   setReplay(on: boolean): void;
+  /** Say whether this is a demo (play-money) session — the balance gets a DEMO badge. */
+  setDemo(on: boolean): void;
   /**
    * Hide the boot spinner — the game calls it when it is ready to play. With no
    * spinner asked for there is nothing to hide, and this does nothing.
@@ -195,6 +208,12 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
   // a host that says nothing gets what the player asked their system for.
   const motion = resolveMotion(opts.motion);
   root.dataset.motion = motion;
+
+  // A demo session is marked on the root, which is what the badge hangs off.
+  const syncDemo = (): void => {
+    root.dataset.demo = String(ui.demo.get());
+  };
+  syncDemo();
 
   const icons = resolveIcons(opts.icons);
   applyIcons(root, icons);
@@ -336,6 +355,11 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
     bindWindows(ui, ctx),
     bindOverlay(ui, ctx),
     bindKeyboard(ui, opts.keyboard),
+    ui.demo.subscribe(syncDemo),
+    // Settings are restored HERE, after every binding is listening, so a restored
+    // mute or speed paints itself on the way in instead of being applied to a tree
+    // that has not been wired up yet.
+    opts.persist ? persistSettings(ui, typeof opts.persist === 'string' ? { key: opts.persist } : opts.persist) : () => undefined,
   );
 
   // ── the attributes the stylesheet lays out from ───────────────────────────
@@ -352,6 +376,10 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
     const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
     const channel = opts.channel ?? (coarse || Math.min(w, h) <= 600 ? 'mobile' : 'desktop');
     root.dataset.channel = channel;
+    // A phone has no spacebar, so the row that switches it is desktop-only. It is
+    // removed rather than hidden: a setting a player cannot act on is not a setting,
+    // and leaving it in the list would say the game has one.
+    if (channel !== 'desktop') $(root, 'SpacebarToggle')?.remove();
     root.dataset.orientation = w >= h ? 'landscape' : 'portrait';
     fitBar(w);
   };
@@ -501,6 +529,7 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
     showRgsError: (code, opts) => ui.showRgsError(code, opts),
     showFatal: (message, opts) => ui.showFatal(message, opts),
     setReplay: (on) => ui.setReplay(on),
+    setDemo: (on) => ui.setDemo(on),
     ready: () => progress?.classList.remove('is-visible'),
     dispose: () => {
       for (const d of disposers.splice(0)) d();
@@ -690,6 +719,40 @@ div[data-channel="mobile"] #BetAmountIncrease {
 .ToggleButton--feature-buy.is-disabled {
   opacity: 0.6;
   pointer-events: none;
+}
+
+/* ── THE HUD IS NOT A DOCUMENT TO ZOOM ──────────────────────────────────────
+   iOS ignores user-scalable=no, so a two-finger pinch on the bar zooms the whole
+   game — easy to do by accident on a control strip you press with both thumbs, and
+   impossible to undo in a fullscreen game frame. Panning stays: the rules and the
+   history are long and must scroll. */
+.OpenSlotUiContainer {
+  touch-action: pan-x pan-y;
+}
+
+/* A SETTING ROW THAT IS OFF LOOKS OFF. The reference swaps a slashed glyph for
+   SOUND and MUSIC, but not every icon font has a twin for every setting a game
+   adds, so the row says it the way a muted row does: dimmed. */
+.MainMenuItem.is-off [class^="icon-"],
+.MainMenuItem.is-off [data-translation] {
+  opacity: var(--ohm-row-off, 0.45);
+}
+
+/* ── A DEMO SESSION SAYS SO ─────────────────────────────────────────────────
+   Play money has to be visible at a glance, next to the number it applies to —
+   most markets require the word on screen, and a player who thinks they are
+   winning real money is a complaint, not a styling detail. */
+[data-demo="true"] #BalanceLabel::after {
+  background: var(--ohm-demo-bg, var(--hg-bg-accent, #ffc529));
+  border-radius: 2px;
+  color: var(--ohm-demo-text, #000);
+  content: var(--ohm-demo-word, "DEMO");
+  font-size: 0.8em;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  margin-left: 0.5em;
+  padding: 0 0.35em;
+  vertical-align: baseline;
 }
 
 /* ── A SWITCH IS A PILL, NOT A DISC ─────────────────────────────────────────

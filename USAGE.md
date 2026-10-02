@@ -202,6 +202,27 @@ Four knobs, if the skin's own numbers do not suit the game:
 | `--ohm-changer-gap` | `6px` | Clearance between the round button and the ± changers on a touch bar, where the skin tucks them under its edge. |
 | `--ohm-buy-label` | `10px` | Floor under the buy coin's word on a touch bar; the skin shrinks it to 8px or less to fit a rotated disc. |
 
+### Settings that survive a reload
+
+```ts
+mountDomHud(spec, { persist: 'my-game-settings' });
+```
+
+Opt-in. Restores the sound and music levels, the master mute, every speed's
+base/bonus switches and SPACEBAR TO SPIN at mount, and writes them back as they
+change. Storage failures cost the memory, never the game; a stored set from an
+older version is ignored rather than applied. Pass `{ key, storage }` to put them
+somewhere else.
+
+### Locking the controls for a round
+
+```ts
+hud.ui.bonusButton.disable();         // the buy coin: dimmed, unclickable, no keyboard route
+hud.ui.autoplayMenuButton.disable();  // opening the autoplay sheet — stopping a run stays live
+hud.ui.spacebar.set(false);           // the player's spin-key preference (a market ban still wins)
+hud.setDemo(true);                    // play money: data-demo on the root, DEMO beside the balance
+```
+
 ## Compliance
 
 ```ts

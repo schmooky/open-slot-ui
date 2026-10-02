@@ -5,6 +5,7 @@ import {
   auditRules,
   factsVars,
   composeMenu,
+  ToggleControl,
   type OpenUI,
   type HudState,
   type BlockSpec,
@@ -109,6 +110,10 @@ export function bindReadouts(ui: OpenUI, ctx: BindContext): Dispose {
     // the BUTTON — that is the selector the stylesheet gates on.)
     const buy = $(r, 'FeatureBuyToggle');
     setVisible(buy, !feature && !fr && ctx.features.length > 0 && !ui.hidden.has('bonus'));
+    // ...and a coin the host disabled LOOKS disabled. `setDisabled` writes both the
+    // class the stylesheet dims and the attribute the browser refuses clicks on, so
+    // a locked round cannot be spent through the keyboard either.
+    setDisabled(buy, !ui.bonusButton.interactable);
     // The skin sizes the pill's text off its length; the reference sets the same attr.
     if (buy) buy.dataset.charcount = String((buy.textContent ?? '').trim().length);
   };
@@ -155,6 +160,8 @@ export function bindReadouts(ui: OpenUI, ctx: BindContext): Dispose {
     ui.freeRounds.subscribe(repaint),
     ui.hudState.subscribe(repaint),
     ui.betModifier.subscribe(repaint),
+    ui.bonusButton.state.subscribe(repaint),
+    ui.demo.subscribe(repaint),
     ui.locale.subscribe(repaint),
   );
 }
@@ -234,6 +241,34 @@ export function bindMainMenu(ui: OpenUI, ctx: BindContext): Dispose {
   const toggle = $(r, 'MainMenuToggle');
   const sound = $(r, 'SoundToggle');
   const music = $(r, 'MusicToggle');
+  /**
+   * The rows that are SETTINGS rather than doors: spacebar, and whatever the game
+   * declared as `kind: 'toggle'`. Each keeps its own on/off state, says so with the
+   * same class pair the skin dresses, and leaves the menu open when pressed —
+   * changing a setting is not navigating away from the settings.
+   */
+  const custom = new Map<string, ToggleControl>();
+  const settingRows = ui.chrome.menu
+    .filter((row) => row.kind === 'spacebar' || row.kind === 'toggle')
+    .map((row) => {
+      const id = row.kind === 'spacebar' ? 'spacebar' : row.id;
+      const el = $(r, row.kind === 'spacebar' ? 'SpacebarToggle' : `MenuToggle-${row.id}`);
+      if (row.kind === 'toggle') {
+        const control = new ToggleControl({ id: `menu-${row.id}`, layout: { anchor: 'center' }, on: row.initial ?? false }, ui.bus);
+        ui.register(control);
+        custom.set(row.id, control);
+      }
+      const control = row.kind === 'spacebar' ? ui.spacebar : (custom.get(row.id) as ToggleControl);
+      return {
+        id,
+        el,
+        control,
+        iconOff: row.icon,
+        iconOn: row.iconOn ?? row.icon,
+        read: () => control.isOn,
+      };
+    });
+
   /** `super-turbo` → `SuperTurbo`, the way the reference names its element ids. */
   const pascal = (id: string): string => id.replace(/(^|[-_ ]+)([a-z0-9])/g, (_, __, c: string) => c.toUpperCase());
   /** Every speed row on screen, paired with the switches behind it. */
@@ -251,6 +286,19 @@ export function bindMainMenu(ui: OpenUI, ctx: BindContext): Dispose {
     const musicOn = ui.musicSlider.value.get() > 0;
     setIcon(sound?.querySelector('[class^=icon-]') ?? null, sfxOn ? ctx.icons.soundOn : ctx.icons.soundOff);
     setIcon(music?.querySelector('[class^=icon-]') ?? null, musicOn ? ctx.icons.musicOn : ctx.icons.musicOff);
+
+    // SPACEBAR TO SPIN, and any setting the game added itself: the same row the
+    // audio ones use, wearing whichever of its two faces its state calls for.
+    for (const row of settingRows) {
+      const on = row.read();
+      toggleClass(row.el, `${row.id}-on`, on);
+      toggleClass(row.el, `${row.id}-off`, !on);
+      // Not every icon font has a slashed twin for every setting, and a row whose
+      // picture never changes is a switch a player cannot read. `is-off` is the
+      // state in a form the stylesheet can always show.
+      toggleClass(row.el, 'is-off', !on);
+      setIcon(row.el?.querySelector('[class^=icon-]') ?? null, on ? row.iconOn : row.iconOff);
+    }
     toggleClass(sound, 'sound-on', sfxOn);
     toggleClass(sound, 'sound-off', !sfxOn);
     toggleClass(music, 'music-on', musicOn);
@@ -346,6 +394,15 @@ export function bindMainMenu(ui: OpenUI, ctx: BindContext): Dispose {
     on($(r, 'DepositBtn'), 'click', () => ui.bus.emit('buttonActivated', { id: 'deposit' })),
     on($(r, 'LobbyAnchor'), 'click', () => ui.bus.emit('buttonActivated', { id: 'lobby' })),
     on($(r, 'SupportBtn'), 'click', () => ui.bus.emit('buttonActivated', { id: 'support' })),
+    // A setting row flips its control and stays put: the menu is where settings live,
+    // so closing it on every press would make changing two of them a chore.
+    ...settingRows.map((row) =>
+      on(row.el, 'click', () => {
+        row.control.toggle();
+        paint();
+      }),
+    ),
+    ...settingRows.map((row) => row.control.state.subscribe(paint)),
     // A game's own row does what the game says: the press is reported, the host acts.
     ...ui.chrome.menu
       .filter((row) => row.kind === 'action')
@@ -496,12 +553,31 @@ export function bindAutoplay(ui: OpenUI, ctx: BindContext): Dispose {
   const focusCustom = (input: HTMLInputElement | null): Dispose =>
     on(input?.closest('.TabComboInput') ?? null, 'click', () => input?.focus());
 
+  /**
+   * The autoplay button wears its control's state — but only for OPENING the sheet.
+   * Stopping a run that is already going must never be locked out: a player who
+   * wants it to stop is the one person the HUD must always listen to.
+   */
+  const autoplayBtn = $(r, 'AutoplayBtn');
+  const paintAutoplayBtn = (): void => {
+    const stopping = ui.autoplay.isActive;
+    setDisabled(autoplayBtn, !stopping && !ui.autoplayMenuButton.interactable);
+  };
+  paintAutoplayBtn();
+
   return all(
-    on($(r, 'AutoplayBtn'), 'click', () => {
+    ui.autoplayMenuButton.state.subscribe(paintAutoplayBtn),
+    ui.autoplay.state.subscribe(paintAutoplayBtn),
+    ui.locked.subscribe(paintAutoplayBtn),
+    on(autoplayBtn, 'click', () => {
       if (ui.autoplay.isActive) {
         ui.autoplay.stop();
         return;
       }
+      // Opening the sheet changes what the next round costs, so a host that locked
+      // this button means it: the press reports nothing and does nothing.
+      if (!ui.autoplayMenuButton.interactable) return;
+      ui.autoplayMenuButton.activate();
       ui.autoplayPanel.toggle();
       if (ui.autoplayPanel.isOpen) ui.autoplay.openPicker();
       else ui.autoplay.cancelPicker();
@@ -763,6 +839,11 @@ export function bindWindows(ui: OpenUI, ctx: BindContext): Dispose {
     window_('BetHistoryWindow', ui.historyPanel, 'BetHistoryClose'),
     window_('FeatureBuyWindow', ctx.buyPanel, 'FeatureBuyClose'),
     on($(r, 'FeatureBuyToggle'), 'click', () => {
+      // A DISABLED coin does nothing at all. `ui.bonusButton.disable()` is how a
+      // host locks the round's controls while a round is out, and until now it
+      // reached the core and stopped there: the markup kept the coin live and a
+      // press opened the sheet mid-round.
+      if (!ui.bonusButton.interactable) return;
       // While a modifier is on, the coin reads DISABLE and that is what it does —
       // opening the sheet to buy a second one would be nonsense.
       if (ui.betModifier.get()) {
