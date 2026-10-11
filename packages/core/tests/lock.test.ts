@@ -14,6 +14,22 @@ describe('ref-counted input lock (Charter P6/G7)', () => {
     expect(ui.locked.get()).toBe(false);
   });
 
+  it('reports how many locks are held', () => {
+    const ui = new OpenUI();
+    const seen: number[] = [];
+    ui.lockDepth.subscribe((d) => seen.push(d));
+    expect(ui.lockDepth.get()).toBe(0);
+    ui.lock();
+    ui.lock();
+    expect(ui.lockDepth.get()).toBe(2);
+    ui.unlock();
+    expect(ui.lockDepth.get()).toBe(1);
+    ui.unlock();
+    ui.unlock();
+    expect(ui.lockDepth.get()).toBe(0);
+    expect(seen).toEqual([1, 2, 1, 0]);
+  });
+
   it('unlock past zero is a no-op (cannot go negative)', () => {
     const ui = new OpenUI();
     ui.unlock();

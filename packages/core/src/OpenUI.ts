@@ -135,6 +135,9 @@ export class OpenUI {
    * gate each control receives in `register` reads THIS ui's `locked`.
    */
   readonly locked = new Signal<boolean>(false);
+  /** How many locks are held, observable: a view that took some of them can tell whether it is
+   *  the only one holding the HUD (the buy sheet keeps its own BET selector live then). */
+  readonly lockDepth = new Signal<number>(0);
   private lockCount = 0;
 
   /** Every subscription this ui owns, torn down by `dispose()` (Charter P12). */
@@ -421,6 +424,23 @@ export class OpenUI {
       };
     });
     this.speeds = Object.freeze(speeds);
+    // The speeds are alternatives, never a stack: within a scope at most one is on. Turning one on
+    // turns the others in that scope off, so TURBO and SUPER TURBO never both read ON (the menu
+    // used to let a player switch both on and leave the game to guess which one counted).
+    for (const scope of ['base', 'bonus'] as const) {
+      const switches = speeds.map((s) => s[scope]);
+      // A game that starts two speeds on keeps the last one it listed (the fastest, by convention).
+      const lit = switches.filter((sw) => sw.isOn);
+      for (const sw of lit.slice(0, -1)) sw.set(false);
+      for (const sw of switches) {
+        this.disposers.push(
+          sw.state.subscribe(() => {
+            if (!sw.isOn) return;
+            for (const other of switches) if (other !== sw && other.isOn) other.set(false);
+          }),
+        );
+      }
+    }
     const speedById = new Map(speeds.map((s) => [s.id, s]));
     const spare = (id: string): ToggleControl => new ToggleControl({ id, layout: { anchor: 'center' } }, this.bus);
     this.turboBase = speedById.get('turbo')?.base ?? spare('turbo-base');
@@ -640,6 +660,7 @@ export class OpenUI {
   lock(): void {
     this.lockCount += 1;
     if (this.lockCount === 1) this.locked.set(true);
+    this.lockDepth.set(this.lockCount);
   }
 
   /** Pop the lock; the HUD becomes interactable again only at zero. */
@@ -647,6 +668,7 @@ export class OpenUI {
     if (this.lockCount === 0) return;
     this.lockCount -= 1;
     if (this.lockCount === 0) this.locked.set(false);
+    this.lockDepth.set(this.lockCount);
   }
 
   /** Toggle master mute (music + sfx). */

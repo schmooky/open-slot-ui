@@ -73,6 +73,28 @@ describe('the speeds a game declares', () => {
     expect(ui.speeds[0]!.isOn).toBe(false);
   });
 
+  it('keeps the speeds exclusive within a scope: one switched on turns the others off there', () => {
+    const ui = createUI({ hud: { features: { superTurbo: true } } });
+    const [turbo, superTurbo] = ui.speeds;
+    turbo!.set(true);
+    superTurbo!.base.toggle();
+    expect(superTurbo!.base.isOn).toBe(true);
+    expect(turbo!.base.isOn).toBe(false);
+    // the other scope is its own choice
+    expect(turbo!.bonus.isOn).toBe(true);
+    superTurbo!.set(true);
+    expect(turbo!.isOn).toBe(false);
+    // and back: turbo on turns super turbo off
+    turbo!.set(true);
+    expect(superTurbo!.isOn).toBe(false);
+  });
+
+  it('keeps the last of two speeds a game starts on', () => {
+    const ui = createUI({ hud: { speeds: [{ id: 'turbo', initial: true }, { id: 'super-turbo', initial: true }] } });
+    expect(ui.speeds[0]!.isOn).toBe(false);
+    expect(ui.speeds[1]!.isOn).toBe(true);
+  });
+
   it('starts a speed on when the game says it starts on', () => {
     const ui = createUI({ hud: { speeds: [{ id: 'turbo', initial: true }] } });
     expect(ui.speeds[0]!.isOn).toBe(true);
