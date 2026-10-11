@@ -51,6 +51,9 @@ export interface BindContext {
   rulesBlocks?: BlockSpec[];
   /** Open/closed state for the buy sheet (its own control, so e2e can read it). */
   buyPanel: { isOpen: boolean; openPanel(): void; closePanel(): void; state: { subscribe(fn: () => void): Dispose } };
+  /** How many of the HUD's locks the open windows hold. The buy sheet's own BET selector stays
+   *  live while those are the only locks: the window freezes the bar behind it, not itself. */
+  windowLocks?: () => number;
 }
 
 const all = (...d: Dispose[]): Dispose => () => d.forEach((fn) => fn());
@@ -393,8 +396,14 @@ export function bindMainMenu(ui: OpenUI, ctx: BindContext): Dispose {
       const next = !row.speed.isOn;
       row.speed.set(next);
       toggleClass(item, 'is-open', next);
+      foldOthers(row);
       syncTurbo();
     });
+  };
+
+  /** The speeds are exclusive per scope: a row another speed just switched off folds away. */
+  const foldOthers = (row: (typeof speedRows)[number]): void => {
+    for (const other of speedRows) if (other !== row && !other.speed.isOn) toggleClass(other.title?.closest('.Accordion') ?? null, 'is-open', false);
   };
 
   /** Keep the shared turbo control in step with the speeds (a game reads it). */
@@ -440,9 +449,14 @@ export function bindMainMenu(ui: OpenUI, ctx: BindContext): Dispose {
       ui.musicSlider.setNormalized(onNow ? 0 : lastMusic || 0.7);
     }),
     ...speedRows.map(turboRow),
-    ...speedRows.flatMap(({ speed }) =>
-      speed.scopes.map((scope) =>
-        togglerBind(`${pascal(speed.id)}${scope === 'base' ? 'BaseGame' : 'BonusGame'}Toggler`, scope === 'base' ? speed.base : speed.bonus),
+    ...speedRows.flatMap((row) =>
+      row.speed.scopes.map((scope) =>
+        togglerBind(`${pascal(row.speed.id)}${scope === 'base' ? 'BaseGame' : 'BonusGame'}Toggler`, {
+          toggle: () => {
+            (scope === 'base' ? row.speed.base : row.speed.bonus).toggle();
+            foldOthers(row);
+          },
+        }),
       ),
     ),
     on($(r, 'BetHistoryBtn'), 'click', () => {
@@ -770,6 +784,19 @@ export function bindWindows(ui: OpenUI, ctx: BindContext): Dispose {
     buyBody.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${k.toFixed(4)})`;
   };
 
+  /**
+   * The sheet holds a window lock while it is up, and that lock freezes the bar's +/- behind it —
+   * but the sheet's own BET selector is the same pair of controls, and it must keep working. It
+   * steps the ladder when the window's lock is the only one held; a host, notice or replay lock
+   * still freezes it, and the ends of the ladder still stop it.
+   */
+  const sheetCanStep = (control: typeof ui.betPlus): boolean =>
+    control.interactable || (control.current !== 'disabled' && ui.lockDepth.get() <= (ctx.windowLocks?.() ?? 0));
+  const sheetStep = (control: typeof ui.betPlus): void => {
+    if (control.interactable) control.activate();
+    else if (sheetCanStep(control)) ui.bus.emit('buttonActivated', { id: control.id });
+  };
+
   const paintBuy = (): void => {
     if (!buyWindow || !buyBody || !ctx.features.length) return;
     // The stylesheet widths the grid off this — without it the cards have no room.
@@ -779,8 +806,8 @@ export function bindWindows(ui: OpenUI, ctx: BindContext): Dispose {
     text(betValue, formatAmount(ui.bet.get(), ui.bet.currency.get()));
     charcount(betValue);
     charcount($(r, 'FeatureBuyAmountLabel'));
-    setDisabled($(r, 'FeatureBuyAmountIncrease'), !ui.betPlus.interactable);
-    setDisabled($(r, 'FeatureBuyAmountDecrease'), !ui.betMinus.interactable);
+    setDisabled($(r, 'FeatureBuyAmountIncrease'), !sheetCanStep(ui.betPlus));
+    setDisabled($(r, 'FeatureBuyAmountDecrease'), !sheetCanStep(ui.betMinus));
 
     const holder = $(r, 'FeatureBuyAmountHolder');
     buyBody.textContent = '';
@@ -923,8 +950,8 @@ export function bindWindows(ui: OpenUI, ctx: BindContext): Dispose {
     on(window, 'resize', fitSheet),
     // The sheet's own BET selector drives the SAME bet as the bar — pressing + here
     // moves the ladder, and every card re-prices off it.
-    on($(r, 'FeatureBuyAmountIncrease'), 'click', () => ui.betPlus.activate()),
-    on($(r, 'FeatureBuyAmountDecrease'), 'click', () => ui.betMinus.activate()),
+    on($(r, 'FeatureBuyAmountIncrease'), 'click', () => sheetStep(ui.betPlus)),
+    on($(r, 'FeatureBuyAmountDecrease'), 'click', () => sheetStep(ui.betMinus)),
     on($(r, 'FeatureBuyConfirmBackButton'), 'click', () => {
       confirming = undefined;
       paintConfirm();
@@ -943,6 +970,8 @@ export function bindWindows(ui: OpenUI, ctx: BindContext): Dispose {
       paintBuy();
       if (confirming) paintConfirm();
     }),
+    // A lock taken or released (the sheet's own, or a host's) changes whether its BET selector answers.
+    ui.lockDepth.subscribe(() => paintBuy()),
     ui.noticePanel.state.subscribe(paintDialog),
     ui.noticeBlocks.subscribe(paintDialog),
     ui.history.subscribe(paintHistory),

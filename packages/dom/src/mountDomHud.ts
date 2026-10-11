@@ -333,10 +333,14 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
     })),
   );
 
+  // How many of the HUD's locks the open windows hold (see below): the buy sheet's own BET
+  // selector answers while those are the only ones.
+  const windowLock = { held: 0 };
   const ctx: BindContext = {
     root,
     icons,
     buyPanel,
+    windowLocks: () => windowLock.held,
     panel: $(root, 'MainPanel'),
     features: opts.features ?? [],
     onBuy: opts.onBuy,
@@ -481,24 +485,25 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
   // cannot spin while the rules are open, and a spin that started under an open window
   // would be a round the player never saw. The lock is ref-counted, so overlapping
   // windows cannot leave it stuck on.
-  let heldLocks = 0;
   const windows = [ui.settingsPanel, ui.historyPanel, buyPanel];
   const syncWindowLock = (): void => {
     const want = windows.some((w) => w.isOpen) ? 1 : 0;
-    while (heldLocks < want) {
+    // Count the hold first: the lock notifies as it changes, and what repaints then must
+    // already know whose lock it is.
+    while (windowLock.held < want) {
+      windowLock.held++;
       ui.lock();
-      heldLocks++;
     }
-    while (heldLocks > want) {
+    while (windowLock.held > want) {
+      windowLock.held--;
       ui.unlock();
-      heldLocks--;
     }
   };
   for (const w of windows) disposers.push(w.state.subscribe(syncWindowLock));
   disposers.push(() => {
-    while (heldLocks > 0) {
+    while (windowLock.held > 0) {
+      windowLock.held--;
       ui.unlock();
-      heldLocks--;
     }
   });
 

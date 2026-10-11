@@ -138,6 +138,30 @@ describe('the ☰ menu behaves the way the design does', () => {
     expect(accordion.classList.contains('is-open')).toBe(false);
   });
 
+  it('TURBO and SUPER TURBO never both read ON: one turns the other off and folds its row', () => {
+    hud.dispose();
+    hud = mountDomHud({ hud: { features: { superTurbo: true } } });
+    id('MainMenuToggle')!.click();
+    const turbo = id('TurboToggle')!;
+    const superTurbo = id('SuperTurboToggle')!;
+    turbo.click();
+    expect(hud.ui.turboBase.isOn).toBe(true);
+    superTurbo.click();
+    expect(hud.ui.superTurboBase.isOn).toBe(true);
+    expect(hud.ui.superTurboBonus.isOn).toBe(true);
+    expect(hud.ui.turboBase.isOn).toBe(false);
+    expect(hud.ui.turboBonus.isOn).toBe(false);
+    expect(turbo.classList.contains('turbo-off')).toBe(true);
+    expect(turbo.closest('.Accordion')!.classList.contains('is-open')).toBe(false);
+    expect(superTurbo.closest('.Accordion')!.classList.contains('is-open')).toBe(true);
+    // a scope switch counts too: turbo's BASE switch turns super turbo's base off
+    id<HTMLInputElement>('TurboBaseGameToggler')!.click();
+    expect(hud.ui.turboBase.isOn).toBe(true);
+    expect(hud.ui.superTurboBase.isOn).toBe(false);
+    expect(hud.ui.superTurboBonus.isOn).toBe(true);
+    expect(hud.ui.turbo.isOn).toBe(true);
+  });
+
   it('a scope switch adjusts one half and keeps the shared turbo control honest', () => {
     id<HTMLInputElement>('TurboBonusGameToggler')!.click(); // bonus only
     expect(hud.ui.turboBonus.isOn).toBe(true);
@@ -244,6 +268,29 @@ describe('the buy sheet', () => {
     expect(id('BetAmountValue')!.textContent).toBe('$2.00'); // the bar moved too
     const prices = Array.from(document.querySelectorAll('.FeatureBuyGridCard__description--value')).map((e) => e.textContent);
     expect(prices).toEqual(['$200.00', '$2.50']);
+  });
+
+  it("the selector keeps working with the sheet open: the sheet's lock freezes the bar, not the sheet", () => {
+    id('FeatureBuyToggle')!.click();
+    expect(hud.ui.locked.get()).toBe(true); // the window lock is on
+    expect(id<HTMLButtonElement>('FeatureBuyAmountIncrease')!.disabled).toBe(false);
+    id('FeatureBuyAmountIncrease')!.click();
+    expect(hud.ui.betStepper.value).toBe(2);
+    expect(id('FeatureBuyAmountValue')!.textContent).toBe('$2.00');
+    id('FeatureBuyAmountDecrease')!.click();
+    expect(hud.ui.betStepper.value).toBe(1);
+  });
+
+  it("a host's lock still freezes the sheet's selector, and the ladder's end still stops it", () => {
+    id('FeatureBuyToggle')!.click();
+    hud.ui.lock();
+    expect(id<HTMLButtonElement>('FeatureBuyAmountIncrease')!.disabled).toBe(true);
+    id('FeatureBuyAmountIncrease')!.click();
+    expect(hud.ui.betStepper.value).toBe(1);
+    hud.ui.unlock();
+    id('FeatureBuyAmountDecrease')!.click(); // already at the bottom of the ladder
+    expect(hud.ui.betStepper.value).toBe(1);
+    expect(id<HTMLButtonElement>('FeatureBuyAmountDecrease')!.disabled).toBe(true);
   });
 
   it('nothing is bought until OK — BACK returns to the grid', () => {
