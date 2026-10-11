@@ -44,9 +44,10 @@ describe('parseBlocks — the XML dialect', () => {
   });
 
   it('reads a reel grid from child cells and from the compact attribute', () => {
-    const a = find(parseBlocks('<grid reels="5" rows="3" symbol="S"><cell reel="0" row="1"/><cell reel="4" row="2"/></grid>').blocks, 'grid');
+    const a = find(parseBlocks('<grid reels="5" rows="3" symbol="S" icon="art/s.png"><cell reel="0" row="1"/><cell reel="4" row="2"/></grid>').blocks, 'grid');
     expect(a.cells).toEqual([[0, 1], [4, 2]]);
     expect(a.symbol).toBe('S');
+    expect(a.icon).toBe('art/s.png');
     const b = find(parseBlocks('<grid reels="3" rows="3" cells="0:0 1:1 2:2"/>').blocks, 'grid');
     expect(b.cells).toEqual([[0, 0], [1, 1], [2, 2]]);
   });

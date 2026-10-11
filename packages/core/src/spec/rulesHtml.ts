@@ -165,7 +165,8 @@ export function renderBlocksHtml(blocks: BlockSpec[], tr: (s: string) => string,
         for (let row = 0; row < b.rows; row++) {
           for (let reel = 0; reel < b.reels; reel++) {
             const on = lit.has(`${reel},${row}`);
-            cells.push(`<i class="${on ? 'on' : ''}">${on && b.symbol ? esc(tr(b.symbol)) : ''}</i>`);
+            const mark = !on ? '' : b.icon ? `<img src="${att(b.icon)}" alt="${b.symbol ? att(tr(b.symbol)) : ''}" loading="lazy">` : b.symbol ? esc(tr(b.symbol)) : '';
+            cells.push(`<i class="${on ? 'on' : ''}">${mark}</i>`);
           }
         }
         out.push(
@@ -504,6 +505,7 @@ export const BLOCK_CSS = `
 .ohm-rgrid { margin: 0 0 var(--ohm-gap, 18px); display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .ohm-rgrid .ohm-linegrid { width: min(170px, 100%); gap: 3px; }
 .ohm-rgrid .ohm-linegrid i { display: grid; place-items: center; font-size: 12px; font-weight: 800; color: #fff; }
+.ohm-rgrid .ohm-linegrid i > img { display: block; width: 88%; aspect-ratio: 1; object-fit: contain; }
 .ohm-rgrid figcaption { color: var(--text-dim); font-size: 12.5px; line-height: 1.5; text-align: center; }
 
 /* ── containers ────────────────────────────────────────────────────────────── */

@@ -393,6 +393,7 @@ export function parseBlocks(source: string): ParseResult {
           };
           if (n.attrs['label']) b.label = n.attrs['label'];
           if (n.attrs['symbol']) b.symbol = n.attrs['symbol'];
+          if (n.attrs['icon']) b.icon = n.attrs['icon'];
           return tag(n, b);
         }
         case 'paytable': {

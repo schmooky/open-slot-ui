@@ -150,8 +150,10 @@ export type BlockSpec = {
   | { kind: 'paylines'; id: string; reels: number; rows: number; lines: number[][] }
   // ── more building blocks: the vocabulary rules are actually written in ───────
   // A REEL GRID with any cells lit — the general form of `paylines`: a scatter
-  // pattern, a cluster, a winning way, a "this lands here" illustration.
-  | { kind: 'grid'; id: string; reels: number; rows: number; cells: Array<[reel: number, row: number]>; label?: string; symbol?: string }
+  // pattern, a cluster, a winning way, a "this lands here" illustration. `icon` (an
+  // image URL, the symbol's art) is drawn in every lit cell; `symbol` is the short text
+  // shown when there is no icon, and the icon's alt text when there is one.
+  | { kind: 'grid'; id: string; reels: number; rows: number; cells: Array<[reel: number, row: number]>; label?: string; symbol?: string; icon?: string }
   // The SYMBOL TABLE: one row per symbol, its name, and what each count pays.
   | { kind: 'symbols'; id: string; counts?: string[]; rows: Array<{ symbol?: string; icon?: string; name?: string; pays: string[] }> }
   // TERM / DESCRIPTION pairs — a glossary, a spec sheet, "what this word means".

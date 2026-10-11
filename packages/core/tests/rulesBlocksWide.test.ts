@@ -14,6 +14,15 @@ describe('the wider block vocabulary', () => {
     expect((out.match(/<i/g) ?? []).length).toBe(9); // every cell drawn, lit or not
   });
 
+  it('draws the icon in every lit cell of a grid, the symbol text as its alt', () => {
+    const out = html([{ kind: 'grid', id: 'g', reels: 3, rows: 3, cells: [[0, 1], [1, 1], [2, 1]], symbol: 'CAT', icon: 'art/cat.png?v="1"' }]);
+    expect((out.match(/<img /g) ?? []).length).toBe(3);
+    expect(out).toContain('src="art/cat.png?v=&quot;1&quot;"');
+    expect(out).toContain('alt="CAT"');
+    expect(out).not.toMatch(/>CAT</); // the text is the fallback, not drawn beside the art
+    expect(INFO_MENU_CSS).toContain('.ohm-rgrid .ohm-linegrid i > img');
+  });
+
   it('renders the symbol table with a header per count', () => {
     const out = html([{
       kind: 'symbols',
