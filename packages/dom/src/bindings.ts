@@ -765,6 +765,11 @@ export function bindWindows(ui: OpenUI, ctx: BindContext): Dispose {
    * reference runs in. In a narrower window that spills off the right edge, taking
    * the BET selector with it — so scale the whole sheet down to fit, the same way
    * the bar does. It never scales up.
+   *
+   * The sheet fits the room UNDER the title, not the whole window. The title is not
+   * part of the scaled box, and a tall sheet (three rows of cards) centred on the
+   * window climbs over it: the BET selector lands on BONUS BUY. So the height left
+   * below the title sets the scale, and the sheet is centred in that room.
    */
   const fitSheet = (): void => {
     if (!buyBody) return;
@@ -773,13 +778,19 @@ export function bindWindows(ui: OpenUI, ctx: BindContext): Dispose {
     const box = buyBody.getBoundingClientRect();
     if (box.width === 0) return;
     const margin = 24;
-    const k = Math.min(1, (window.innerWidth - margin * 2) / box.width, (window.innerHeight - margin * 2) / box.height);
+    const gap = 12;
+    // The room's top: just under the title when it is on screen (a window too short for
+    // the title and a usable sheet falls back to the margin, as before).
+    const title = buyWindow?.querySelector<HTMLElement>('.FeatureBuy__title')?.getBoundingClientRect();
+    const underTitle = title && title.height > 0 ? title.bottom + gap : margin;
+    const top = window.innerHeight - underTitle - margin >= window.innerHeight / 2 ? underTitle : margin;
+    const k = Math.min(1, (window.innerWidth - margin * 2) / box.width, (window.innerHeight - top - margin) / box.height);
     if (k >= 0.999) return;
     // Scaling alone is not enough: a sheet wider than the window has already
     // overflowed its centring, so shrinking about its own centre leaves it sitting
-    // off to one side. Put that centre back on the window's.
+    // off to one side. Put that centre back on the window's, and on the room's middle.
     const dx = window.innerWidth / 2 - (box.left + box.width / 2);
-    const dy = window.innerHeight / 2 - (box.top + box.height / 2);
+    const dy = (top + window.innerHeight - margin) / 2 - (box.top + box.height / 2);
     buyBody.style.transformOrigin = 'center center';
     buyBody.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${k.toFixed(4)})`;
   };

@@ -312,6 +312,54 @@ describe('the buy sheet', () => {
     id('FeatureBuyConfirmButton')!.click();
     expect(bought).toEqual([['fs', 100]]); // …and only now
   });
+
+  describe('a tall sheet on desktop fits under its title', () => {
+    // jsdom lays nothing out, so the boxes are the ones a 940×935 desktop window measured
+    // with eight cards in three rows: the title across the top, the sheet 1113 px tall.
+    const rect = (left: number, top: number, width: number, height: number): DOMRect =>
+      ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
+    const size = (w: number, h: number): void => {
+      Object.defineProperty(window, 'innerWidth', { value: w, configurable: true });
+      Object.defineProperty(window, 'innerHeight', { value: h, configurable: true });
+    };
+    /** The sheet's box after fitSheet's transform (scaled about its centre, then moved). */
+    const fitted = (natural: DOMRect): { top: number; bottom: number; left: number; right: number; k: number } => {
+      const t = id('FeatureBuyBody')!.style.transform;
+      const m = /translate\((-?[\d.]+)px, (-?[\d.]+)px\) scale\(([\d.]+)\)/.exec(t);
+      if (!m) return { top: natural.top, bottom: natural.bottom, left: natural.left, right: natural.right, k: 1 };
+      const [dx, dy, k] = [Number(m[1]), Number(m[2]), Number(m[3])];
+      const cx = natural.left + natural.width / 2 + dx;
+      const cy = natural.top + natural.height / 2 + dy;
+      return { top: cy - (natural.height * k) / 2, bottom: cy + (natural.height * k) / 2, left: cx - (natural.width * k) / 2, right: cx + (natural.width * k) / 2, k };
+    };
+    const open = (body: DOMRect, title: DOMRect): void => {
+      hud.dispose();
+      hud = mountDomHud({ betLadder: { levels: [1, 2, 5], index: 0 }, currency: { code: 'USD', symbol: '$', display: 'symbol', position: 'prefix', decimals: 2 } }, { features: FEATURES, channel: 'desktop' });
+      id('FeatureBuyBody')!.getBoundingClientRect = () => body;
+      document.querySelector<HTMLElement>('#FeatureBuyWindow .FeatureBuy__title')!.getBoundingClientRect = () => title;
+      window.dispatchEvent(new Event('resize')); // the sheet fits itself on every resize
+    };
+    const [w0, h0] = [window.innerWidth, window.innerHeight];
+    afterEach(() => size(w0, h0));
+
+    it('scales into the room below BONUS BUY, so the BET selector never covers the title', () => {
+      size(940, 935);
+      const title = rect(0, 16, 940, 30);
+      const body = rect(90, 46, 761, 1113);
+      open(body, title);
+      const box = fitted(body);
+      expect(box.k).toBeLessThan(1);
+      expect(box.top).toBeGreaterThanOrEqual(title.bottom); // the old fit put it at 24 px, over the title
+      expect(box.bottom).toBeLessThanOrEqual(935 - 24 + 0.5);
+      expect((box.left + box.right) / 2).toBeCloseTo(470, 0); // still centred across the window
+    });
+
+    it('leaves a sheet that already fits alone', () => {
+      size(1600, 1200);
+      open(rect(220, 60, 1150, 700), rect(0, 16, 1600, 30));
+      expect(id('FeatureBuyBody')!.style.transform).toBe('');
+    });
+  });
 });
 
 describe('an active bet modifier says so on the bar', () => {
