@@ -78,6 +78,20 @@ describe('auditRules — the "can\'t forget" rules audit', () => {
     expect(codes(pct, pctRules)).not.toContain('required:rules-mode-missing-cost:cost:dc');
   });
 
+  it('a tagged section wins over an earlier heading that only names the mode', () => {
+    // The buy is named after the feature it buys; the feature's own section (first, no price)
+    // must not be taken for the buy's when a later section is tagged as explaining the buy.
+    const facts: GameFacts = { ...FACTS, modes: [FACTS.modes[0]!, { id: 'bonus', name: 'Golden Rush', kind: 'buy', cost: 185, rtp: 95.5, maxWinX: 5000 }] };
+    const rules: BlockSpec[] = [
+      ...GOOD.filter((b) => !['h-lucky', 't-lucky', 'h-bonus', 't-bonus'].includes(b.id)),
+      { kind: 'heading', id: 'h-feature', text: 'Golden Rush' },
+      { kind: 'text', id: 't-feature', text: 'Golden Rush plays exactly 3 free spins on richer reels; free spins cannot be retriggered.' },
+      { kind: 'heading', id: 'h-buy', text: 'Buy Golden Rush' },
+      { kind: 'text', id: 't-buy', explains: 'bonus', covers: ['cost:bonus'], text: 'Golden Rush is bought directly for 185× the bet; a confirmation is always asked first.' },
+    ];
+    expect(codes(facts, rules)).not.toContain('required:rules-mode-missing-cost:cost:bonus');
+  });
+
   it('blocks tagged explains: "<modeId>" form a section without needing a matching heading', () => {
     const rules: BlockSpec[] = [
       ...GOOD.filter((b) => !['h-bonus', 't-bonus'].includes(b.id)),

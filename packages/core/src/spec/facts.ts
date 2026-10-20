@@ -423,14 +423,18 @@ function mentionsCost(text: string, cost: number, price?: number): boolean {
 
 /** A section counts as EXPLAINING a mode when a block in it is tagged
  *  `explains: <id>` / `covers: ['feature:<id>']`, or its heading names the mode —
- *  and, for the base game, a "How to play" / "About the game" heading qualifies. */
+ *  and, for the base game, a "How to play" / "About the game" heading qualifies.
+ *  A tagged section wins over a heading that only happens to name the mode: a buy
+ *  named after the feature it buys ("Hold & Win") must not be audited against the
+ *  feature's own section when the rules say where the buy is explained. */
 function findModeSection(sections: RulesSection[], m: GameModeFact): RulesSection | undefined {
-  return sections.find(
-    (s) =>
-      s.explains.has(m.id) ||
-      s.covers.has(`feature:${m.id}`) ||
-      (s.heading !== '' && m.name !== '' && mentionsName(s.heading, m.name)) ||
-      ((m.kind === 'base' || !m.kind) && /how to play|about the game/i.test(s.heading)),
+  return (
+    sections.find((s) => s.explains.has(m.id) || s.covers.has(`feature:${m.id}`)) ??
+    sections.find(
+      (s) =>
+        (s.heading !== '' && m.name !== '' && mentionsName(s.heading, m.name)) ||
+        ((m.kind === 'base' || !m.kind) && /how to play|about the game/i.test(s.heading)),
+    )
   );
 }
 
