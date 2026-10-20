@@ -8,3 +8,4 @@ export * from './dom';
 export * from './icons';
 export * from './theme';
 export * from './keyboard';
+export * from './focus';

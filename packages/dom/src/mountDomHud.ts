@@ -33,6 +33,7 @@ import {
 import { resolveIcons, applyIcons, type IconSet } from './icons';
 import { themeVars, resolveMotion, type MotionSetting } from './theme';
 import { bindKeyboard, type KeyboardOptions } from './keyboard';
+import { keepFocusOff } from './focus';
 import { bindReadouts, bindActions, bindMainMenu, bindAutoplay, bindWindows, bindOverlay, stateAttr, type BindContext } from './bindings';
 import { translateTree } from './i18n';
 import { $, on, toggleClass } from './dom';
@@ -97,6 +98,14 @@ export interface DomHudOptions {
    * arrows step the stake; `{ enabled: false }` leaves the keyboard to the game.
    */
   keyboard?: KeyboardOptions;
+  /**
+   * Whether the bar's controls take the keyboard focus. Default `false`: they are out
+   * of the Tab order and a press does not leave the focus on them (the next spacebar
+   * would press the control again instead of spinning, and the skin's focus ring would
+   * stay drawn); text fields still focus when tapped. `true` leaves every control as
+   * the browser has it. See `focus.ts`.
+   */
+  focus?: boolean;
   /**
    * Remember what the player chose, under this key.
    *
@@ -269,6 +278,7 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
   const disposers: Dispose[] = [];
   const disposersEarly = disposers;
   disposers.push(() => clearTimeout(revealDeadline));
+  if (opts.focus !== true) disposers.push(keepFocusOff(root));
   // The skin arrives as a <link>: until it loads, the tree measures NOTHING like its
   // final size, so the fit has to run again once it lands (and whenever the bar's own
   // box changes afterwards).
