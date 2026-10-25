@@ -12,6 +12,14 @@ import type { OpenUIEvents } from '../types';
  */
 export type AutoplayMode = 'options' | 'infinite';
 
+/**
+ * Which button ends a run that is going, and shows its count:
+ * - `'round-button'` — the reference: the round button turns into STOP with the count.
+ * - `'autoplay-button'` — the autoplay button shows the count and stops the run; the
+ *   round button (and the spacebar) only fast-forward the round in play.
+ */
+export type AutoplayStopControl = 'round-button' | 'autoplay-button';
+
 /** Responsible-gambling stop limits for an autoplay session (multiples of bet). */
 export interface AutoplayLimits {
   /** Stop when cumulative net loss reaches `lossLimit × bet`. Infinity = no limit. */
@@ -43,6 +51,10 @@ export interface AutoplayOptions {
   winLimitOptions?: number[];
   /** Require BOTH limits before autoplay may start (a jurisdiction rule). */
   requireLimits?: boolean;
+  /** Choosing a number of rounds starts the run (no separate START press). */
+  startOnSelect?: boolean;
+  /** Which button stops a run and wears its count. Default `'round-button'`. */
+  stopControl?: AutoplayStopControl;
 }
 
 /**
@@ -76,6 +88,10 @@ export class AutoplayControl extends Control {
   private netLoss = 0;
   /** Tap behavior (`'options'` opens the picker, `'infinite'` starts immediately). */
   mode: AutoplayMode;
+  /** Choosing a number of rounds in the picker starts the run at once. */
+  startOnSelect: boolean;
+  /** Which button stops a run and wears its count (see {@link AutoplayStopControl}). */
+  stopControl: AutoplayStopControl;
 
   constructor(opts: AutoplayOptions, private readonly bus?: EventBus<OpenUIEvents>) {
     super({ id: opts.id, role: 'button', layout: opts.layout }, 'idle');
@@ -84,6 +100,8 @@ export class AutoplayControl extends Control {
     this._winLimitOptions = opts.winLimitOptions ?? [];
     this.requireLimits = opts.requireLimits === true;
     this.mode = opts.mode ?? 'options';
+    this.startOnSelect = opts.startOnSelect === true;
+    this.stopControl = opts.stopControl === 'autoplay-button' ? 'autoplay-button' : 'round-button';
     this.count = new Signal<number>(0);
   }
 

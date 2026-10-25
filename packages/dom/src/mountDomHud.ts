@@ -34,6 +34,7 @@ import { resolveIcons, applyIcons, type IconSet } from './icons';
 import { themeVars, resolveMotion, type MotionSetting } from './theme';
 import { bindKeyboard, type KeyboardOptions } from './keyboard';
 import { keepFocusOff } from './focus';
+import { closeOnOutsideTap } from './outside';
 import { bindReadouts, bindActions, bindMainMenu, bindAutoplay, bindWindows, bindOverlay, stateAttr, type BindContext } from './bindings';
 import { translateTree } from './i18n';
 import { $, on, toggleClass } from './dom';
@@ -372,6 +373,8 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
     bindWindows(ui, ctx),
     bindOverlay(ui, ctx),
     bindKeyboard(ui, opts.keyboard),
+    // `hud.closeOnOutsideTap`: a tap on the game closes the ☰ menu and the autoplay panel.
+    ui.chrome.closeOnOutsideTap ? closeOnOutsideTap(ui, root) : () => undefined,
     ui.demo.subscribe(syncDemo),
     // Settings are restored HERE, after every binding is listening, so a restored
     // mute or speed paints itself on the way in instead of being applied to a tree
@@ -727,6 +730,34 @@ div[data-channel="mobile"] #BetAmountIncrease {
   line-height: 1;
   min-width: 2.2em;
   padding: 0.35em 0.2em;
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+
+/* WHEN THE AUTOPLAY BUTTON IS THE RUN'S STOP (autoplay.stopControl: 'autoplay-button')
+   it wears the count through the run, as the same white tile the round button wears
+   in the reference, and its glyph steps aside. Out of a run the tile is not there. */
+.AutoplayBtnCounter {
+  display: none;
+}
+#AutoplayBtn.is-counting {
+  position: relative;
+}
+#AutoplayBtn.is-counting span[class^="icon-"] {
+  visibility: hidden;
+}
+#AutoplayBtn.is-counting .AutoplayBtnCounter {
+  background: var(--ohm-counter-bg, #fff);
+  border-radius: var(--ohm-autoplay-counter-radius, 6px);
+  color: var(--ohm-counter-text, #000);
+  display: flex;
+  font-size: var(--ohm-autoplay-counter-size, 0.95rem);
+  font-weight: 800;
+  inset: 50% auto auto 50%;
+  justify-content: center;
+  line-height: 1;
+  min-width: 2.2em;
+  padding: 0.35em 0.25em;
   position: absolute;
   transform: translate(-50%, -50%);
 }

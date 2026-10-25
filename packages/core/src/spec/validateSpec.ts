@@ -51,6 +51,9 @@ export function validateSpec(spec: UISpec): { ok: boolean; issues: SpecIssue[] }
     if (spec.autoplay?.mode && !AUTOPLAY_MODES.has(spec.autoplay.mode)) {
       add('error', 'autoplay.mode', 'bad-mode', `autoplay.mode must be 'options' or 'infinite', got "${String(spec.autoplay.mode)}"`);
     }
+    if (spec.autoplay?.stopControl != null && spec.autoplay.stopControl !== 'round-button' && spec.autoplay.stopControl !== 'autoplay-button') {
+      add('warn', 'autoplay.stopControl', 'bad-stop-control', `autoplay.stopControl must be 'round-button' or 'autoplay-button', got "${String(spec.autoplay.stopControl)}" — the round button stops the run`);
+    }
     for (const key of ['lossLimits', 'winLimits'] as const) {
       const arr = spec.autoplay?.[key];
       if (arr) {

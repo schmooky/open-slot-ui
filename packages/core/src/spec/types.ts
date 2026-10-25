@@ -9,7 +9,7 @@ import type { LayoutConfig, Breakpoint, Orientation } from '../layout/screen';
 import type { ThemeChoice } from '../theme/presets';
 import type { CurrencySpec } from '../controls/ValueDisplay';
 import type { SelectOption } from '../controls/SelectControl';
-import type { AutoplayMode } from '../controls/AutoplayControl';
+import type { AutoplayMode, AutoplayStopControl } from '../controls/AutoplayControl';
 import type { PanelVariant, PanelControl } from '../controls/PanelControl';
 import type { Control } from '../control/Control';
 import type { OpenUIEvents } from '../types';
@@ -283,6 +283,24 @@ export interface UISpec {
      * when a game asks for it.
      */
     stopOnAnyWin?: boolean;
+    /**
+     * Tapping a number of rounds in the panel STARTS the run, with the limits set
+     * above it, instead of selecting it for the round button's START. Some
+     * certifications test exactly that ("selecting the number of spins starts an
+     * autoplay sequence"). Off by default: the reference picks, then starts.
+     */
+    startOnSelect?: boolean;
+    /**
+     * Which button ends a run that is going, and wears its count.
+     *
+     * `'round-button'` (the default, the reference): the round button turns into
+     * STOP with the remaining count on it. `'autoplay-button'`: the autoplay button
+     * shows the count and is the one that stops the run; the round button keeps its
+     * usual faces and only fast-forwards the round in play (as does the spacebar) —
+     * it never ends the run. Markets that test "spin may only fast-forward, autoplay
+     * may only stop" ask for the second.
+     */
+    stopControl?: AutoplayStopControl;
   };
   /** Turbo switcher: 2-mode (off/on) or 3-mode (off/turbo/super). */
   turbo?: TurboSpec;

@@ -68,12 +68,14 @@ See the doctrine in [CHARTER.md](./CHARTER.md).
 | `hud.menu` | `[{ kind, … }]` | The ☰ menu, row by row, in order — `sound`, `music`, `speed`, `spacebar`, `toggle` (a setting the game owns), `history`, `info`, `support`, `realMoney`, `deposit`, `lobby`, or `action` for a row of the game's own (its press arrives as `buttonActivated`). Default: the rows the feature flags leave on. |
 | `hud.readouts` | `['balance','bet','win',…]` | Which readouts the data panel shows, left to right. Default: the reference's order, gated by the flags. |
 | `hud.freeRounds` | `'inline' \| 'takeover'` | What an operator free-rounds campaign does to the bar. `'takeover'` gives TOTAL WIN / FREE ROUNDS the round button's place while `setFreeRounds(n > 0)` — the HUD plays those rounds itself, so the action panel steps aside. |
+| `hud.speedRow` | `'toggle' \| 'expand'` | What tapping a speed's menu row does. `'toggle'` (the reference) switches the speed on for every scope and opens its switches; `'expand'` only opens or closes the row, so looking at a speed's settings never turns it on. |
+| `hud.closeOnOutsideTap` | `boolean` | A tap on the game closes the ☰ menu and the autoplay panel. Off by default. |
 | `hud.dock` | `'bottom' \| 'top'` | Which edge the ribbon docks to (the whole bar mirrors). |
 | `hud.scale` · `hud.maxWidth` | `0.5..2` · rem | One knob scales the whole bar; the desktop plate's width cap. |
 | `hud.reveal` | `'drop' \| 'rotate' \| 'spin' \| 'twist' \| 'none'` | How a changed readout animates in. |
 | `theme` | `'default'` or safe overrides | Re-skins the bar, sheets and windows together, by tokens — colours, radii, font family and how long things take. `color.accent` is the buy coin and every highlight; `color.featureBuy` is what a bought feature lights up in (banner, round button, stake, ladder bar). In the markup binding these become the custom properties the stylesheet already reads, and only the tokens you changed are written. |
 | `turbo.modes` | `2 \| 3 \| string[]` | 2-mode toggle or 3-mode (off/turbo/super) switcher. |
-| `autoplay` | `{ mode, options, lossLimits, winLimits, requireLimits, stopOnAnyWin }` | The panel's round list and its responsible-gambling stops, including STOP ON ANY WIN for markets that want a stop a player need not express as a multiplier. |
+| `autoplay` | `{ mode, options, lossLimits, winLimits, requireLimits, stopOnAnyWin, startOnSelect, stopControl }` | The panel's round list and its responsible-gambling stops, including STOP ON ANY WIN for markets that want a stop a player need not express as a multiplier. `startOnSelect` makes a number of rounds start the run; `stopControl: 'autoplay-button'` moves the run's stop and count to the autoplay button, and the round button (and the spacebar) only fast-forward the round in play. |
 | `spin.press` | `'tap' \| 'hold-to-spin'` | One spin per tap, or turbo-spin while held. |
 | `responsive` | `{ mobile, tablet, desktop, portrait, landscape }` | Reflow / hide controls per device & orientation. |
 | `menu` | `{ settings, paytable, rules }` | The scrollable INFO window — Settings → Paytable → Rules. |

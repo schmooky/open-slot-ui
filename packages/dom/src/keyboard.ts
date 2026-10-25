@@ -1,4 +1,5 @@
 import type { Dispose, OpenUI } from '@open-slot-ui/core';
+import { pressRound } from './bindings';
 
 /**
  * THE KEYBOARD.
@@ -90,7 +91,9 @@ export function bindKeyboard(ui: OpenUI, opts: KeyboardOptions = {}): Dispose {
       // not switched it off, and the HUD is not locked. The market's ban is not a
       // preference — it wins over both of the others.
       if (ui.isDisabled('spacebar') || !ui.spacebar.isOn || ui.locked.get()) return;
-      ui.spin.activate();
+      // The same press as the round button's: through a run the autoplay button owns,
+      // it only fast-forwards the round in play.
+      pressRound(ui);
       e.preventDefault(); // space scrolls a page, and this page is a game
       return;
     }

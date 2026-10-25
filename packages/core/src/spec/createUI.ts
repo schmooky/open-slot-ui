@@ -105,6 +105,8 @@ export function createUI(spec: UISpec = {}, hooks: HostHooks = {}): OpenUI {
   if (spec.autoplay?.lossLimits) ui.autoplay.setLossLimitOptions(spec.autoplay.lossLimits);
   if (spec.autoplay?.winLimits) ui.autoplay.setWinLimitOptions(spec.autoplay.winLimits);
   if (spec.autoplay?.requireLimits) ui.autoplay.requireLimits = true;
+  if (spec.autoplay?.startOnSelect) ui.autoplay.startOnSelect = true;
+  if (spec.autoplay?.stopControl === 'autoplay-button' || spec.autoplay?.stopControl === 'round-button') ui.autoplay.stopControl = spec.autoplay.stopControl;
   if (spec.autoplay?.insufficientFundsNotice === false) ui.autoplayInsufficientNotice = false;
 
   // Turbo: 2-mode (off/on) or 3-mode (off/turbo/super), or an explicit ladder.

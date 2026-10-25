@@ -124,10 +124,23 @@ autoplay: {
   winLimits: [10, 20, 75],        // single-win stop, × stake
   requireLimits: false,           // some markets need both before START
   stopOnAnyWin: true,             // offers a stop that needs no multiplier
+  startOnSelect: false,           // true: a number of rounds starts the run, no START press
+  stopControl: 'round-button',    // 'autoplay-button': that button stops the run and wears its count
 }
 ```
 
 Autoplay only enforces stops if you call `hud.reportRound(win, bet)` after each round.
+
+Some certification checklists read "selecting the number of spins starts an autoplay
+sequence" and "spin may only fast-forward the current animation, autoplay may only
+stop the current autoplay session". `startOnSelect: true` and
+`stopControl: 'autoplay-button'` are those two rules: the limits above the list are
+set first, a number of rounds starts the run, the autoplay button counts it down and
+stops it, and through the run the round button keeps its usual faces and only
+fast-forwards the round in play (as does the spacebar; never where slam-stop is not
+allowed). With `hud.speedRow: 'expand'` a TURBO row opens on its switches without
+switching anything, and `hud.closeOnOutsideTap: true` lets a tap on the game close
+the ☰ menu and the autoplay panel.
 
 ### The rules window
 
@@ -192,6 +205,8 @@ never set them:
 | a white square | the answer is in and the round can be skipped (`ui.spin.stopState()`) |
 | ⟳▶ | the autoplay picker is open — pressing it starts the run |
 | a tile counting down | an autoplay run is going; pressing it stops the run |
+
+With `autoplay.stopControl: 'autoplay-button'` the counting tile sits on the autoplay button instead, which stops the run; the round button keeps the first three faces through it and its press only fast-forwards.
 
 Four knobs, if the skin's own numbers do not suit the game:
 

@@ -284,6 +284,17 @@ export type RevealBehavior = 'drop' | 'rotate' | 'spin' | 'twist' | 'none';
 /** How a round's win is presented: inline in the data panel, or as a big standalone. */
 export type WinRepresentation = 'ticker' | 'standalone';
 
+/**
+ * What tapping a speed's row in the ☰ menu does.
+ *
+ * `'toggle'` (the reference): the tap switches the speed on (or off) for every
+ * scope and the row opens on its BASE / BONUS switches. `'expand'`: the tap only
+ * opens or closes the row; the switches inside are what change the speed, so
+ * looking at a speed's settings never turns it on. A speed with no scopes is one
+ * plain switch either way.
+ */
+export type SpeedRowTap = 'toggle' | 'expand';
+
 /** What a host may pass for `UISpec.hud`. Every field optional. */
 export interface HudChromeSpec {
   dock?: HudDock;
@@ -317,6 +328,13 @@ export interface HudChromeSpec {
   menu?: MenuItemSpec[];
   winRepresentation?: WinRepresentation;
   reveal?: RevealBehavior;
+  /** What tapping a speed's row title does (see {@link SpeedRowTap}). Default `'toggle'`. */
+  speedRow?: SpeedRowTap;
+  /**
+   * A tap outside the HUD (on the game) closes the ☰ menu and the autoplay panel,
+   * the way a player expects a popover to behave. Default `false`.
+   */
+  closeOnOutsideTap?: boolean;
   /** Multiplier on the ribbon's base unit — 1 is the reference size. Clamped 0.5..2. */
   scale?: number;
   /** Max width of the desktop bar, in rem. Reference: 52.5. Clamped 24..96. */
@@ -337,6 +355,8 @@ export interface HudChrome {
   freeRounds: FreeRoundsPlacement;
   winRepresentation: WinRepresentation;
   reveal: RevealBehavior;
+  speedRow: SpeedRowTap;
+  closeOnOutsideTap: boolean;
   scale: number;
   maxWidth: number;
 }
@@ -382,6 +402,8 @@ export const defaultHudChrome: Readonly<HudChrome> = Object.freeze({
   freeRounds: 'inline' as FreeRoundsPlacement,
   winRepresentation: 'ticker' as WinRepresentation,
   reveal: 'drop' as RevealBehavior,
+  speedRow: 'toggle' as SpeedRowTap,
+  closeOnOutsideTap: false,
   scale: 1,
   maxWidth: 52.5,
 });
@@ -426,6 +448,13 @@ export function resolveHudChrome(spec?: HudChromeSpec, onIssue?: (i: ChromeIssue
     if (value == null) return fallback;
     if (allowed.includes(value)) return value;
     onIssue?.({ level: 'warn', path, code: 'bad-value', message: `"${String(value)}" is not one of ${allowed.join(' | ')} — kept "${fallback}"` });
+    return fallback;
+  };
+
+  const flag = (value: boolean | undefined, fallback: boolean, path: string): boolean => {
+    if (value == null) return fallback;
+    if (typeof value === 'boolean') return value;
+    onIssue?.({ level: 'warn', path, code: 'bad-flag', message: `"${String(value)}" is not a boolean — kept ${fallback}` });
     return fallback;
   };
 
@@ -551,6 +580,8 @@ export function resolveHudChrome(spec?: HudChromeSpec, onIssue?: (i: ChromeIssue
     freeRounds: pick(spec.freeRounds, ['inline', 'takeover'], defaultHudChrome.freeRounds, 'hud.freeRounds'),
     winRepresentation: pick(spec.winRepresentation, WIN_REPS, defaultHudChrome.winRepresentation, 'hud.winRepresentation'),
     reveal: pick(spec.reveal, REVEALS, defaultHudChrome.reveal, 'hud.reveal'),
+    speedRow: pick(spec.speedRow, ['toggle', 'expand'], defaultHudChrome.speedRow, 'hud.speedRow'),
+    closeOnOutsideTap: flag(spec.closeOnOutsideTap, defaultHudChrome.closeOnOutsideTap, 'hud.closeOnOutsideTap'),
     scale: num(spec.scale, 0.5, 2, defaultHudChrome.scale, 'hud.scale'),
     maxWidth: num(spec.maxWidth, 24, 96, defaultHudChrome.maxWidth, 'hud.maxWidth'),
   });

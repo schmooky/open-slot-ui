@@ -58,6 +58,22 @@ export interface BindContext {
 
 const all = (...d: Dispose[]): Dispose => () => d.forEach((fn) => fn());
 
+/**
+ * A press of the round button — or of the spacebar, which is the same press.
+ *
+ * With `autoplay.stopControl: 'autoplay-button'`, a run that is going belongs to the
+ * autoplay button: the round button may only fast-forward the round in play (a
+ * `skipRequested`, refused where slam-stop is not allowed). It never starts a round
+ * of its own between two of the run's, and it never ends the run.
+ */
+export function pressRound(ui: OpenUI): void {
+  if (ui.autoplay.isActive && ui.autoplay.stopControl === 'autoplay-button') {
+    if (ui.spin.allowSlamStop.get()) ui.bus.emit('skipRequested', undefined);
+    return;
+  }
+  ui.spin.activate();
+}
+
 const money = (ui: OpenUI, v: number): string => formatAmount(v, ui.balance.currency.get());
 
 // ─── the data panel ──────────────────────────────────────────────────────────
@@ -259,6 +275,8 @@ export function bindActions(ui: OpenUI, ctx: BindContext): Dispose {
    * middle phase — which is exactly what that class name says.
    */
   const actionPanel = r.querySelector<HTMLElement>('.ActionPanel');
+  /** The count the autoplay button wears when IT is the run's stop (`stopControl`). */
+  const autoCounter = $(r, 'AutoplayBtnCounter');
 
   const paint = (): void => {
     const state = ui.spin.current;
@@ -266,25 +284,32 @@ export function bindActions(ui: OpenUI, ctx: BindContext): Dispose {
     const canSlam = state === 'stop' && ui.spin.allowSlamStop.get();
     const auto = ui.autoplay.isActive;
     const picking = ui.autoplayPanel.isOpen && !auto;
+    // Who stops a run: the round button (the reference), or the autoplay button —
+    // then the round button keeps its usual faces through the run and only slams.
+    const roundStops = ui.autoplay.stopControl !== 'autoplay-button';
 
     toggleClass(actionPanel, 'disabled-slam-stop', !canSlam);
-    setVisible(play, !auto && !picking && !canSlam);
-    setVisible(stopRound, !auto && !picking && canSlam);
+    setVisible(play, (!auto || !roundStops) && !picking && !canSlam);
+    setVisible(stopRound, (!auto || !roundStops) && !picking && canSlam);
     setVisible(startAuto, picking);
-    setVisible(stopAuto, auto);
+    setVisible(stopAuto, auto && roundStops);
     // Dimming is the stylesheet's job; interactability is the core's. A pending round
-    // must not re-fire, so the button refuses the press as well as looking spent.
-    setDisabled(play, !ui.spin.interactable || pending);
+    // must not re-fire, so the button refuses the press as well as looking spent —
+    // and between two rounds of a run the autoplay button owns, there is nothing to
+    // press it for.
+    setDisabled(play, !ui.spin.interactable || pending || (auto && !roundStops));
     setDisabled(inc, !ui.betPlus.interactable);
     setDisabled(dec, !ui.betMinus.interactable);
     const n = ui.autoplay.count.get();
-    text(counter, Number.isFinite(n) ? String(n) : '∞');
+    const count = Number.isFinite(n) ? String(n) : '∞';
+    text(counter, count);
+    text(autoCounter, auto && !roundStops ? count : '');
   };
   paint();
 
   return all(
-    on(play, 'click', () => ui.spin.activate()),
-    on(stopRound, 'click', () => ui.spin.activate()),
+    on(play, 'click', () => pressRound(ui)),
+    on(stopRound, 'click', () => pressRound(ui)),
     on(stopAuto, 'click', () => ui.autoplay.stop()),
     on(inc, 'click', () => ui.betPlus.activate()),
     on(dec, 'click', () => ui.betMinus.activate()),
@@ -389,10 +414,21 @@ export function bindMainMenu(ui: OpenUI, ctx: BindContext): Dispose {
    * scopes — the reference's own handler does exactly that — and the accordion
    * FOLLOWS that state: on opens the panel with the BASE / BONUS switches, off
    * collapses it. The switches inside then adjust one scope each.
+   *
+   * With `hud.speedRow: 'expand'` the title only opens or closes the row: going in
+   * to look at a speed's switches must not turn the speed on. A speed with no
+   * scopes has no switches to show, so its title stays the switch.
    */
   const turboRow = (row: (typeof speedRows)[number]): Dispose => {
     const item = row.title?.closest('.Accordion') as HTMLElement | null;
+    // A speed declared with no scopes is one plain switch (its row carries a single
+    // BASE switch only because the markup always has one).
+    const plain = ui.chrome.speeds.find((s) => s.id === row.speed.id)?.scopes.length === 0;
     return on(row.title, 'click', () => {
+      if (ui.chrome.speedRow === 'expand' && !plain) {
+        toggleClass(item, 'is-open', !item?.classList.contains('is-open'));
+        return;
+      }
       const next = !row.speed.isOn;
       row.speed.set(next);
       toggleClass(item, 'is-open', next);
@@ -512,6 +548,16 @@ export function bindMainMenu(ui: OpenUI, ctx: BindContext): Dispose {
 // ─── the autoplay panel ──────────────────────────────────────────────────────
 
 /**
+ * What a CUSTOM limit field may hold: digits and one decimal point (a comma is read
+ * as one), two decimals at most. Everything else is dropped.
+ */
+export function limitText(raw: string): string {
+  const s = raw.replace(/,/g, '.').replace(/[^\d.]/g, '');
+  const dot = s.indexOf('.');
+  return dot < 0 ? s : `${s.slice(0, dot + 1)}${s.slice(dot + 1).replace(/\./g, '').slice(0, 2)}`;
+}
+
+/**
  * BASIC (rounds + what the run costs) and ADVANCED (stop-on-feature, loss limit,
  * single-win limit). The limit lists are built from the spec, and the CUSTOM chips
  * are real number inputs — the value a player types is the value autoplay enforces.
@@ -535,6 +581,20 @@ export function bindAutoplay(ui: OpenUI, ctx: BindContext): Dispose {
   let winLimit = Infinity;
   let expanded = false;
 
+  /**
+   * START: the panel closes and the run begins, with the limits chosen above it. A
+   * market that requires both limits gets no run (and no closed panel) until they are
+   * set — the core would refuse the run anyway.
+   */
+  const start = (): void => {
+    if (ui.autoplay.requireLimits && (!Number.isFinite(lossLimit) || !Number.isFinite(winLimit))) {
+      paint();
+      return;
+    }
+    ui.autoplayPanel.closePanel();
+    ui.autoplay.begin(count, { lossLimit, singleWinLimit: winLimit, stopOnAnyWin: ui.stopOnAnyWin.isOn });
+  };
+
   /** One chip in a tab list. */
   const chip = (text: string, selected: boolean): HTMLElement =>
     el(`<li class="Button TabRoundedButton${selected ? ' is-selected' : ''}"><span>${text}</span></li>`);
@@ -546,7 +606,9 @@ export function bindAutoplay(ui: OpenUI, ctx: BindContext): Dispose {
       const item = chip(Number.isFinite(n) ? String(n) : '∞', n === count);
       item.addEventListener('click', () => {
         count = n;
-        paint();
+        // `autoplay.startOnSelect`: choosing how many rounds IS the start.
+        if (ui.autoplay.startOnSelect) start();
+        else paint();
       });
       roundsList.appendChild(item);
     }
@@ -610,15 +672,27 @@ export function bindAutoplay(ui: OpenUI, ctx: BindContext): Dispose {
   buildLimits();
   paint();
 
-  /** A CUSTOM input carries its own value — typing one selects that chip. */
+  /**
+   * A CUSTOM input carries its own value — typing one selects that chip. The field
+   * takes a number and nothing else: a letter, a sign or a space is refused as it is
+   * typed, and a paste keeps only its digits and one decimal point. An empty field
+   * means no limit of its own.
+   */
   const customInput = (input: HTMLInputElement | null, set: (v: number) => void): Dispose =>
-    on(input, 'input', () => {
-      const v = Number((input?.value ?? '').replace(/[^\d.]/g, ''));
-      if (Number.isFinite(v) && v > 0) {
-        set(v);
+    all(
+      on(input, 'beforeinput', (e) => {
+        const data = (e as InputEvent).data;
+        if ((e as InputEvent).inputType === 'insertText' && data && /[^\d.,]/.test(data)) e.preventDefault();
+      }),
+      on(input, 'input', () => {
+        if (!input) return;
+        const clean = limitText(input.value);
+        if (clean !== input.value) input.value = clean;
+        const v = Number(clean);
+        set(clean && Number.isFinite(v) && v > 0 ? v : Infinity);
         paint();
-      }
-    });
+      }),
+    );
 
   const noLimit = (id: string, set: (v: number) => void): Dispose =>
     on($(r, id), 'click', () => {
@@ -639,6 +713,8 @@ export function bindAutoplay(ui: OpenUI, ctx: BindContext): Dispose {
   const paintAutoplayBtn = (): void => {
     const stopping = ui.autoplay.isActive;
     setDisabled(autoplayBtn, !stopping && !ui.autoplayMenuButton.interactable);
+    // `stopControl: 'autoplay-button'`: through a run this button is STOP and wears the count.
+    toggleClass(autoplayBtn, 'is-counting', stopping && ui.autoplay.stopControl === 'autoplay-button');
   };
   paintAutoplayBtn();
 
@@ -677,10 +753,7 @@ export function bindAutoplay(ui: OpenUI, ctx: BindContext): Dispose {
       winLimit = typeof cap === 'number' && cap > 0 ? cap : Infinity;
       paint();
     }),
-    on($(r, 'StartAutoplayBtn'), 'click', () => {
-      ui.autoplayPanel.closePanel();
-      ui.autoplay.begin(count, { lossLimit, singleWinLimit: winLimit, stopOnAnyWin: ui.stopOnAnyWin.isOn });
-    }),
+    on($(r, 'StartAutoplayBtn'), 'click', start),
     ui.autoplayPanel.state.subscribe(paint),
     ui.bet.value.subscribe(paint),
     ui.stopOnFeature.state.subscribe(paint),
