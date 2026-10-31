@@ -46,7 +46,13 @@ export function keepFocusOff(root: HTMLElement): Dispose {
   const onDown = (e: MouseEvent): void => {
     const target = e.target as Element | null;
     if (!target?.closest || target.closest('input, select, textarea, [contenteditable="true"]')) return;
-    if (target.closest(PRESSABLE)) e.preventDefault();
+    if (!target.closest(PRESSABLE)) return;
+    e.preventDefault();
+    // Keeping the focus off a BUTTON must not keep it off the GAME. In a lobby's iframe the page
+    // around the game holds the keyboard until the game's own window takes the focus, and a press
+    // whose default is prevented does not move it: the spacebar went on scrolling the lobby. The
+    // window takes the focus instead of the button.
+    if (typeof document.hasFocus === 'function' && !document.hasFocus()) window.focus();
   };
   // Touch, a pen, a checkbox or a slider focus on their own: let go once the click is done.
   const onClick = (): void => {

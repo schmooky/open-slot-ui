@@ -396,10 +396,6 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
     const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
     const channel = opts.channel ?? (coarse || Math.min(w, h) <= 600 ? 'mobile' : 'desktop');
     root.dataset.channel = channel;
-    // A phone has no spacebar, so the row that switches it is desktop-only. It is
-    // removed rather than hidden: a setting a player cannot act on is not a setting,
-    // and leaving it in the list would say the game has one.
-    if (channel !== 'desktop') $(root, 'SpacebarToggle')?.remove();
     root.dataset.orientation = w >= h ? 'landscape' : 'portrait';
     fitBar(w);
   };
@@ -451,6 +447,17 @@ export function mountDomHud(spec: UISpec = {}, opts: DomHudOptions = {}): DomHud
 
   syncScreen();
   disposers.push(on(window, 'resize', syncScreen), on(window, 'orientationchange', syncScreen));
+
+  // SPACEBAR TO SPIN is for a device with a keyboard. Whether there is one is a fact about the
+  // DEVICE — a touch-only phone or tablet has none, and an operator who says the device is a
+  // phone (`channel: 'mobile'`) is believed — never about the window's size: a game framed
+  // small in a lobby on a laptop is still played with a keyboard. (The row used to go with
+  // the touch LAYOUT, which a window 600px or less on either side also gets, so a lobby's
+  // iframe lost the setting for good.) Removed rather than hidden: a setting a player cannot
+  // act on is not a setting.
+  const keyboardless =
+    opts.channel === 'mobile' || (opts.channel !== 'desktop' && typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches);
+  if (keyboardless) $(root, 'SpacebarToggle')?.remove();
   // Late layout — a web font landing, a feature flag flipping, the buy pill appearing
   // — changes the width the bar needs; re-fit rather than trusting the first pass.
   if (typeof ResizeObserver === 'function' && wrapper) {
