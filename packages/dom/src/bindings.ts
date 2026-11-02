@@ -579,7 +579,16 @@ export function bindAutoplay(ui: OpenUI, ctx: BindContext): Dispose {
   let count = ui.autoplay.options[0] ?? 10;
   let lossLimit = Infinity;
   let winLimit = Infinity;
+  /** MAX WIN is the single-win limit: its chip is the one lit, whatever the cap's value. */
+  let winJackpot = false;
   let expanded = false;
+  const setLoss = (v: number): void => {
+    lossLimit = v;
+  };
+  const setWin = (v: number): void => {
+    winLimit = v;
+    winJackpot = false;
+  };
 
   /**
    * START: the panel closes and the run begins, with the limits chosen above it. A
@@ -616,8 +625,8 @@ export function bindAutoplay(ui: OpenUI, ctx: BindContext): Dispose {
 
   const buildLimits = (): void => {
     for (const [list, options, current, set] of [
-      [lossList, ui.autoplay.lossLimitOptions, () => lossLimit, (v: number) => (lossLimit = v)],
-      [winList, ui.autoplay.winLimitOptions, () => winLimit, (v: number) => (winLimit = v)],
+      [lossList, ui.autoplay.lossLimitOptions, () => lossLimit, setLoss],
+      [winList, ui.autoplay.winLimitOptions, () => winLimit, setWin],
     ] as const) {
       if (!list) continue;
       // Keep the markup's own NO LIMIT / CUSTOM entries; insert the configured chips
@@ -651,17 +660,23 @@ export function bindAutoplay(ui: OpenUI, ctx: BindContext): Dispose {
     if (roundsList) {
       Array.from(roundsList.children).forEach((item, i) => toggleClass(item, 'is-selected', ui.autoplay.options[i] === count));
     }
-    const markList = (list: HTMLElement | null, value: number): void => {
+    const markList = (list: HTMLElement | null, value: number, jackpot = false): void => {
       if (!list) return;
       for (const item of Array.from(list.querySelectorAll('li'))) {
         const raw = item.getAttribute('data-value');
+        // MAX WIN lights while it is the limit, and then alone: a chip that happens to
+        // equal the cap is not what the player picked.
+        if (raw === 'jackpot') {
+          toggleClass(item, 'is-selected', jackpot);
+          continue;
+        }
         const generated = (item as HTMLElement).dataset.openuiGenerated === '1';
         const chipValue = generated ? Number((item.textContent ?? '').replace('×', '')) : raw === '0' ? Infinity : NaN;
-        toggleClass(item, 'is-selected', Number.isNaN(chipValue) ? false : chipValue === value);
+        toggleClass(item, 'is-selected', !jackpot && !Number.isNaN(chipValue) && chipValue === value);
       }
     };
     markList(lossList, lossLimit);
-    markList(winList, winLimit);
+    markList(winList, winLimit, winJackpot);
 
     text(cost, label(ui, 'autoplay_cost', { amount: Number.isFinite(count) ? money(ui, ui.bet.get() * count) : '∞', autoplaycost: Number.isFinite(count) ? money(ui, ui.bet.get() * count) : '∞' }));
     if (stopOnFeature) stopOnFeature.checked = ui.stopOnFeature.isOn;
@@ -700,9 +715,21 @@ export function bindAutoplay(ui: OpenUI, ctx: BindContext): Dispose {
       paint();
     });
 
-  /** Tapping a CUSTOM chip should put the caret in its input — the value IS the chip. */
-  const focusCustom = (input: HTMLInputElement | null): Dispose =>
-    on(input?.closest('.TabComboInput') ?? null, 'click', () => input?.focus());
+  /**
+   * Tapping a CUSTOM chip puts the caret in its input — the value IS the chip. A value
+   * typed earlier counts again from that tap, so the field the player is looking at is
+   * the limit the run takes, not a chip picked in between.
+   */
+  const focusCustom = (input: HTMLInputElement | null, set: (v: number) => void): Dispose =>
+    all(
+      on(input?.closest('.TabComboInput') ?? null, 'click', () => input?.focus()),
+      on(input, 'focus', () => {
+        const v = Number(limitText(input?.value ?? ''));
+        if (!(Number.isFinite(v) && v > 0)) return;
+        set(v);
+        paint();
+      }),
+    );
 
   /**
    * The autoplay button wears its control's state — but only for OPENING the sheet.
@@ -741,16 +768,18 @@ export function bindAutoplay(ui: OpenUI, ctx: BindContext): Dispose {
     }),
     on(stopOnFeature, 'change', () => ui.stopOnFeature.toggle()),
     on(stopOnAnyWin, 'change', () => ui.stopOnAnyWin.toggle()),
-    customInput(lossCustom, (v) => (lossLimit = v)),
-    customInput(winCustom, (v) => (winLimit = v)),
-    noLimit('LossLimitNoLimit', (v) => (lossLimit = v)),
-    noLimit('WinLimitNoLimit', (v) => (winLimit = v)),
-    focusCustom(lossCustom),
-    focusCustom(winCustom),
-    // MAX WIN as a single-win stop: the run ends the moment the game's cap is hit.
+    customInput(lossCustom, setLoss),
+    customInput(winCustom, setWin),
+    noLimit('LossLimitNoLimit', setLoss),
+    noLimit('WinLimitNoLimit', setWin),
+    focusCustom(lossCustom, setLoss),
+    focusCustom(winCustom, setWin),
+    // MAX WIN as a single-win stop: the run ends the moment the game's cap is hit. A game
+    // with no cap has nothing to stop at, and NO LIMIT stays the honest choice.
     on($(r, 'WinLimitJackpot'), 'click', () => {
       const cap = ui.facts.get().maxWinCapX;
       winLimit = typeof cap === 'number' && cap > 0 ? cap : Infinity;
+      winJackpot = Number.isFinite(winLimit);
       paint();
     }),
     on($(r, 'StartAutoplayBtn'), 'click', start),

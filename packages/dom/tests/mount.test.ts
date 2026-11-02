@@ -79,6 +79,48 @@ describe('mountDomHud', () => {
     expect(id('AutoplayCounter')!.textContent).toBe('25');
   });
 
+  it('MAX WIN lights its chip alone and is the single-win limit the run takes', () => {
+    hud.ui.declareFacts({ maxWinCapX: 20 });
+    id('AutoplayBtn')!.click();
+    const jackpot = id('WinLimitJackpot')!;
+    const noLimit = id('WinLimitNoLimit')!;
+    const twenty = Array.from(id('WinLimitNavList')!.querySelectorAll('li')).find((li) => li.textContent === '20×')!;
+    expect(noLimit.classList.contains('is-selected')).toBe(true);
+    jackpot.click();
+    expect(jackpot.classList.contains('is-selected')).toBe(true);
+    expect(noLimit.classList.contains('is-selected')).toBe(false);
+    // the 20× chip equals this cap, and still is not what the player picked
+    expect(twenty.classList.contains('is-selected')).toBe(false);
+    id('StartAutoplayBtn')!.click();
+    expect(hud.ui.autoplay.singleWinLimit).toBe(20);
+    hud.ui.autoplay.stop();
+    id('AutoplayBtn')!.click();
+    noLimit.click();
+    expect(jackpot.classList.contains('is-selected')).toBe(false);
+    expect(noLimit.classList.contains('is-selected')).toBe(true);
+  });
+
+  it('MAX WIN in a game without a cap leaves NO LIMIT lit', () => {
+    id('AutoplayBtn')!.click();
+    id('WinLimitJackpot')!.click();
+    expect(id('WinLimitJackpot')!.classList.contains('is-selected')).toBe(false);
+    expect(id('WinLimitNoLimit')!.classList.contains('is-selected')).toBe(true);
+  });
+
+  it('a tap on CUSTOM takes the value already in its field again', () => {
+    id('AutoplayBtn')!.click();
+    const input = id<HTMLInputElement>('WinLimitCustomInput')!;
+    input.value = '12';
+    input.dispatchEvent(new Event('input'));
+    const ten = Array.from(id('WinLimitNavList')!.querySelectorAll('li')).find((li) => li.textContent === '10×') as HTMLElement;
+    ten.click();
+    expect(ten.classList.contains('is-selected')).toBe(true);
+    input.closest<HTMLElement>('.TabComboInput')!.click();
+    expect(ten.classList.contains('is-selected')).toBe(false);
+    id('StartAutoplayBtn')!.click();
+    expect(hud.ui.autoplay.singleWinLimit).toBe(12);
+  });
+
   it('a free-spins round tells the stylesheet what state it is in', () => {
     hud.setFreeSpins(8);
     hud.setHudState('featurePlay');
