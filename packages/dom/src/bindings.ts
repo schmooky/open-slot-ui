@@ -1095,6 +1095,10 @@ export function bindWindows(ui: OpenUI, ctx: BindContext): Dispose {
     ui.lockDepth.subscribe(() => paintBuy()),
     ui.noticePanel.state.subscribe(paintDialog),
     ui.noticeBlocks.subscribe(paintDialog),
+    // A notice that replaces an open one sets its blocks first and its actions after, while the
+    // panel stays open: without this the dialog kept the old notice's buttons (a "reconnecting"
+    // notice with none, replaced by "connection lost" with RELOAD, showed no RELOAD).
+    ui.noticeActions.subscribe(paintDialog),
     ui.history.subscribe(paintHistory),
     ui.feedback.subscribe(paintFeedback),
     ui.locale.subscribe(() => {

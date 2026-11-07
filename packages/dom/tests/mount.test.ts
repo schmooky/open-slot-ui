@@ -608,3 +608,26 @@ describe('the promotion pill', () => {
     expect(id<HTMLImageElement>('FeaturePromotionImage')!.src).toBe('https://cdn.example.test/promo.png');
   });
 });
+
+describe('the notice dialog', () => {
+  it('a notice that replaces an open one shows its own buttons', () => {
+    const host = id('DialogWindow')!;
+    // a blocking notice with no buttons (a "reconnecting" spinner, say)…
+    hud.ui.showNotice([{ kind: 'text', id: 'n1', text: 'Reconnecting…' }], [], { blocking: true });
+    expect(host.classList.contains('is-visible')).toBe(true);
+    expect(host.querySelectorAll('.Dialog__action')).toHaveLength(0);
+    // …replaced while open by one with RELOAD
+    let pressed = 0;
+    hud.ui.showNotice(
+      [{ kind: 'heading', id: 'n2t', text: 'Connection lost' }, { kind: 'text', id: 'n2', text: 'Reload now.' }],
+      [{ label: 'Reload', variant: 'primary', onSelect: () => pressed++ }],
+      { blocking: true },
+    );
+    const buttons = host.querySelectorAll<HTMLElement>('.Dialog__action');
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]!.textContent).toBe('Reload');
+    buttons[0]!.click();
+    expect(pressed).toBe(1);
+    expect(host.classList.contains('is-visible')).toBe(false);
+  });
+});
