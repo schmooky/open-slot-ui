@@ -164,17 +164,38 @@ export function neededDecimals(value: number, base: number): number {
  * so a sub-unit win renders in full ("$0.002") instead of rounding to "$0.00".
  * Values within the currency's native precision format exactly like {@link formatAmount}.
  */
-export function formatAmountPrecise(value: number, spec: CurrencySpec, opts: { signed?: boolean } = {}): string {
+export function formatAmountPrecise(value: number, spec: CurrencySpec, opts: FormatAmountOptions = {}): string {
   const base = clampDecimals(spec.decimals ?? 2);
   const d = neededDecimals(value, base);
   return d === base ? formatAmount(value, spec, opts) : formatAmount(value, { ...spec, decimals: d }, opts);
 }
 
-export function formatAmount(value: number, spec: CurrencySpec, opts: { signed?: boolean } = {}): string {
+/**
+ * `value` rounded DOWN to `decimals` places. A balance or a win on screen must never read more
+ * than it is (Artube's checklist: rounded down only, to the currency's minimal unit, in every
+ * currency): 1449.987 KRW reads 1,449, not 1,450. The value is read at 14 significant digits
+ * first, so binary noise never costs a unit (0.7 × 3 = 2.0999999999999996 stays 2.10).
+ * Below zero it rounds toward minus infinity, so a loss never reads smaller than it is.
+ */
+export function roundDown(value: number, decimals: number): number {
+  if (!Number.isFinite(value)) return 0;
+  const f = 10 ** clampDecimals(decimals);
+  return Math.floor(Number((value * f).toPrecision(14))) / f;
+}
+
+export interface FormatAmountOptions {
+  /** An explicit "+" on a value that is not negative (the net-position readout). */
+  signed?: boolean;
+  /** `'down'`: never round up (a balance, a win). Default `'nearest'`. */
+  round?: 'nearest' | 'down';
+}
+
+export function formatAmount(value: number, spec: CurrencySpec, opts: FormatAmountOptions = {}): string {
   const decimals = clampDecimals(spec.decimals);
   const sep = spec.separator ?? ',';
   const dot = spec.decimalChar ?? '.';
-  const n = Number.isFinite(value) ? value : 0;
+  const finite = Number.isFinite(value) ? value : 0;
+  const n = opts.round === 'down' ? roundDown(finite, decimals) : finite;
   const fixed = Math.abs(n).toFixed(decimals);
   const [int = '0', frac] = fixed.split('.');
   const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, sep);

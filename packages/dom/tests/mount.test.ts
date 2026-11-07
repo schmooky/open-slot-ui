@@ -41,6 +41,26 @@ describe('mountDomHud', () => {
     expect(id('WinAmountValue')?.textContent).toBe('$12.25');
   });
 
+  it('a balance and a win round down to the currency\'s minimal unit, never up', () => {
+    // Fixed decimals (a host whose market shows the minimal unit only, as Artube's does).
+    for (const v of [hud.ui.balance, hud.ui.win, hud.ui.totalWin]) v.autoPrecision = false;
+    hud.setCurrency({ code: 'KRW', symbol: '₩', display: 'symbol', position: 'prefix', decimals: 0 });
+    hud.setBalance(1449.987);
+    hud.setWin(1986.5);
+    hud.setTotalWin(2.9);
+    expect(id('BalanceValue')?.textContent).toBe('₩1,449');
+    expect(id('WinAmountValue')?.textContent).toBe('₩1,986');
+    expect(id('FeatureTotalWinValue')?.textContent).toBe('₩2');
+  });
+
+  it('a sub-unit balance shows at the precision it carries, repainted when that precision lands', () => {
+    hud.setCurrency({ code: 'KRW', symbol: '₩', display: 'symbol', position: 'prefix', decimals: 0 });
+    hud.setBalance(1449.987);
+    expect(id('BalanceValue')?.textContent).toBe('₩1,449.987');
+    hud.setBalance(1449);
+    expect(id('BalanceValue')?.textContent).toBe('₩1,449');
+  });
+
   it('the round button asks the core for a spin', () => {
     let spins = 0;
     hud.on('spinRequested', () => spins++);

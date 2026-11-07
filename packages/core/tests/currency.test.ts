@@ -4,7 +4,7 @@ import { displayDigits, integerDigits, clampMinDigits, clampDigits, valueFitMaxW
 import { neededDecimals, formatAmount, formatAmountPrecise } from '../src/format/currency';
 import { createUI } from '../src/spec/createUI';
 import { validateSpec } from '../src/spec/validateSpec';
-import { resolveCurrency, formatAmount, formatAmountPrecise, neededDecimals } from '../src/format/currency';
+import { resolveCurrency, formatAmount, formatAmountPrecise, neededDecimals, roundDown } from '../src/format/currency';
 import { resolveBetLadder } from '../src/bet';
 
 const layout = { anchor: 'center' } as const;
@@ -51,6 +51,32 @@ describe('currency display / minimal unit', () => {
     // 8-decimal cap protects the counter (decimals must be < total digits) and minorUnits.
     expect(vd({ code: 'BTC', decimals: 99 }).currency.get().decimals).toBe(8);
     expect(vd({ code: 'X', decimals: -3 }).currency.get().decimals).toBe(0);
+  });
+});
+
+describe('roundDown — a balance or a win never reads more than it is', () => {
+  const krw = { code: 'KRW', symbol: '₩', display: 'symbol', position: 'prefix', decimals: 0 } as const;
+  const kwd = { code: 'KWD', decimals: 3 } as const;
+  it('cuts to the minimal unit, never up (Artube: KRW, VND at 0 decimals, KWD at 3)', () => {
+    expect(roundDown(1449.987, 0)).toBe(1449);
+    expect(formatAmount(1449.987, krw, { round: 'down' })).toBe('₩1,449');
+    expect(formatAmount(1449.987, krw)).toBe('₩1,450'); // the default still rounds to nearest
+    expect(formatAmount(12.3459, kwd, { round: 'down' })).toBe('12.345 KWD');
+    expect(formatAmount(99999.9999, { code: 'VND', decimals: 0 }, { round: 'down' })).toBe('99,999 VND');
+    expect(formatAmount(0.009, { code: 'EUR', decimals: 2 }, { round: 'down' })).toBe('0.00 EUR');
+  });
+  it('binary noise never costs a unit', () => {
+    expect(roundDown(0.7 * 3, 2)).toBe(2.1); // 2.0999999999999996
+    expect(roundDown(0.1 + 0.2, 2)).toBe(0.3);
+    expect(roundDown(98765432.1, 2)).toBe(98765432.1);
+    expect(roundDown(1000 - 0.1 - 0.2, 2)).toBe(999.7);
+    expect(formatAmount(1.15, { code: 'EUR', decimals: 2 }, { round: 'down' })).toBe('1.15 EUR');
+    expect(formatAmount(987654321000, { code: 'IRR', decimals: 0 }, { round: 'down' })).toBe('987,654,321,000 IRR');
+  });
+  it('a loss rounds away from zero; nothing finite renders as 0', () => {
+    expect(roundDown(-1.005, 2)).toBe(-1.01);
+    expect(roundDown(Number.NaN, 2)).toBe(0);
+    expect(formatAmount(Number.POSITIVE_INFINITY, { code: 'EUR', decimals: 2 }, { round: 'down' })).toBe('0.00 EUR');
   });
 });
 

@@ -75,6 +75,9 @@ export function pressRound(ui: OpenUI): void {
 }
 
 const money = (ui: OpenUI, v: number): string => formatAmount(v, ui.balance.currency.get());
+/** A balance or a win: rounded down to the currency's minimal unit, never up, so the bar never
+ *  shows more than the player has (1449.987 KRW reads 1,449 next to a bet of 1,450). */
+const held = (ui: OpenUI, v: number): string => formatAmount(v, ui.balance.currency.get(), { round: 'down' });
 
 // ─── the data panel ──────────────────────────────────────────────────────────
 
@@ -95,13 +98,13 @@ export function bindReadouts(ui: OpenUI, ctx: BindContext): Dispose {
     // Every money readout goes through `valueText`: the number decides its own font
     // size (see `data-charcount`), so a twelve-digit rial fits the slot a dollar
     // amount fits, and the bar's layout never moves.
-    valueText(balance, money(ui, ui.balance.get()));
+    valueText(balance, held(ui, ui.balance.get()));
     const bet = formatAmount(ui.bet.get(), ui.bet.currency.get());
     valueText(betStatic, bet);
     valueText(betAction, bet);
-    valueText(win, money(ui, ui.win.get()));
-    valueText(totalWin, money(ui, ui.totalWin.get()));
-    valueText(freeRoundsWin, money(ui, ui.totalWin.get()));
+    valueText(win, held(ui, ui.win.get()));
+    valueText(totalWin, held(ui, ui.totalWin.get()));
+    valueText(freeRoundsWin, held(ui, ui.totalWin.get()));
     valueText(counter, String(ui.spin.freeSpins.get()));
     valueText(freeRounds, String(ui.freeRounds.get()));
     // The ladder bar under the bet: how far up the bet ladder this stake sits.
@@ -237,6 +240,11 @@ export function bindReadouts(ui: OpenUI, ctx: BindContext): Dispose {
     ui.bet.value.subscribe(paint),
     ui.win.value.subscribe(paint),
     ui.totalWin.value.subscribe(paint),
+    // A readout's precision follows its value (`autoPrecision`) and lands just AFTER it: without
+    // these the bar kept the old precision until something else repainted it.
+    ui.balance.currency.subscribe(paint),
+    ui.win.currency.subscribe(paint),
+    ui.totalWin.currency.subscribe(paint),
     ui.betStepper.index.subscribe(paint),
     ui.spin.freeSpins.subscribe(repaint),
     ui.freeRounds.subscribe(repaint),
